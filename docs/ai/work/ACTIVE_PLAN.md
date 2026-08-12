@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and all ten implementation-critical decisions are approved. Phase 1 is complete. Phase 2 and all later phases remain unauthorized until explicitly approved.
+The roadmap and all twelve implementation-critical decisions are approved. Phases 1-2 are complete. Phase 3 and all later phases remain unauthorized until explicitly approved.
 
 ## Reconciliation findings
 
@@ -20,8 +20,10 @@ The following implementation-critical choices were approved as frozen clarificat
 8. **Local persistence** - Use IndexedDB behind repository interfaces for structured local data and receipt blobs; keep a seed/reset development adapter for repeatable tests. This is a replaceable technical choice, not a production backend commitment.
 9. **Dates and month boundaries** - Store expense dates as date-only `YYYY-MM-DD`; calculate month membership without UTC conversion. Store audit timestamps as ISO instants. Display in BDT/English initially unless approved UI references require Bengali localization.
 10. **Local authentication boundary** - Build all required auth screens and state transitions against a local auth repository, including seeded identity switching. Real verification emails, password delivery, security, and production sessions are deferred to Appwrite integration; local UI must clearly remain development-only.
+11. **Money formatting boundary** - Keep exact canonical money conversion in the domain as ungrouped decimal text. Currency symbols, Bangladesh digit grouping, and other display localization belong outside the domain and cannot participate in financial arithmetic.
+12. **Zero-share participants** - A selected participant may receive zero poisha when exact deterministic allocation requires it. Completed allocations retain every selected participant exactly once, including zero-share participants.
 
-All ten items are approved. Reopening one requires change analysis under the AIDOS requirement-change workflow.
+All twelve items are approved. Reopening one requires change analysis under the AIDOS requirement-change workflow.
 
 ## Model/reasoning scale
 
@@ -42,6 +44,10 @@ Set up Next.js/TypeScript, Tailwind, shadcn/ui, lint/typecheck, Vitest/RTL, Play
 ### Phase 2 - Domain model and exact money engine
 
 Define IDs/entities/value types, integer-poisha parsing/formatting, date-only handling, split inputs, invariants, and Zod boundary schemas. Implement equal, amount, and percentage split logic as pure functions after decisions 1-2 are approved. **Reasoning: high** due financial correctness and rounding. Exit: exhaustive deterministic unit/property-style boundary tests with no React/storage imports.
+
+**Result: complete (2026-08-12).** Added branded safe-integer poisha and basis-point values, strict decimal-string parsing, deterministic ungrouped canonical BDT conversion, date-only Gregorian validation, opaque IDs with code-unit ordering, completed financial input types, and pure equal/amount/percentage allocation. Equal remainders use stable participant-ID order; percentage allocation uses BigInt largest-remainder calculations with stable-ID ties. Exact allocations retain every selected participant exactly once, including zero shares. Zod exists only at the application boundary.
+
+**Verification:** focused Phase 2 suite passed 119 tests across 9 files; full Vitest passed 124 tests across 11 files; lint passed; TypeScript passed; production build passed; architecture guards passed and explicitly prohibit Zod/framework/storage-facing imports from the domain. Source audit found no floating-point parsing, rounding, locale formatting, or number-based financial multiplication/division in Phase 2 code.
 
 ### Phase 3 - Balance, settlement, membership, and permission engines
 
@@ -97,4 +103,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 1. Phase 2 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop after Phase 2. Phase 3 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.

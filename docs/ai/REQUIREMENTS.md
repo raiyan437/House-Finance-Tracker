@@ -51,6 +51,8 @@ Out of scope: categories, recurring expenses, budgets, multiple currencies, mult
 - Equal splits allocate every poisha with deterministic remainder handling.
 - Amount splits save only when allocated poisha exactly equals the expense total; show live allocated/remaining feedback.
 - Percentage splits total exactly 100%, show resulting money, and allocate every poisha deterministically.
+- A selected participant may receive a zero-poisha share when exact allocation requires it. Every selected participant remains present exactly once in the completed allocation.
+- Domain money conversion may produce deterministic canonical ungrouped decimal text such as `123456.78`. Currency symbols, digit grouping, and localization are presentation concerns and never participate in financial arithmetic.
 - For every household, member net balances sum to zero and total creditor value equals total debtor value.
 
 ## Balances and settlements
@@ -110,3 +112,5 @@ Approved on 2026-08-12:
 8. Local structured records and receipt blobs use IndexedDB behind replaceable repository interfaces; domain/application code cannot depend directly on IndexedDB.
 9. Expense dates are date-only `YYYY-MM-DD` values with no UTC shifting. Audit/system timestamps are ISO instants and remain distinct from expense dates.
 10. Local authentication is simulated with development identities Raiyan, John, Sarah, and Alex. Identity switching is development-only. Secure sessions, real email/password auth, verification, and recovery are deferred to Appwrite.
+11. Domain money conversion is deterministic and unlocalized. Presentation may later render approved BDT symbols and grouping, but locale formatting never participates in parsing, allocation, or other financial arithmetic.
+12. Exact split allocation may assign zero poisha to selected participants. Zero-share participants remain explicit members of the completed allocation and are never silently removed.

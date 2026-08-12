@@ -7,7 +7,7 @@ const sourceRoot = resolve(process.cwd(), "src");
 const rules = {
   domain: {
     layers: ["application", "infrastructure", "presentation", "app"],
-    packages: ["react", "react-dom", "next", "appwrite"],
+    packages: ["react", "react-dom", "next", "appwrite", "zod"],
   },
   application: {
     layers: ["infrastructure", "presentation", "app"],
