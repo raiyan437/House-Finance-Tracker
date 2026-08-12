@@ -1,0 +1,24 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import type { ReactNode } from "react";
+import "./globals.css";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "House Finance Tracker",
+  description: "Shared household expense tracking, developed locally first.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  return (
+    <html lang="en" className={`${inter.variable} ${inter.className} h-full`}>
+      <body className="flex min-h-full flex-col antialiased">{children}</body>
+    </html>
+  );
+}
