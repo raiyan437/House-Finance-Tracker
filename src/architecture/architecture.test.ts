@@ -7,11 +7,11 @@ const sourceRoot = resolve(process.cwd(), "src");
 const rules = {
   domain: {
     layers: ["application", "infrastructure", "presentation", "app"],
-    packages: ["react", "react-dom", "next", "appwrite", "zod"],
+    packages: ["react", "react-dom", "next", "appwrite", "zod", "idb", "fake-indexeddb"],
   },
   application: {
     layers: ["infrastructure", "presentation", "app"],
-    packages: ["react", "react-dom", "next", "appwrite"],
+    packages: ["react", "react-dom", "next", "appwrite", "idb", "fake-indexeddb"],
   },
   infrastructure: {
     layers: ["presentation", "app"],
@@ -94,4 +94,35 @@ describe("source dependency boundaries", () => {
       expect(violations).toEqual([]);
     });
   }
+
+  it("domain and application do not access browser persistence APIs", () => {
+    const violations = ["domain", "application"].flatMap((layer) =>
+      sourceFiles(resolve(sourceRoot, layer)).flatMap((file) => {
+        const source = readFileSync(file, "utf8");
+        return /\b(indexedDB|IDBDatabase|IDBTransaction|IDBObjectStore|Blob)\b/.test(source)
+          ? [relative(sourceRoot, file)]
+          : [];
+      }),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("server App Router modules do not import browser infrastructure", () => {
+    const violations: string[] = [];
+
+    for (const file of sourceFiles(resolve(sourceRoot, "app"))) {
+      const source = readFileSync(file, "utf8");
+      const isClientModule = /^\s*["']use client["'];/m.test(source);
+      if (isClientModule) continue;
+
+      for (const specifier of importedSpecifiers(source)) {
+        if (targetLayer(specifier, file) === "infrastructure") {
+          violations.push(`${relative(sourceRoot, file)} -> ${specifier}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
 });

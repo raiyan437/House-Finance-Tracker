@@ -3,12 +3,12 @@
 ## Snapshot
 
 - Project: House Finance Tracker
-- Stage: Phase 3 complete; awaiting review and Phase 4 authorization
-- Application implementation: foundation plus pure domain money, split, balance, settlement, permission, and membership engines; product UI not started
-- Local MVP: not started
+- Stage: Phase 4 implementation complete and uncommitted; awaiting review and Phase 5 authorization
+- Application implementation: foundation, pure domain engines, application services/ports, and local IndexedDB infrastructure; product UI not started
+- Local MVP: local service and persistence foundation complete; product features/screens not started
 - Appwrite integration: intentionally deferred
 - Requirements/design status: approved frozen context received and reconciled
-- Active implementation plan: Phases 1-3 completed; Phase 4 not authorized
+- Active implementation plan: Phases 1-4 completed; Phase 5 not authorized
 
 ## Confirmed direction
 
@@ -16,8 +16,8 @@ The product is a shared household expense tracker with a local/mock MVP, exact i
 
 ## Current gate
 
-Review Phase 3 evidence in `work/ACTIVE_PLAN.md`. Do not begin Phase 4 application services or local persistence without explicit authorization.
+Review the uncommitted Phase 4 implementation and evidence in `work/ACTIVE_PLAN.md`. Do not begin Phase 5 application shell or design-system implementation without explicit authorization.
 
 ## Next safe action
 
-Wait for Phase 4 authorization. Appwrite remains deferred until local MVP stability is demonstrated.
+Review and approve or request changes to Phase 4. Appwrite remains deferred until local MVP stability is demonstrated.

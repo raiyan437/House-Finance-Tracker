@@ -121,3 +121,24 @@ Approved on 2026-08-12:
 14. A sole remaining leader cannot leave. They must explicitly delete the household after all balances are zero and no settlement is Pending; a leave attempt never auto-deletes it.
 15. Leadership transfer requires the current leader and another active member and must preserve exactly one active leader. Balances do not gate the authority transfer; normal leave gates still apply afterward.
 16. Settlement creation requires an exact current full deterministic recommendation. Once created, the Pending record snapshots its original parties and amount and is not synchronized with later recommendations.
+
+## Frozen Phase 4 persistence clarifications
+
+Approved on 2026-08-13:
+
+- Local structured persistence uses the small `idb` wrapper and tests use `fake-indexeddb`; no ORM, generic repository framework, SQL abstraction, synchronization layer, or speculative query system is permitted.
+- Application-owned ports cover profiles, households, memberships, join requests, expenses, settlements, cards, receipts, and append-only audit events, using only operations required by frozen product flows.
+- IndexedDB conditional uniqueness uses optional derived keys that exist only while a record is active or Pending. These keys cover one active membership per user, one Pending join request per user, and one household-scoped unordered Pending settlement pair. Pair encoding uses stable user-ID order and a collision-safe compound serialization.
+- Atomic persistence is expressed through named application operations sharing one IndexedDB transaction, not a general enterprise unit-of-work framework.
+- Persisted records are untrusted. Reads validate record shape, reconstruct branded values, and re-run domain invariants. Malformed-data errors identify only a store/key and never serialize private records.
+- IndexedDB schema version and record version are separate and both start at `1`. Migrations are monotonic, transactional, and cannot silently discard or rewrite financial history.
+- Card-paid expense history stores a separate owner-private snapshot containing card ID, name, Debit/Credit type, and color. Card edits, archive, or deletion never rewrite/remove that snapshot. Non-owners receive only the Card payment method.
+- Referenced cards are archived; unreferenced cards may be physically deleted. Archived cards cannot be selected for new expenses.
+- Receipts accept actual JPEG, PNG, or WebP Blob content from 1 byte through 10 MiB. Metadata size must match Blob size and signature validation must agree with MIME type. No count cap, base64, OCR, thumbnail, or transformed image is introduced. Deletion retains a metadata tombstone and audit event while removing the Blob.
+- Local email uniqueness uses trimmed lowercase `emailKey`; trimmed original casing is retained as `displayEmail`. This is local identity behavior, not production authentication semantics.
+- Development identity uses one replaceable current-session port. Deterministic identities are Raiyan (leader), John and Sarah (active members), and Alex (Pending requester). Identity switching remains development-only.
+- Reset/reseed closes owned connections, deletes the exact injected database name, recreates schema, and restores deterministic data/current identity. A blocked reset is a typed error and reset logic is never product household deletion.
+- Audit events are append-only summaries of actor, time, aggregate, action, and changed fields. They exclude private card details, receipt bytes, auth secrets, and unnecessary serialized financial objects.
+- Confirmed settlements are immutable in application services and persistence adapters. Balances, recommendations, dashboard totals, outstanding totals, and analytics aggregates are never persisted.
+- No live cross-tab synchronization is required. Only version-change, blocked-upgrade, and reset coordination are supported.
+- IndexedDB and the development-session implementation remain behind a client-only Next.js boundary. Server Components cannot import browser infrastructure, and local persistence does not make the whole application client-rendered.

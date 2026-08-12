@@ -14,6 +14,7 @@ export * from "./money/basis-points";
 export * from "./money/poisha";
 export * from "./permissions/card-payment-privacy";
 export * from "./permissions/expense-permissions";
+export * from "./records/domain-records";
 export * from "./shared/domain-error";
 export * from "./shared/identifiers";
 export * from "./shared/instant";

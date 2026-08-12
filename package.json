@@ -17,6 +17,7 @@
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "idb": "^8.0.3",
     "lucide-react": "^1.31.0",
     "next": "16.3.0",
     "radix-ui": "^1.6.7",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",

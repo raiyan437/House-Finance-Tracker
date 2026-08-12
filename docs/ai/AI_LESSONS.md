@@ -37,3 +37,12 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Unordered-pair Pending uniqueness prevents crossing stale claims without rewriting history; terminal records remain historical evidence and do not block a later exact recommendation.
 - Former-member safety is strongest as an invariant over a canonical financial fingerprint, allowing only changes that provably preserve amount, payer, participants, shares, date, payment history, and deletion state.
 - Card privacy is a data-shape rule: non-owners receive no private reference, while leader edit intents can preserve an opaque reference internally or explicitly detach it without exposing it.
+
+## 2026-08-13 - Phase 4 local application and persistence
+
+- IndexedDB conditional uniqueness is best represented by optional, deterministic derived keys under ordinary unique indexes; inactive and terminal records omit the key so history remains without blocking future actions.
+- Private card history requires physical data separation as well as projection rules. A non-owner leader can preserve an existing private expense record transactionally without loading its contents into that application operation.
+- Household soft deletion must atomically convert active memberships to retained former records; otherwise active-membership uniqueness would strand users after the explicit household exit flow.
+- Browser Blob objects may cross realms in test environments, so validate their observable metadata and readable bytes rather than relying on `instanceof Blob`. Test receipt signatures against actual bytes, not filename or MIME text alone.
+- IndexedDB transaction callbacks must prepare validation and binary input before opening the transaction and keep participating stores on one transaction. Failed request/unique-index operations require explicit transaction rejection handling to avoid false success or unhandled aborts.
+- A client-only local runtime plus application-owned current-session port preserves Next.js Server Component boundaries and leaves future Appwrite authentication/persistence replaceable.

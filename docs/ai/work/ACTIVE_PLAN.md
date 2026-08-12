@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and all sixteen implementation-critical decisions are approved. Phases 1-3 are complete. Phase 4 and all later phases remain unauthorized until explicitly approved.
+The roadmap and frozen Phase 2-4 implementation decisions are approved. Phases 1-4 are complete. Phase 5 and all later phases remain unauthorized until explicitly approved.
 
 ## Reconciliation findings
 
@@ -65,6 +65,12 @@ Implement balance signs, confirmed-settlement effects, recommendation algorithm,
 
 Implement application services, repository interfaces, IndexedDB/local repositories, seed/reset fixtures, audit events, receipt-blob lifecycle, local auth state, and identity switching. No Appwrite SDK. **Reasoning: high** because persistence and privacy projections must preserve domain boundaries. Exit: repository contract tests, reload persistence, deterministic seeds, and no private-card leakage across identities.
 
+**Result: complete (2026-08-13; uncommitted for review).** Added domain records and validators for profiles, households, join requests, expenses, cards, private historical card snapshots, receipts, and audit events; application-owned repositories and provider-independent services; explicit atomic local operations; IndexedDB schema/records/mappers/repositories using `idb`; `fake-indexeddb` integration coverage; optional derived uniqueness keys; owner-private card history; validated JPEG/PNG/WebP Blob storage; append-only audit records; development session switching; deterministic seed/reset; typed blocked/newer-version failures; and client-only Next.js composition. Household deletion atomically tombstones the household, retains every membership as former history, and releases active-membership uniqueness keys. No UI, Appwrite, API persistence, derived financial store, or Phase 5 work was added.
+
+**Verification:** Phase 4 focused tests passed 28 tests across 2 integration files; architecture guards passed 6 cases; full Vitest passed 232 tests across 25 files, preserving all Phase 2/3 coverage; lint passed with zero warnings; TypeScript passed; production build passed and retained a statically prerendered root route; Playwright Chromium smoke passed 1 test; dependency audit reported zero vulnerabilities; and `git diff --check` passed. Tests cover close/reopen persistence, transaction rollback, optional derived uniqueness, malformed-record rejection, receipt byte round trips/tombstones, private-card projection and opaque leader edits, referenced-card archival, confirmed-settlement immutability, former-member/soft-deleted-expense retention, deterministic seed/reset, identity switching, schema/version failures, and absence of derived financial stores.
+
+**Known verification boundary:** `fake-indexeddb` is the primary repository environment and is not identical to native browser IndexedDB. No product/test-only route was added solely for infrastructure testing. Native-browser repository verification remains an integration check when a later authorized UI/runtime phase first consumes `LocalDevelopmentRuntime`; existing Playwright smoke verifies that the browser build and Server Component boundary remain healthy.
+
 ### Phase 5 - Application shell and design system
 
 Build responsive desktop sidebar/mobile navigation, route shell, tokens, typography, buttons, inputs, cards, status treatments, dialogs/sheets, skeletons, toasts, and accessibility primitives from the canonical design baseline. **Reasoning: medium** because product logic is low but consistency is broad. Exit: reusable component showcase/routes pass visual, keyboard, responsive, and contrast checks.
@@ -111,4 +117,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 3. Phase 4 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop after Phase 4. Phase 5 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
