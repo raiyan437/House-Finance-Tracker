@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and all twelve implementation-critical decisions are approved. Phases 1-2 are complete. Phase 3 and all later phases remain unauthorized until explicitly approved.
+The roadmap and all sixteen implementation-critical decisions are approved. Phases 1-3 are complete. Phase 4 and all later phases remain unauthorized until explicitly approved.
 
 ## Reconciliation findings
 
@@ -22,8 +22,12 @@ The following implementation-critical choices were approved as frozen clarificat
 10. **Local authentication boundary** - Build all required auth screens and state transitions against a local auth repository, including seeded identity switching. Real verification emails, password delivery, security, and production sessions are deferred to Appwrite integration; local UI must clearly remain development-only.
 11. **Money formatting boundary** - Keep exact canonical money conversion in the domain as ungrouped decimal text. Currency symbols, Bangladesh digit grouping, and other display localization belong outside the domain and cannot participate in financial arithmetic.
 12. **Zero-share participants** - A selected participant may receive zero poisha when exact deterministic allocation requires it. Completed allocations retain every selected participant exactly once, including zero-share participants.
+13. **Unordered Pending uniqueness** - For one household, allow at most one Pending settlement for the same unordered member pair. Same-direction and reverse-direction duplicates are blocked until the existing claim becomes terminal; terminal history does not block later creation.
+14. **Sole-leader exit** - A sole remaining leader cannot leave or trigger automatic deletion. Explicit household deletion is the only exit path after every deletion gate passes.
+15. **Leadership transfer finance boundary** - Leadership transfer is an authority change and does not require zero balances. It must transfer from the current leader to another active member and preserve exactly one active leader; later leave still requires zero balance and no Pending settlements.
+16. **Settlement creation boundary** - A new settlement must exactly match a current full deterministic recommendation. Its Pending snapshot then retains the original parties and amount regardless of later balance or recommendation changes.
 
-All twelve items are approved. Reopening one requires change analysis under the AIDOS requirement-change workflow.
+All sixteen items are approved. Reopening one requires change analysis under the AIDOS requirement-change workflow.
 
 ## Model/reasoning scale
 
@@ -52,6 +56,10 @@ Define IDs/entities/value types, integer-poisha parsing/formatting, date-only ha
 ### Phase 3 - Balance, settlement, membership, and permission engines
 
 Implement balance signs, confirmed-settlement effects, recommendation algorithm, lifecycle rules, duplicate protection, leave/remove/transfer/delete gates, former-member safety, expense permissions, and card-privacy projections after decisions 3-6 are approved. **Reasoning: high** due temporal finance, privacy, and cross-domain invariants. Exit: scenario matrix tests proving zero-sum balances and lifecycle/permission behavior.
+
+**Result: complete (2026-08-12).** Added pure exact-poisha household ledgers with positive-creditor/negative-debtor convention; confirmed-only settlement effects; deterministic largest-debtor/largest-creditor recommendations with stable-ID ties; exact-current-recommendation settlement creation; immutable lifecycle transitions; stale-claim assessment; household-scoped unordered-pair Pending uniqueness; creator/leader/member expense permissions; private-card projection/edit capabilities; conservative former-member financial fingerprints; and leave/remove/leadership-transfer/household-deletion gates. No persistence, UI, auth, Appwrite, receipt, card CRUD, dashboard, or Phase 4 work was introduced.
+
+**Verification:** focused Phase 3 suite passed 78 tests across 12 files; full Vitest passed 202 tests across 23 files; lint passed with zero warnings; TypeScript passed; architecture guards passed; production build passed; Playwright passed and exited normally using the established Windows teardown permission; dependency audit reported zero vulnerabilities. Deterministic property-style tests prove generated ledgers remain exactly zero-sum under reordered inputs and generated recommendations resolve valid balance sheets exactly. Source audit found no floating-point financial parsing, rounding, localization, multiplication, or division.
 
 ### Phase 4 - Local application layer and persistence
 
@@ -103,4 +111,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 2. Phase 3 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop after Phase 3. Phase 4 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.

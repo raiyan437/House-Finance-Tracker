@@ -3,12 +3,16 @@ import { DomainError } from "./domain-error";
 declare const userIdBrand: unique symbol;
 declare const householdIdBrand: unique symbol;
 declare const expenseIdBrand: unique symbol;
+declare const settlementIdBrand: unique symbol;
 
 export type UserId = string & { readonly [userIdBrand]: "UserId" };
 export type HouseholdId = string & {
   readonly [householdIdBrand]: "HouseholdId";
 };
 export type ExpenseId = string & { readonly [expenseIdBrand]: "ExpenseId" };
+export type SettlementId = string & {
+  readonly [settlementIdBrand]: "SettlementId";
+};
 
 function assertOpaqueId(value: string): void {
   if (value.length === 0 || value.trim() !== value) {
@@ -31,6 +35,11 @@ export function householdId(value: string): HouseholdId {
 export function expenseId(value: string): ExpenseId {
   assertOpaqueId(value);
   return value as ExpenseId;
+}
+
+export function settlementId(value: string): SettlementId {
+  assertOpaqueId(value);
+  return value as SettlementId;
 }
 
 export function compareUserIds(left: UserId, right: UserId): number {

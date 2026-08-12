@@ -29,6 +29,8 @@ Out of scope: categories, recurring expenses, budgets, multiple currencies, mult
 - Household creation requires a name and globally unique nine-digit code stored as a string; leading zeroes are valid. Creator becomes leader.
 - Join flow: find by code -> request -> pending -> leader accepts/rejects. Requester may cancel and sees no private household data before acceptance.
 - Members may leave only with zero net balance and no pending settlements. Leaders with remaining members must first clear obligations and transfer leadership.
+- A sole remaining leader cannot leave and create a leaderless household; their explicit exit path is household deletion after all deletion gates pass.
+- Leadership transfer changes authority only and does not require either member to have a zero balance. The current leader must transfer to another active member, leaving exactly one active leader.
 - Leaders may remove members only when the member has zero balance and no pending settlements. Historical participation remains.
 - Only the leader may delete a household, after all balances are zero, no settlements are pending, and explicit destructive confirmation.
 - Leader powers never override private-card visibility.
@@ -62,7 +64,8 @@ Out of scope: categories, recurring expenses, budgets, multiple currencies, mult
 - MVP supports full recommended settlements only. `Settle Up` clearly says no money is transferred and asks the sender to confirm external payment.
 - Lifecycle: Pending -> Confirmed, Rejected, or Cancelled. Receiver alone confirms/rejects; sender may cancel while pending.
 - Pending, rejected, and cancelled settlements never affect balances. Only confirmed settlements do, and confirmed records are immutable.
-- Prevent duplicate active settlement attempts for the same obligation.
+- New settlements may be created only from an exact current full recommendation; arbitrary parties and amounts are prohibited.
+- For a household, at most one Pending settlement may exist for an unordered member pair, regardless of direction or amount. Terminal history does not block later creation.
 
 ## Navigation and screens
 
@@ -114,3 +117,7 @@ Approved on 2026-08-12:
 10. Local authentication is simulated with development identities Raiyan, John, Sarah, and Alex. Identity switching is development-only. Secure sessions, real email/password auth, verification, and recovery are deferred to Appwrite.
 11. Domain money conversion is deterministic and unlocalized. Presentation may later render approved BDT symbols and grouping, but locale formatting never participates in parsing, allocation, or other financial arithmetic.
 12. Exact split allocation may assign zero poisha to selected participants. Zero-share participants remain explicit members of the completed allocation and are never silently removed.
+13. Pending-settlement duplicate protection is household-scoped and uses the unordered member pair. While one claim is Pending, no same-direction or reverse-direction Pending claim may be created for that pair.
+14. A sole remaining leader cannot leave. They must explicitly delete the household after all balances are zero and no settlement is Pending; a leave attempt never auto-deletes it.
+15. Leadership transfer requires the current leader and another active member and must preserve exactly one active leader. Balances do not gate the authority transfer; normal leave gates still apply afterward.
+16. Settlement creation requires an exact current full deterministic recommendation. Once created, the Pending record snapshots its original parties and amount and is not synchronized with later recommendations.

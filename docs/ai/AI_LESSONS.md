@@ -29,3 +29,11 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - The repository's ES2017 TypeScript target supports BigInt operations through constructor syntax but rejects BigInt literal syntax; use `BigInt(...)` unless the target is deliberately changed in a later approved phase.
 - Exact allocation membership is independent of positive share value: zero-share selected participants must remain explicit so recalculation, validation, and later persistence preserve the original participant set.
 - Canonical domain conversion stops at ungrouped decimal money text. Currency symbols, grouping, and localization belong to presentation and cannot feed financial calculations.
+
+## 2026-08-12 - Phase 3 temporal finance and permissions
+
+- Model external settlement claims as immutable snapshots: staleness is advisory, while confirmation applies the original exact amount and may legitimately reverse a later balance.
+- Household balance aggregation and recommendation simulation both need BigInt working values and independently validated zero-sum boundaries; TypeScript types alone are not sufficient for persisted-looking financial records.
+- Unordered-pair Pending uniqueness prevents crossing stale claims without rewriting history; terminal records remain historical evidence and do not block a later exact recommendation.
+- Former-member safety is strongest as an invariant over a canonical financial fingerprint, allowing only changes that provably preserve amount, payer, participants, shares, date, payment history, and deletion state.
+- Card privacy is a data-shape rule: non-owners receive no private reference, while leader edit intents can preserve an opaque reference internally or explicitly detach it without exposing it.
