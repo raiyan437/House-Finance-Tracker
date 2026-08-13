@@ -54,7 +54,39 @@ export type GeneratedIdKind = "user" | "household" | "join-request" | "expense" 
 export interface ApplicationValues {
   now(): IsoInstant;
   nextId(kind: GeneratedIdKind): string;
+  nextHouseholdCodeCandidate(): string;
 }
+
+export interface JoinableHouseholdView {
+  readonly householdId: HouseholdId;
+  readonly name: string;
+  readonly code: string;
+}
+
+export interface PendingJoinRequestView {
+  readonly joinRequestId: JoinRequestId;
+  readonly household: JoinableHouseholdView;
+  readonly createdAt: IsoInstant;
+}
+
+export interface LeaderJoinRequestView {
+  readonly joinRequestId: JoinRequestId;
+  readonly requesterName: string;
+  readonly createdAt: IsoInstant;
+}
+
+export type HouseholdAccessState =
+  | Readonly<{ status: "no-household" }>
+  | Readonly<{ status: "pending-request"; request: PendingJoinRequestView }>
+  | Readonly<{
+      status: "active-member";
+      household: JoinableHouseholdView;
+    }>
+  | Readonly<{
+      status: "active-leader";
+      household: JoinableHouseholdView;
+      joinRequests: readonly LeaderJoinRequestView[];
+    }>;
 
 export interface ApplicationRepositories {
   readonly profiles: UserProfileRepository;
@@ -106,6 +138,86 @@ export class ProfileApplicationService {
 export class HouseholdApplicationService {
   constructor(private readonly deps: Dependencies) {}
 
+  async getCurrentAccessState(): Promise<HouseholdAccessState> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const membership = await this.deps.repositories.memberships.findActiveByUser(actor);
+
+    if (!membership) {
+      const request = await this.deps.repositories.joinRequests.findPendingByUser(actor);
+      if (!request) return Object.freeze({ status: "no-household" });
+
+      const household = await this.deps.repositories.households.getById(request.householdId);
+      if (!household || household.deletedAt) {
+        throw new ApplicationError("CONFLICT", "The Pending join request refers to an unavailable household.");
+      }
+
+      return Object.freeze({
+        status: "pending-request",
+        request: Object.freeze({
+          joinRequestId: request.joinRequestId,
+          household: this.projectJoinableHousehold(household),
+          createdAt: request.createdAt,
+        }),
+      });
+    }
+
+    const household = await this.deps.repositories.households.getById(membership.householdId);
+    if (!household || household.deletedAt) {
+      throw new ApplicationError("CONFLICT", "The active membership refers to an unavailable household.");
+    }
+
+    const householdView = this.projectJoinableHousehold(household);
+    if (membership.role === "member") {
+      return Object.freeze({ status: "active-member", household: householdView });
+    }
+
+    const requests = (await this.deps.repositories.joinRequests.listByHousehold(household.householdId))
+      .filter((request) => request.status === "pending");
+    const profiles = await this.deps.repositories.profiles.getByIds(requests.map((request) => request.userId));
+    const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    const joinRequests = requests
+      .map((request): LeaderJoinRequestView => Object.freeze({
+        joinRequestId: request.joinRequestId,
+        requesterName: names.get(request.userId) ?? "Unknown requester",
+        createdAt: request.createdAt,
+      }))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+    return Object.freeze({
+      status: "active-leader",
+      household: householdView,
+      joinRequests: Object.freeze(joinRequests),
+    });
+  }
+
+  async findHouseholdForJoin(code: string): Promise<JoinableHouseholdView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    this.assertHouseholdCode(code);
+    if (await this.deps.repositories.memberships.findActiveByUser(actor)) {
+      throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
+    }
+    if (await this.deps.repositories.joinRequests.findPendingByUser(actor)) {
+      throw new ApplicationError("CONFLICT", "The current user already has a Pending join request.");
+    }
+    const household = await this.deps.repositories.households.findByCode(code);
+    if (!household || household.deletedAt) {
+      throw new ApplicationError("NOT_FOUND", "No household was found for that code.");
+    }
+    return this.projectJoinableHousehold(household);
+  }
+
+  async generateUniqueHouseholdCode(): Promise<string> {
+    for (let attempt = 0; attempt < 32; attempt += 1) {
+      const candidate = this.deps.values.nextHouseholdCodeCandidate();
+      this.assertHouseholdCode(candidate);
+      if (!(await this.deps.repositories.households.findByCode(candidate))) return candidate;
+    }
+    throw new ApplicationError(
+      "HOUSEHOLD_CODE_GENERATION_EXHAUSTED",
+      "A unique household code could not be generated. Try again.",
+    );
+  }
+
   async getCurrentHousehold(): Promise<Readonly<{ household: Household; memberships: readonly MembershipSnapshot[] }> | undefined> {
     const actor = await this.deps.session.getCurrentUserId();
     const membership = await this.deps.repositories.memberships.findActiveByUser(actor);
@@ -136,11 +248,13 @@ export class HouseholdApplicationService {
 
   async createHousehold(name: string, code: string): Promise<Household> {
     const actor = await this.deps.session.getCurrentUserId();
+    const trimmedName = name.trim();
+    this.assertHouseholdCode(code);
     if (await this.deps.repositories.memberships.findActiveByUser(actor)) throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
     if (await this.deps.repositories.joinRequests.findPendingByUser(actor)) throw new ApplicationError("CONFLICT", "Cancel the current Pending join request first.");
     if (await this.deps.repositories.households.findByCode(code)) throw new ApplicationError("CONFLICT", "Household code is already in use.");
     const now = this.deps.values.now();
-    const household: Household = { householdId: householdId(this.deps.values.nextId("household")), name: name.trim(), code, createdAt: now, updatedAt: now };
+    const household: Household = { householdId: householdId(this.deps.values.nextId("household")), name: trimmedName, code, createdAt: now, updatedAt: now };
     assertHousehold(household);
     const leaderMembership: MembershipSnapshot = { householdId: household.householdId, userId: actor, status: "active", role: "leader" };
     await this.deps.atomic.createHousehold({ household, leaderMembership, auditEvent: event(this.deps.values, household.householdId, actor, "household", household.householdId, "created", ["name", "code"]) });
@@ -157,6 +271,20 @@ export class HouseholdApplicationService {
     assertJoinRequest(request);
     await this.deps.atomic.createJoinRequest({ request, auditEvent: event(this.deps.values, household, actor, "join-request", request.joinRequestId, "requested", ["status"]) });
     return request;
+  }
+
+  private assertHouseholdCode(code: string): void {
+    if (!/^[0-9]{9}$/.test(code)) {
+      throw new ApplicationError("CONFLICT", "A household code must contain exactly nine digits.");
+    }
+  }
+
+  private projectJoinableHousehold(household: Household): JoinableHouseholdView {
+    return Object.freeze({
+      householdId: household.householdId,
+      name: household.name,
+      code: household.code,
+    });
   }
 
   async acceptJoinRequest(id: JoinRequestId): Promise<void> {

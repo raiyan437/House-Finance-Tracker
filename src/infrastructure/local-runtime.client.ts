@@ -77,4 +77,14 @@ export class LocalDevelopmentRuntime {
 class BrowserApplicationValues implements ApplicationValues {
   now() { return isoInstant(new Date().toISOString()); }
   nextId(kind: GeneratedIdKind): string { return `${kind}-${crypto.randomUUID()}`; }
+  nextHouseholdCodeCandidate(): string {
+    const values = new Uint32Array(1);
+    const unbiasedLimit = 4_000_000_000;
+    let value: number;
+    do {
+      crypto.getRandomValues(values);
+      value = values[0];
+    } while (value >= unbiasedLimit);
+    return String(value % 1_000_000_000).padStart(9, "0");
+  }
 }

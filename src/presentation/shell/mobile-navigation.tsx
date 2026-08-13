@@ -40,7 +40,7 @@ function MobileLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+        "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
         active && "text-foreground",
       )}
       href={href}
@@ -102,7 +102,7 @@ export function MobileNavigation() {
             <button
               aria-current={moreActive ? "page" : undefined}
               className={cn(
-                "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                 moreActive && "text-foreground",
               )}
               type="button"

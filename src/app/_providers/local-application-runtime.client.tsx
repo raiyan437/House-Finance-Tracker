@@ -7,6 +7,7 @@ import {
   ApplicationRuntimeProvider,
   type ApplicationRuntimeState,
   type CurrentSessionView,
+  type HouseholdApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import {
   DevelopmentTools,
@@ -14,6 +15,7 @@ import {
 } from "@/presentation/devtools/development-tools";
 import { Toaster } from "@/components/ui/sonner";
 import type { UserId } from "@/domain/shared/identifiers";
+import type { HouseholdAccessState } from "@/application/services/application-services";
 
 let sharedRuntime: LocalDevelopmentRuntime | undefined;
 let sharedRuntimePromise: Promise<LocalDevelopmentRuntime> | undefined;
@@ -83,26 +85,23 @@ function retryRuntime(): void {
 
 async function loadSessionView(
   runtime: LocalDevelopmentRuntime,
-): Promise<CurrentSessionView> {
-  const [profile, householdState] = await Promise.all([
+): Promise<Readonly<{ session: CurrentSessionView; household: HouseholdAccessState }>> {
+  const [profile, household] = await Promise.all([
     runtime.application.profiles.getCurrentProfile(),
-    runtime.application.households.getCurrentHousehold(),
+    runtime.application.households.getCurrentAccessState(),
   ]);
-  const membership = householdState?.memberships.find(
-    (candidate) => candidate.userId === profile.userId && candidate.status === "active",
-  );
+  const isLeader = household.status === "active-leader";
+  const isMember = household.status === "active-member";
 
   return Object.freeze({
-    userId: profile.userId,
-    displayName: profile.displayName,
-    displayEmail: profile.displayEmail,
-    roleLabel:
-      membership?.role === "leader"
-        ? "Leader"
-        : membership?.role === "member"
-          ? "Member"
-          : "No active household",
-    ...(householdState ? { householdName: householdState.household.name } : {}),
+    session: Object.freeze({
+      userId: profile.userId,
+      displayName: profile.displayName,
+      displayEmail: profile.displayEmail,
+      roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
+      ...(isLeader || isMember ? { householdName: household.household.name } : {}),
+    }),
+    household,
   });
 }
 
@@ -117,6 +116,7 @@ export function LocalApplicationRuntime({
   const [state, setState] = useState<ApplicationRuntimeState>({ status: "loading" });
   const [identities, setIdentities] = useState<readonly DevelopmentIdentityOption[]>([]);
   const runtimeRef = useRef<LocalDevelopmentRuntime | undefined>(undefined);
+  const reconstructionRef = useRef(0);
 
   const retry = useCallback(() => {
     retryRuntime();
@@ -129,12 +129,18 @@ export function LocalApplicationRuntime({
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
 
-    async function refreshSession(runtime: LocalDevelopmentRuntime) {
+    let actions: HouseholdApplicationActions;
+
+    async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
+      const reconstruction = ++reconstructionRef.current;
+      if (showLoading && !disposed) setState({ status: "loading" });
       try {
-        const session = await loadSessionView(runtime);
-        if (!disposed) setState({ status: "ready", session });
+        const view = await loadSessionView(runtime);
+        if (!disposed && reconstruction === reconstructionRef.current) {
+          setState({ status: "ready", ...view, householdActions: actions });
+        }
       } catch {
-        if (!disposed) {
+        if (!disposed && reconstruction === reconstructionRef.current) {
           setState({
             status: "error",
             message: "The local application data could not be read.",
@@ -149,10 +155,24 @@ export function LocalApplicationRuntime({
         const runtime = await acquireRuntime();
         if (disposed) return;
         runtimeRef.current = runtime;
-        unsubscribe = runtime.currentSession.subscribe(() => {
-          void refreshSession(runtime);
+        const mutateAndReconstruct = async (mutation: () => Promise<unknown>) => {
+          await mutation();
+          await reconstructState(runtime);
+        };
+        actions = Object.freeze<HouseholdApplicationActions>({
+          generateCode: () => runtime.application.households.generateUniqueHouseholdCode(),
+          createHousehold: (name, code) => mutateAndReconstruct(() => runtime.application.households.createHousehold(name, code)),
+          findHousehold: (code) => runtime.application.households.findHouseholdForJoin(code),
+          requestToJoin: (householdId) => mutateAndReconstruct(() => runtime.application.households.requestToJoin(householdId)),
+          cancelJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.cancelJoinRequest(joinRequestId)),
+          acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
+          rejectJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.rejectJoinRequest(joinRequestId)),
+          refresh: () => reconstructState(runtime, true),
         });
-        await refreshSession(runtime);
+        unsubscribe = runtime.currentSession.subscribe(() => {
+          void reconstructState(runtime, true);
+        });
+        await reconstructState(runtime);
 
         if (process.env.NODE_ENV === "development") {
           const profiles = await runtime.listDevelopmentIdentities();

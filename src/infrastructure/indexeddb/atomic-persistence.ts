@@ -22,7 +22,11 @@ import {
   toReceiptRecord,
   toSettlementRecord,
 } from "./mappers";
-import { membershipKey } from "./keys";
+import {
+  activeMembershipUserKey,
+  membershipKey,
+  pendingJoinUserKey,
+} from "./keys";
 import type { HouseFinanceDatabase } from "./records";
 
 type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
@@ -45,8 +49,21 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     const household = toHouseholdRecord(input.household);
     const membership = toMembershipRecord(input.leaderMembership);
     const audit = toAuditRecord(input.auditEvent);
-    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    if (
+      input.leaderMembership.status !== "active" ||
+      input.leaderMembership.role !== "leader" ||
+      input.leaderMembership.householdId !== input.household.householdId
+    ) {
+      throw new ApplicationError("CONFLICT", "Household creation requires a matching active leader membership.");
+    }
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "auditEvents"], "readwrite");
     try {
+      const [activeMembership, pendingRequest] = await Promise.all([
+        tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.leaderMembership.userId)),
+        tx.objectStore("joinRequests").index("pendingJoinUserKey").getKey(pendingJoinUserKey(input.leaderMembership.userId)),
+      ]);
+      if (activeMembership) throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
+      if (pendingRequest) throw new ApplicationError("CONFLICT", "Cancel the current Pending join request first.");
       await tx.objectStore("households").add(household);
       await tx.objectStore("memberships").add(membership);
       await tx.objectStore("auditEvents").add(audit);
@@ -64,8 +81,18 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJoinRequest"]>[0]): Promise<void> {
     const request = toJoinRequestRecord(input.request);
     if (input.request.status !== "pending") throw new ApplicationError("CONFLICT", "New join requests must be Pending.");
-    const tx = (await this.db()).transaction(["joinRequests", "auditEvents"], "readwrite");
-    try { await tx.objectStore("joinRequests").add(request); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
+    const tx = (await this.db()).transaction(["memberships", "joinRequests", "auditEvents"], "readwrite");
+    try {
+      const [activeMembership, pendingRequest] = await Promise.all([
+        tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId)),
+        tx.objectStore("joinRequests").index("pendingJoinUserKey").getKey(pendingJoinUserKey(input.request.userId)),
+      ]);
+      if (activeMembership) throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
+      if (pendingRequest) throw new ApplicationError("CONFLICT", "The current user already has a Pending join request.");
+      await tx.objectStore("joinRequests").add(request);
+      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      await tx.done;
+    }
     catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
@@ -77,6 +104,8 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     try {
       const existingRaw = await tx.objectStore("joinRequests").get(input.request.joinRequestId);
       if (!existingRaw || fromJoinRequestRecord(existingRaw, input.request.joinRequestId).status !== "pending") throw new ApplicationError("CONFLICT", "Only a persisted Pending request may be accepted.");
+      const activeMembership = await tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId));
+      if (activeMembership) throw new ApplicationError("CONFLICT", "Requester already belongs to a household.");
       await tx.objectStore("joinRequests").put(request);
       await tx.objectStore("memberships").add(membership);
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));

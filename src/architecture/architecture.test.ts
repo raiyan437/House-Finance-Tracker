@@ -155,6 +155,13 @@ describe("source dependency boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("the React runtime context exposes no persistence or infrastructure objects", () => {
+    const contextPath = resolve(sourceRoot, "presentation/runtime/application-runtime-context.tsx");
+    const source = readFileSync(contextPath, "utf8");
+
+    expect(source).not.toMatch(/LocalDevelopmentRuntime|IndexedDb|IDBDatabase|repositories|atomicPersistence/);
+  });
+
   it("route pages stay server components", () => {
     const violations = sourceFiles(resolve(sourceRoot, "app"))
       .filter((file) => file.endsWith("page.tsx"))

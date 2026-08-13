@@ -21,6 +21,7 @@ class FixedValues implements ApplicationValues {
   private counter = 0;
   now(): IsoInstant { return isoInstant("2026-08-13T13:00:00.000Z"); }
   nextId(kind: GeneratedIdKind): string { this.counter += 1; return `${kind}-test-${this.counter}`; }
+  nextHouseholdCodeCandidate(): string { return "987654321"; }
 }
 
 describe("Phase 4 application services with IndexedDB", () => {

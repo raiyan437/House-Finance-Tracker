@@ -54,3 +54,10 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Frozen muted and semantic colors may be valid tokens without meeting small-text contrast in every pairing. Preserve the palette, but use the stronger approved text color where Axe or manual contrast review shows a token is unsuitable for readable copy.
 - Bottom-navigation safety needs both safe-area padding on the fixed bar and matching content-bottom clearance; responsive tests should compare computed values instead of relying on screenshots alone.
 - Development identity switching remains easiest to replace when one composition gate owns the environment branch and the product shell consumes only the ordinary current-session view.
+
+## 2026-08-13 - Phase 6 local session and household onboarding
+
+- Pre-acceptance privacy is strongest as an application projection: Pending/requester UI receives only an opaque household ID, name, and code, so private household records never enter React state to be accidentally rendered.
+- One-house and Pending-request checks must be repeated inside the named IndexedDB transaction. Application prechecks improve errors, while transaction-time index checks close the cross-tab race window and rollback tests prove no partial request/membership/audit state.
+- Client-only membership routing needs a deterministic loading gate for household-dependent routes, while independent routes remain explicitly outside the gate. Mutation handlers should retain their local pending state until authoritative runtime reconstruction and success navigation finish.
+- Injected household-code candidates make the 32-collision limit deterministic in tests; the browser generator can use unbiased cryptographic randomness without coupling application services to browser APIs.

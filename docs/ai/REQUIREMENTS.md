@@ -157,3 +157,17 @@ Approved on 2026-08-13:
 - Runtime composition handles initialization, Strict Mode/HMR, abandoned work, retry, unmount/pagehide, and connection closure. Retry never deletes or resets local data.
 - Phase 5 native-browser verification uses the actual client runtime to prove native database opening, seed reads, identity switching, close/reopen persistence, and application-state reconstruction. It does not duplicate repository contracts already covered through `fake-indexeddb`.
 - Phase 5 implements the frozen light design tokens, accessibility and reduced-motion foundation, responsive shell, and only shared components that add concrete visual or behavioral consistency. No dark theme or feature-screen implementation is introduced.
+
+## Frozen Phase 6 household-onboarding clarifications
+
+Approved on 2026-08-13:
+
+- Local development identities represent authenticated users without login, registration, passwords, cookies, verification, recovery, fake logout, or production-security claims. The DEV identity selector remains separate tooling.
+- Household access states are presentation-safe `no-household`, `pending-request`, `active-member`, and `active-leader` states beneath runtime loading/error. Mutations always persist first and then reconstruct authoritative state through one invalidation path.
+- Active membership is required only for Dashboard, Expenses, Add Expense, and Settlements. Household and Profile remain independent; Cards acquire no new household access rule during Phase 6.
+- House names are trimmed and non-empty with no invented maximum. Household codes are exact nine-character ASCII digit strings, preserve leading zeroes, remain reserved by historical/deleted records, and are finally protected by IndexedDB uniqueness.
+- Generated codes use injected randomness, validate every candidate, check local uniqueness for at most 32 attempts, and fail with a typed retryable error rather than a predictable fallback. Browser generation uses cryptographically secure randomness.
+- Before acceptance, household lookup and Pending state expose only household name, code, and opaque ID. They never expose members, leader identity, expenses, balances, settlements, receipts, cards, or financial history.
+- A Pending requester must explicitly cancel before creating a household. Only Pending requests block another request; Accepted, Rejected, and Cancelled records remain retained terminal history.
+- Leader acceptance and rejection require confirmation and application authorization. Acceptance atomically rechecks Pending status and active membership, transitions the request, creates exactly one active membership, and appends audit history; any failure rolls back all writes.
+- The Phase 4 seed remains Raiyan as leader, John and Sarah as members, and Alex as a Pending requester. Tests cancel Alex's request when they need the no-household state.

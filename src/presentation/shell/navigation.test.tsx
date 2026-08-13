@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { userId } from "@/domain/shared/identifiers";
+import { householdId, userId } from "@/domain/shared/identifiers";
 import { ApplicationRuntimeProvider } from "@/presentation/runtime/application-runtime-context";
 import { DesktopSidebar } from "./desktop-sidebar";
 import { MobileNavigation } from "./mobile-navigation";
@@ -23,6 +23,25 @@ function renderWithRuntime(children: React.ReactNode) {
           displayEmail: "raiyan@local.test",
           roleLabel: "Leader",
           householdName: "Raiyan House",
+        },
+        household: {
+          status: "active-leader",
+          household: {
+            householdId: householdId("household-main"),
+            name: "Raiyan House",
+            code: "012345678",
+          },
+          joinRequests: [],
+        },
+        householdActions: {
+          generateCode: vi.fn(),
+          createHousehold: vi.fn(),
+          findHousehold: vi.fn(),
+          requestToJoin: vi.fn(),
+          cancelJoinRequest: vi.fn(),
+          acceptJoinRequest: vi.fn(),
+          rejectJoinRequest: vi.fn(),
+          refresh: vi.fn(),
         },
       }}
     >

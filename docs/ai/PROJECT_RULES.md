@@ -29,4 +29,4 @@ House Finance Tracker is a local-first shared household expense-tracking applica
 
 ## Execution gate
 
-The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-4 are complete; Phase 5 is not authorized. Appwrite remains gated until the local MVP is declared stable.
+The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-6 are complete; Phase 7 is not authorized. Appwrite remains gated until the local MVP is declared stable.

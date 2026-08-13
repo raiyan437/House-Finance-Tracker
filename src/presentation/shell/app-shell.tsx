@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { DesktopSidebar } from "./desktop-sidebar";
 import { MobileNavigation } from "./mobile-navigation";
+import { HouseholdAccessGate } from "@/presentation/runtime/household-access-gate.client";
 
 interface AppShellProps {
   readonly children: React.ReactNode;
@@ -38,7 +39,7 @@ export function AppShell({ children }: AppShellProps) {
           id="main-content"
           tabIndex={-1}
         >
-          {children}
+          <HouseholdAccessGate>{children}</HouseholdAccessGate>
         </main>
       </div>
       <MobileNavigation />
