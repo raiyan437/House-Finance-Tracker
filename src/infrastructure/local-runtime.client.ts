@@ -12,6 +12,7 @@ import { LocalCurrentSession } from "./indexeddb/development-session";
 import { IndexedDbRepositories } from "./indexeddb/repositories";
 import type { HouseFinanceDatabase } from "./indexeddb/records";
 import { seedLocalDatabase } from "./indexeddb/seed";
+import type { UserProfile } from "@/domain/records/domain-records";
 
 export class LocalDevelopmentRuntime {
   private constructor(
@@ -25,7 +26,12 @@ export class LocalDevelopmentRuntime {
 
   static async create(databaseName = LOCAL_DATABASE_NAME): Promise<LocalDevelopmentRuntime> {
     const connection = await openLocalDatabase(databaseName);
-    await seedLocalDatabase(connection);
+    try {
+      await seedLocalDatabase(connection);
+    } catch (error) {
+      connection.close();
+      throw error;
+    }
     const repositories = new IndexedDbRepositories(connection);
     const atomicPersistence = new IndexedDbAtomicApplicationPersistence(connection);
     const currentSession = new LocalCurrentSession(connection);
@@ -36,6 +42,19 @@ export class LocalDevelopmentRuntime {
       atomicPersistence,
       currentSession,
       new HouseFinanceApplication({ repositories, atomic: atomicPersistence, session: currentSession, values: new BrowserApplicationValues() }),
+    );
+  }
+
+  async listDevelopmentIdentities(): Promise<readonly UserProfile[]> {
+    const identityIds = await this.currentSession.listIdentityIds();
+    const profiles = await Promise.all(
+      identityIds.map((identityId) => this.repositories.profiles.getById(identityId)),
+    );
+
+    return Object.freeze(
+      profiles
+        .filter((profile): profile is UserProfile => Boolean(profile))
+        .sort((left, right) => left.displayName.localeCompare(right.displayName)),
     );
   }
 

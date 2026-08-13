@@ -2,89 +2,134 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-card: var(--surface-primary);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface-primary);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--action-primary);
+  --color-primary-foreground: var(--action-primary-foreground);
+  --color-secondary: var(--surface-secondary);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--surface-secondary);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--brand-soft);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--danger-foreground);
+  --color-border: var(--border-default);
+  --color-input: var(--border-strong);
+  --color-ring: var(--info-foreground);
+  --color-brand: var(--brand-primary);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success-foreground);
+  --color-success-soft: var(--success-background);
+  --color-danger: var(--danger-foreground);
+  --color-danger-soft: var(--danger-background);
+  --color-warning: var(--warning-foreground);
+  --color-warning-soft: var(--warning-background);
+  --color-info: var(--info-foreground);
+  --color-info-soft: var(--info-background);
+  --color-sidebar: var(--surface-primary);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--action-primary);
+  --color-sidebar-primary-foreground: var(--action-primary-foreground);
+  --color-sidebar-accent: var(--brand-soft);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-border: var(--border-default);
+  --color-sidebar-ring: var(--info-foreground);
   --font-sans: "Inter", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--font-weight: 600;
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 2.25rem;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 2rem;
+  --text-h2--font-weight: 600;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.75rem;
+  --text-h3--font-weight: 600;
+  --text-body-large: 1rem;
+  --text-body-large--line-height: 1.5rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.375rem;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.125rem;
+  --text-label--font-weight: 500;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
   --radius-sm: var(--radius-small);
   --radius-md: var(--radius-medium);
   --radius-lg: var(--radius-large);
   --radius-xl: var(--radius-card);
   --radius-2xl: var(--radius-feature);
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
 }
 
 :root {
   --background: #f5f6f8;
+  --surface-primary: #ffffff;
+  --surface-secondary: #f9fafb;
   --foreground: #171717;
-  --card: #ffffff;
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #171717;
-  --primary-foreground: #ffffff;
-  --secondary: #f9fafb;
-  --secondary-foreground: #171717;
-  --muted: #f9fafb;
-  --muted-foreground: #525866;
-  --accent: #dfff63;
-  --accent-foreground: #171717;
-  --destructive: #dc2626;
-  --border: #e7e9ee;
-  --input: #d9dce3;
-  --ring: #2563eb;
-  --chart-1: #dfff63;
-  --chart-2: #2563eb;
-  --chart-3: #15803d;
-  --chart-4: #b7791f;
-  --chart-5: #525866;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3ffc7;
-  --sidebar-accent-foreground: #171717;
-  --sidebar-border: #e7e9ee;
-  --sidebar-ring: #2563eb;
+  --text-secondary: #525866;
+  --text-muted: #8a8f98;
+  --text-disabled: #b6bac2;
+  --border-default: #e7e9ee;
+  --border-strong: #d9dce3;
+  --brand-primary: #dfff63;
+  --brand-hover: #d4f24f;
+  --brand-soft: #f3ffc7;
+  --action-primary: #171717;
+  --action-primary-foreground: #ffffff;
+  --success-foreground: #15803d;
+  --success-background: #dcfce7;
+  --danger-foreground: #dc2626;
+  --danger-background: #fee2e2;
+  --warning-foreground: #b7791f;
+  --warning-background: #fef3c7;
+  --info-foreground: #2563eb;
+  --info-background: #dbeafe;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --radius: 0.75rem;
   --radius-small: 0.5rem;
   --radius-medium: 0.75rem;
   --radius-large: 1rem;
   --radius-card: 1.25rem;
   --radius-feature: 1.5rem;
+  --radius-pill: 999px;
   --shadow-small: 0 1px 2px rgb(0 0 0 / 4%);
   --shadow-card: 0 4px 16px rgb(0 0 0 / 4%);
   --shadow-modal: 0 16px 40px rgb(0 0 0 / 8%);
+  --motion-fast: 150ms;
+  --motion-normal: 200ms;
+  --motion-slow: 300ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --content-max: 90rem;
+  --sidebar-laptop: 14rem;
+  --sidebar-desktop: 15rem;
+  --mobile-navigation-height: 4.5rem;
 }
 
 @layer base {
@@ -94,9 +139,65 @@
 
   html {
     @apply bg-background;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-background text-foreground;
+    min-width: 20rem;
+  }
+
+  ::selection {
+    background: var(--brand-primary);
+    color: var(--foreground);
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--motion-ease-out);
+  }
+}
+
+.financial-numerals {
+  font-variant-numeric: tabular-nums;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  z-index: 100;
+  transform: translateY(calc(-100% - var(--space-6)));
+  border-radius: var(--radius-medium);
+  background: var(--action-primary);
+  color: var(--action-primary-foreground);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: transform var(--motion-fast) var(--motion-ease-out);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 3px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
   }
 }

@@ -19,7 +19,7 @@ const rules = {
   },
   presentation: {
     layers: ["infrastructure", "app"],
-    packages: ["appwrite"],
+    packages: ["appwrite", "idb", "fake-indexeddb"],
   },
 } as const;
 
@@ -122,6 +122,59 @@ describe("source dependency boundaries", () => {
         }
       }
     }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("only the approved client composition root imports infrastructure from App Router code", () => {
+    const allowedCompositionRoot = "app/_providers/local-application-runtime.client.tsx";
+    const violations: string[] = [];
+
+    for (const file of sourceFiles(resolve(sourceRoot, "app"))) {
+      for (const specifier of importedSpecifiers(readFileSync(file, "utf8"))) {
+        if (targetLayer(specifier, file) !== "infrastructure") continue;
+
+        const importingPath = relative(sourceRoot, file).replaceAll("\\", "/");
+        if (importingPath !== allowedCompositionRoot) {
+          violations.push(`${importingPath} -> ${specifier}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("presentation does not import application repository paths", () => {
+    const violations = sourceFiles(resolve(sourceRoot, "presentation")).flatMap(
+      (file) =>
+        importedSpecifiers(readFileSync(file, "utf8"))
+          .filter((specifier) => specifier.includes("application/repositories"))
+          .map((specifier) => `${relative(sourceRoot, file)} -> ${specifier}`),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("route pages stay server components", () => {
+    const violations = sourceFiles(resolve(sourceRoot, "app"))
+      .filter((file) => file.endsWith("page.tsx"))
+      .filter((file) => /^\s*["']use client["'];/m.test(readFileSync(file, "utf8")))
+      .map((file) => relative(sourceRoot, file));
+
+    expect(violations).toEqual([]);
+  });
+
+  it("development environment branching is isolated to the composition root", () => {
+    const allowedPath = "app/_providers/local-application-runtime.client.tsx";
+    const violations = ["app", "presentation"].flatMap((layer) =>
+      sourceFiles(resolve(sourceRoot, layer)).flatMap((file) => {
+        const importingPath = relative(sourceRoot, file).replaceAll("\\", "/");
+        const source = readFileSync(file, "utf8");
+        return source.includes("process.env.NODE_ENV") && importingPath !== allowedPath
+          ? [importingPath]
+          : [];
+      }),
+    );
 
     expect(violations).toEqual([]);
   });

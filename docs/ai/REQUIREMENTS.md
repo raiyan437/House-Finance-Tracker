@@ -142,3 +142,18 @@ Approved on 2026-08-13:
 - Confirmed settlements are immutable in application services and persistence adapters. Balances, recommendations, dashboard totals, outstanding totals, and analytics aggregates are never persisted.
 - No live cross-tab synchronization is required. Only version-change, blocked-upgrade, and reset coordination are supported.
 - IndexedDB and the development-session implementation remain behind a client-only Next.js boundary. Server Components cannot import browser infrastructure, and local persistence does not make the whole application client-rendered.
+
+## Frozen Phase 5 shell clarifications
+
+Approved on 2026-08-13:
+
+- Navigation uses the mobile/tablet bottom bar below `1024px` and the full desktop sidebar from `1024px`; Phase 5 has no collapsed tablet sidebar. Bottom navigation accounts for safe-area insets and never covers content.
+- `/` redirects to `/dashboard`. Sparse placeholders for Dashboard, Expenses, Add Expense, Settlements, Cards, Household, and Profile validate routing and shell behavior without implementing those features.
+- Branding is an understated Lucide `House` icon with the `House Finance Tracker` text wordmark. Missing profile images use deterministic initials; no generated or external avatars are permitted.
+- The visible Log Out action remains intentionally unavailable until real authentication exists. It cannot mutate the development session or mimic authentication, and its accessible explanation cannot rely only on hover.
+- Sonner supplies restrained toast infrastructure. `ChartCard` remains chart-library-neutral until real analytics require Recharts.
+- Development identity switching is clearly labelled development tooling, remains separate from product navigation/profile/authentication, and reaches the current-session abstraction without teaching product components about identity selection.
+- React context exposes only presentation-facing application services and session/view state. Repositories, IndexedDB objects, adapters, and broad infrastructure runtimes remain private to the client composition root.
+- Runtime composition handles initialization, Strict Mode/HMR, abandoned work, retry, unmount/pagehide, and connection closure. Retry never deletes or resets local data.
+- Phase 5 native-browser verification uses the actual client runtime to prove native database opening, seed reads, identity switching, close/reopen persistence, and application-state reconstruction. It does not duplicate repository contracts already covered through `fake-indexeddb`.
+- Phase 5 implements the frozen light design tokens, accessibility and reduced-motion foundation, responsive shell, and only shared components that add concrete visual or behavioral consistency. No dark theme or feature-screen implementation is introduced.

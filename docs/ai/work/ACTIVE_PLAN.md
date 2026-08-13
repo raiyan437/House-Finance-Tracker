@@ -75,6 +75,10 @@ Implement application services, repository interfaces, IndexedDB/local repositor
 
 Build responsive desktop sidebar/mobile navigation, route shell, tokens, typography, buttons, inputs, cards, status treatments, dialogs/sheets, skeletons, toasts, and accessibility primitives from the canonical design baseline. **Reasoning: medium** because product logic is low but consistency is broad. Exit: reusable component showcase/routes pass visual, keyboard, responsive, and contrast checks.
 
+**Result: complete (2026-08-13; uncommitted for review).** Added the frozen Soft Premium Finance token system and Inter scale; statically prerendered Server Component routes; root redirect to Dashboard; sparse placeholders; a responsive shell with full sidebar at `>=1024px` and safe-area-aware bottom navigation below it; accessible mobile More sheet; understated House wordmark; application-service-backed current profile/role; intentionally unavailable explained Log Out control; deterministic initials; project surfaces, metric/chart/state/status/member/form/money/confirmation primitives; Sonner infrastructure; and a separate development-only identity toolbox. One client composition root privately owns the local runtime and exposes only presentation session view state. Runtime acquisition is shared across Strict Mode remounts and handles abandoned initialization, retry without reset, session refresh, pagehide/unmount, and connection closure. No feature screen, authentication, Appwrite, analytics, Recharts, or deployment work was introduced.
+
+**Verification:** full Vitest passed 246 tests across 28 files; focused presentation/application/architecture coverage passed; architecture guards passed 10 cases; lint passed; TypeScript passed; production build passed with all eight product routes statically prerendered; Playwright Chromium passed 9 shell/runtime checks across mobile, large-mobile, tablet, laptop, and desktop widths; native IndexedDB opened, seeded, switched identity, closed, reopened, retained the selected identity, and reconstructed profile/role through application services; keyboard skip-link and sheet focus-return checks passed; reduced-motion checks passed; serious/critical Axe findings are zero; browser console/page/hydration checks passed; visual review at 390x844 and 1440x900 matched the approved sparse shell direction; dependency audit reported zero vulnerabilities; and `git diff --check` passed.
+
 ### Phase 6 - Local authentication and household onboarding
 
 Build local register/login/reset/verification-state UI, dev identity switcher, create/join/cancel/accept/reject flows, and pre-acceptance privacy boundaries. **Reasoning: medium-high** due permission states despite mock infrastructure. Exit: multi-user Playwright onboarding flows and proof that pending requesters cannot access household data.
@@ -117,4 +121,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 4. Phase 5 may begin only after explicit user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop after Phase 5. Phase 5 is complete; Phase 6 may begin only after separate user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.

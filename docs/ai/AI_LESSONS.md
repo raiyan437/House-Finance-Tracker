@@ -46,3 +46,11 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Browser Blob objects may cross realms in test environments, so validate their observable metadata and readable bytes rather than relying on `instanceof Blob`. Test receipt signatures against actual bytes, not filename or MIME text alone.
 - IndexedDB transaction callbacks must prepare validation and binary input before opening the transaction and keep participating stores on one transaction. Failed request/unique-index operations require explicit transaction rejection handling to avoid false success or unhandled aborts.
 - A client-only local runtime plus application-owned current-session port preserves Next.js Server Component boundaries and leaves future Appwrite authentication/persistence replaceable.
+
+## 2026-08-13 - Phase 5 application shell and design system
+
+- A module-scoped runtime acquisition guard plus deferred zero-holder close survives React Strict Mode remounts without leaking duplicate IndexedDB connections; abandoned initialization must close a late connection before rejecting.
+- Keep the React runtime context narrower than the infrastructure object: presentation needs current session view state and later feature-facing service hooks, not repositories, database handles, or reset controls.
+- Frozen muted and semantic colors may be valid tokens without meeting small-text contrast in every pairing. Preserve the palette, but use the stronger approved text color where Axe or manual contrast review shows a token is unsuitable for readable copy.
+- Bottom-navigation safety needs both safe-area padding on the fixed bar and matching content-bottom clearance; responsive tests should compare computed values instead of relying on screenshots alone.
+- Development identity switching remains easiest to replace when one composition gate owns the environment branch and the product shell consumes only the ordinary current-session view.

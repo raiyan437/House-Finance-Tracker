@@ -1,16 +1,18 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { redirect } from "next/navigation";
 import Home from "./page";
 
-describe("project foundation page", () => {
-  it("states that Phase 1 is ready without claiming product features exist", () => {
-    render(<Home />);
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+}));
 
-    expect(
-      screen.getByRole("heading", { name: "House Finance Tracker" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/product features.+have not started/i)).toBeVisible();
-    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+describe("root route", () => {
+  beforeEach(() => {
+    vi.mocked(redirect).mockClear();
+  });
+
+  it("redirects to the primary dashboard destination", () => {
+    Home();
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 });
