@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through Phase 7 are approved. Phases 1-6 are complete. Phase 7 implementation is explicitly authorized and documented in `PHASE_7_PLAN.md`; Phase 8 and all later phases remain unauthorized.
+The roadmap and frozen implementation decisions through Phase 8 are approved. Phases 1-7 are complete and committed. Phase 8 implementation is explicitly authorized under `PHASE_8_PLAN.md`; Phase 9 and all later phases remain unauthorized.
 
 ## Reconciliation findings
 
@@ -91,13 +91,19 @@ Use the existing development session as the local authenticated-user equivalent;
 
 Build expense list/search/filter/sort, single-page add form with live allocation summary, owner-only card selection, local receipt previews/storage, details/history, edit, and soft delete. **Reasoning: high** because this joins forms, money, privacy, audit, and recalculation. Exit: all split modes and edit/delete permissions pass unit, component, and multi-user browser tests.
 
-**Result: implemented and verified (2026-08-18; uncommitted for review).** Added the household-only Expense list with exact local-month/search/payer/payment/sort composition; responsive Add/Edit/Details screens; strict application/domain split previews and persistence; owner/leader/member permissions; privacy-safe Card projections and edit transitions; staged atomic receipt additions/removals; retained receipts on expense soft deletion; safe activity; explicit former/legacy read-only financial states; and transactional membership-race rechecks. Expense record version `2` and IndexedDB schema version `2` persist modern percentage basis-point source entries alongside canonical poisha allocations. The migration preserves v1 allocations exactly and marks missing percentage source as non-reconstructable legacy history without fabricating values.
+**Result: complete and accepted (2026-08-18; committed as `ff5a878`).** Added the household-only Expense list with exact local-month/search/payer/payment/sort composition; responsive Add/Edit/Details screens; strict application/domain split previews and persistence; owner/leader/member permissions; privacy-safe Card projections and edit transitions; staged atomic receipt additions/removals; retained receipts on expense soft deletion; safe activity; explicit former/legacy read-only financial states; and transactional membership-race rechecks. Expense record version `2` and IndexedDB schema version `2` persist modern percentage basis-point source entries alongside canonical poisha allocations. The migration preserves v1 allocations exactly and marks missing percentage source as non-reconstructable legacy history without fabricating values.
 
 **Verification:** focused migration/domain/application/persistence suites passed; full Vitest passed 296 tests across 34 files; architecture guards passed 11 cases; lint and TypeScript passed; production build passed with dynamic Details/Edit routes and all other approved routes; full Playwright Chromium passed 21 flows, including four Phase 7 product flows, native IndexedDB reload, responsive breakpoints, keyboard navigation, no private Card strings for non-owners, and zero serious/critical Axe findings. Dependency audit found zero vulnerabilities. `git diff --check` passed. Manual source audits found no presentation persistence imports, no private Card reference fields in presentation, no expense-date UTC round trips, and no new floating-point financial arithmetic. Phase 8 was not started.
 
 ### Phase 8 - Settlements
 
 Build recommendations, external-payment disclosure, pending/confirm/reject/cancel flows, badges, duplicate prevention, stale warnings, and immutable history. **Reasoning: high** due financial lifecycle and concurrency-like behavior. Exit: sender/receiver Playwright matrix and exact balance assertions for every status.
+
+**Plan status (2026-08-18): approved and authorized.** Exact scope, exclusions, route/component hierarchy, application projections/use cases, derived-state rules, actor-specific Pending lifecycle, stale/duplicate behavior, History, cross-identity refresh, responsive/accessibility behavior, proposed files, test matrix, risks, and reasoning recommendation are documented in `PHASE_8_PLAN.md`. Approved clarifications require browser-local English instant formatting and authoritative atomic revalidation of the exact current recommendation before Pending creation. Phase 9 remains prohibited.
+
+**Result: implemented and verified (2026-08-18; uncommitted for review).** Replaced the Settlements placeholder with current-user net-position summaries, deterministic incoming/outgoing recommendations, exact full-recommendation Settle Up disclosure, actor-specific Pending cards, fresh plain-language stale previews, receiver Confirm/Reject, sender Cancel, household-wide terminal History, viewer-local English instant formatting, live feedback, and receiver-action navigation badges. Application-owned projections keep financial/lifecycle/staleness logic out of React. Pending creation now opens one authoritative IndexedDB transaction across memberships, expenses, settlements, and audits; it reconstructs the current ledger, reruns the Phase 3 balance/recommendation/pair policy, and commits the Pending snapshot plus audit only when the requested recommendation is still exact. Native and fake IndexedDB state-drift tests prove stale creation rolls back.
+
+**Verification:** focused Phase 8 domain/application/persistence/component suites passed; full Vitest passed 309 tests across 36 files; architecture guards passed 11 cases; lint and TypeScript passed; production build passed with `/settlements` statically prerendered; full Playwright Chromium passed 27 flows, including six Phase 8 flows for cross-identity Mark Paid/Confirm, Reject, sender Cancel, duplicate Pending, reversed stale original-amount confirmation, close/reopen persistence, responsive breakpoints, keyboard focus return, and zero serious/critical Axe findings. Dependency audit found zero vulnerabilities. Manual audits found no settlement mathematics in React, no alternate recommendation engine, no persisted balances/recommendations/badge counts, no Phase 9 functionality, and no new floating-point financial arithmetic. `git diff --check` passed.
 
 ### Phase 9 - Cards
 
@@ -129,4 +135,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 7 implementation and verification. Phase 6 is accepted and committed as `f5719b9`; Phase 7 is authorized and must remain uncommitted for review. Phase 8 may begin only after separate explicit authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop for Phase 8 review. Phases 1-7 are accepted and committed; Phase 7 is `ff5a878`. Phase 8 is implemented and verified but must remain uncommitted until the user accepts it. Do not begin Phase 9. Before any later phase, re-check current state, frozen decisions, and prior exit evidence.

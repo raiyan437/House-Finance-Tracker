@@ -1,12 +1,15 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import type { AtomicApplicationPersistence } from "@/application/repositories";
+import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
+import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
 import { DomainError } from "@/domain/shared/domain-error";
 import {
   assertFormerMemberChangeAllowed,
   assertLegacyPercentageChangeAllowed,
   type ExpenseFinancialFingerprint,
 } from "@/domain/expenses/expense-financial-fingerprint";
-import type { Expense } from "@/domain/records/domain-records";
+import { toBalanceExpense, type Expense } from "@/domain/records/domain-records";
+import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from "idb";
 import {
   assertSettlementIdentityUnchanged,
@@ -300,9 +303,68 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async createSettlement(input: Parameters<AtomicApplicationPersistence["createSettlement"]>[0]): Promise<void> {
     if (input.settlement.status !== "pending") throw new ApplicationError("CONFLICT", "New settlements must be Pending.");
-    const tx = (await this.db()).transaction(["settlements", "auditEvents"], "readwrite");
-    try { await tx.objectStore("settlements").add(toSettlementRecord(input.settlement)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
+    if (
+      input.auditEvent.householdId !== input.settlement.householdId ||
+      input.auditEvent.actorId !== input.settlement.senderId ||
+      input.auditEvent.aggregateType !== "settlement" ||
+      input.auditEvent.aggregateId !== input.settlement.settlementId
+    ) {
+      throw new ApplicationError("CONFLICT", "Settlement creation audit context is inconsistent.");
+    }
+    const tx = (await this.db()).transaction(
+      ["memberships", "expenses", "settlements", "auditEvents"],
+      "readwrite",
+    );
+    try {
+      const [membershipRows, expenseRows, settlementRows] = await Promise.all([
+        tx.objectStore("memberships").index("householdId").getAll(input.settlement.householdId),
+        tx.objectStore("expenses").index("householdId").getAll(input.settlement.householdId),
+        tx.objectStore("settlements").index("householdId").getAll(input.settlement.householdId),
+      ]);
+      const memberships = membershipRows.map((row) => fromMembershipRecord(row, row.key));
+      const expenses = expenseRows.map((row) => fromExpenseRecord(row, row.id));
+      const settlements = settlementRows.map((row) => fromSettlementRecord(row, row.id));
+      const sheet = calculateHouseholdBalances(
+        input.settlement.householdId,
+        memberships,
+        expenses.map(toBalanceExpense),
+        settlements,
+      );
+      const revalidated = createPendingSettlement({
+        settlementId: input.settlement.settlementId,
+        householdId: input.settlement.householdId,
+        actorId: input.auditEvent.actorId,
+        requestedRecommendation: input.settlement.originatingRecommendation,
+        createdAt: input.settlement.createdAt,
+        memberships,
+        currentRecommendations: generateSettlementRecommendations(sheet),
+        existingSettlements: settlements,
+      });
+      assertSettlementIdentityUnchanged(revalidated, input.settlement);
+      await tx.objectStore("settlements").add(toSettlementRecord(revalidated));
+      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      await tx.done;
+    } catch (error) {
+      abortSafely(tx);
+      if (error instanceof DomainError) {
+        if (
+          error.code === "SETTLEMENT_NOT_RECOMMENDED" ||
+          error.code === "SETTLEMENT_AMOUNT_MISMATCH"
+        ) {
+          throw new ApplicationError(
+            "CONFLICT",
+            "Settlement recommendation changed. Refresh and try again.",
+          );
+        }
+        if (error.code === "DUPLICATE_PENDING_SETTLEMENT") {
+          throw new ApplicationError(
+            "CONFLICT",
+            "A Pending payment already exists between these members.",
+          );
+        }
+      }
+      persistenceFailure(error);
+    }
   }
 
   async transitionSettlement(input: Parameters<AtomicApplicationPersistence["transitionSettlement"]>[0]): Promise<void> {

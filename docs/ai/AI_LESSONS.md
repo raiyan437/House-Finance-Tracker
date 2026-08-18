@@ -68,3 +68,10 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Legacy derived-only financial records can remain effective history without fabricated source inputs: identify the limitation explicitly, preserve their stored result, and block workflows that require reconstruction while retaining provably non-financial edits.
 - Receipt edits are safest as draft additions/removals committed with the expense and audit events in one transaction; expense soft deletion is a separate historical state and must not destroy retained receipt evidence.
 - Permission and former-member checks need a transaction-time membership recheck as well as application prevalidation, because a local cross-tab membership change can occur between form load and Save.
+
+## 2026-08-18 - Phase 8 settlement workflows
+
+- Exact-current settlement creation cannot rely on application prevalidation. The authoritative IndexedDB write transaction must lock and reread every financial source store, rerun the domain balance/recommendation/Pending-pair policies, and append the claim plus audit only after the requested recommendation still matches.
+- Pending settlement staleness is a fresh presentation concern over immutable historical source: refresh it before receiver confirmation, translate it outside React, and never let it alter or block the original-amount lifecycle.
+- Current-user settlement views and attention badges are derived projections, not persisted state. Reconstruct them after every mutation and identity switch so sender waiting, receiver actions, and navigation attention remain consistent.
+- Date-only expense values and settlement instants need separate presentation paths: expense dates never pass through timezones, while settlement/audit ISO instants render in the viewer's local timezone.

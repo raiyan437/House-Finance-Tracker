@@ -11,12 +11,18 @@ import type {
   ExpenseView,
   JoinableHouseholdView,
 } from "@/application/services/application-services";
+import type {
+  PendingSettlementView,
+  SettlementPageView,
+} from "@/application/settlements/settlement-page";
 import type { Card, ReceiptMetadata } from "@/domain/records/domain-records";
+import type { SettlementRecommendation } from "@/domain/settlements/settlement-types";
 import type {
   ExpenseId,
   HouseholdId,
   JoinRequestId,
   ReceiptId,
+  SettlementId,
   UserId,
 } from "@/domain/shared/identifiers";
 
@@ -26,6 +32,7 @@ export interface CurrentSessionView {
   readonly displayEmail: string;
   readonly roleLabel: "Leader" | "Member" | "No active household";
   readonly householdName?: string;
+  readonly settlementActionCount: number;
 }
 
 export interface HouseholdApplicationActions {
@@ -62,6 +69,19 @@ export interface ExpenseApplicationActions {
   ) => Promise<readonly ExpenseActivityView[]>;
 }
 
+export interface SettlementApplicationActions {
+  readonly getPage: (householdId: HouseholdId) => Promise<SettlementPageView>;
+  readonly getPendingPreview: (
+    settlementId: SettlementId,
+  ) => Promise<PendingSettlementView>;
+  readonly markRecommendationPaid: (
+    recommendation: SettlementRecommendation,
+  ) => Promise<void>;
+  readonly confirm: (settlementId: SettlementId) => Promise<void>;
+  readonly reject: (settlementId: SettlementId) => Promise<void>;
+  readonly cancel: (settlementId: SettlementId) => Promise<void>;
+}
+
 export type ApplicationRuntimeState =
   | Readonly<{ status: "loading" }>
   | Readonly<{
@@ -70,6 +90,7 @@ export type ApplicationRuntimeState =
       household: HouseholdAccessState;
       householdActions: HouseholdApplicationActions;
       expenseActions: ExpenseApplicationActions;
+      settlementActions: SettlementApplicationActions;
     }>
   | Readonly<{
       status: "error";

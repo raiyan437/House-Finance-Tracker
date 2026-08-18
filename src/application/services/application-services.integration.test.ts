@@ -14,7 +14,7 @@ import { IndexedDbAtomicApplicationPersistence } from "@/infrastructure/indexedd
 import { deleteLocalDatabase, openLocalDatabase } from "@/infrastructure/indexeddb/database";
 import { LocalCurrentSession } from "@/infrastructure/indexeddb/development-session";
 import { IndexedDbRepositories } from "@/infrastructure/indexeddb/repositories";
-import { toSettlementRecord } from "@/infrastructure/indexeddb/mappers";
+import { toExpenseRecord, toSettlementRecord } from "@/infrastructure/indexeddb/mappers";
 import { SEEDED_HOUSEHOLD_ID, SEEDED_USER_IDS, seedLocalDatabase } from "@/infrastructure/indexeddb/seed";
 import type { IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "@/infrastructure/indexeddb/records";
@@ -169,6 +169,110 @@ describe("Phase 4 application services with IndexedDB", () => {
     await application.settlements.transitionSettlement(createdId, "confirmed");
     expect(await repositories.settlements.getById(createdId)).toMatchObject({ status: "confirmed", amount: 2500 });
     expect((await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID)).find((item) => item.settlementId === settlementId("settlement-john-raiyan"))?.status).toBe("cancelled");
+  });
+
+  it("builds actor-specific settlement views, attention counts, and active-member-only history", async () => {
+    const raiyan = await application.settlements.getSettlementPage(SEEDED_HOUSEHOLD_ID);
+    expect(raiyan.summary).toEqual({ youOwe: 0, youAreOwed: 20000, settled: false });
+    expect(raiyan.recommendations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ direction: "incoming", counterparty: expect.objectContaining({ displayName: "John" }) }),
+      expect.objectContaining({ direction: "incoming", counterparty: expect.objectContaining({ displayName: "Sarah" }) }),
+    ]));
+    expect(raiyan.pending).toHaveLength(1);
+    expect(raiyan.pending[0]).toMatchObject({
+      relationship: "receiver",
+      allowedActions: { confirm: true, reject: true, cancel: false },
+    });
+    expect(await application.settlements.countCurrentUserSettlementActions()).toBe(1);
+
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    const john = await application.settlements.getSettlementPage(SEEDED_HOUSEHOLD_ID);
+    expect(john.summary).toEqual({ youOwe: 2500, youAreOwed: 0, settled: false });
+    expect(john.recommendations[0]).toMatchObject({
+      direction: "outgoing",
+      canMarkPaid: false,
+    });
+    expect(john.pending[0]).toMatchObject({
+      relationship: "sender",
+      allowedActions: { confirm: false, reject: false, cancel: true },
+    });
+    expect(await application.settlements.countCurrentUserSettlementActions()).toBe(0);
+
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    await expect(application.settlements.getSettlementPage(SEEDED_HOUSEHOLD_ID))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects a stale create when financial state drifts after service prevalidation", async () => {
+    await session.switchIdentity(SEEDED_USER_IDS.sarah);
+    const requested = (await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID))
+      .find((item) => item.senderId === SEEDED_USER_IDS.sarah)!;
+    const atomic = new IndexedDbAtomicApplicationPersistence(db);
+    const authoritativeCreate = atomic.createSettlement.bind(atomic);
+    vi.spyOn(atomic, "createSettlement").mockImplementationOnce(async (input) => {
+      const groceries = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
+      await db.put("expenses", toExpenseRecord({
+        ...groceries,
+        updatedAt: isoInstant("2026-08-13T12:59:59.000Z"),
+        deletedAt: isoInstant("2026-08-13T12:59:59.000Z"),
+        deletedByUserId: SEEDED_USER_IDS.raiyan,
+      }));
+      await authoritativeCreate(input);
+    });
+    application = new HouseFinanceApplication({
+      repositories,
+      atomic,
+      session,
+      values: new FixedValues(),
+    });
+    const settlementCount = (await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID)).length;
+    const auditCount = (await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).length;
+
+    await expect(application.settlements.createSettlement(requested)).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Settlement recommendation changed. Refresh and try again.",
+    });
+    expect(await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID)).toHaveLength(settlementCount);
+    expect(await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).toHaveLength(auditCount);
+  });
+
+  it("enforces receiver/sender lifecycle permissions without a leader override", async () => {
+    const leaderCannotOverride = {
+      settlementId: settlementId("settlement-john-sarah"),
+      householdId: SEEDED_HOUSEHOLD_ID,
+      senderId: SEEDED_USER_IDS.john,
+      receiverId: SEEDED_USER_IDS.sarah,
+      amount: positivePoisha(100),
+      originatingRecommendation: {
+        householdId: SEEDED_HOUSEHOLD_ID,
+        senderId: SEEDED_USER_IDS.john,
+        receiverId: SEEDED_USER_IDS.sarah,
+        amount: positivePoisha(100),
+      },
+      createdAt: isoInstant("2026-08-13T12:30:00.000Z"),
+      status: "pending" as const,
+    };
+    await db.add("settlements", toSettlementRecord(leaderCannotOverride));
+    await expect(application.settlements.confirmSettlement(leaderCannotOverride.settlementId))
+      .rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_RECEIVER" });
+    await expect(application.settlements.rejectSettlement(leaderCannotOverride.settlementId))
+      .rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_RECEIVER" });
+    await expect(application.settlements.cancelSettlement(leaderCannotOverride.settlementId))
+      .rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_SENDER" });
+
+    await session.switchIdentity(SEEDED_USER_IDS.sarah);
+    await expect(
+      application.settlements.confirmSettlement(settlementId("settlement-john-raiyan")),
+    ).rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_RECEIVER" });
+    await expect(
+      application.settlements.cancelSettlement(settlementId("settlement-john-raiyan")),
+    ).rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_SENDER" });
+
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    await application.settlements.cancelSettlement(settlementId("settlement-john-raiyan"));
+    await expect(
+      application.settlements.cancelSettlement(settlementId("settlement-john-raiyan")),
+    ).rejects.toMatchObject({ code: "INVALID_SETTLEMENT_TRANSITION" });
   });
 
   it("archives referenced cards through the application service", async () => {

@@ -9,6 +9,7 @@ import {
   type CurrentSessionView,
   type ExpenseApplicationActions,
   type HouseholdApplicationActions,
+  type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import {
   DevelopmentTools,
@@ -87,9 +88,10 @@ function retryRuntime(): void {
 async function loadSessionView(
   runtime: LocalDevelopmentRuntime,
 ): Promise<Readonly<{ session: CurrentSessionView; household: HouseholdAccessState }>> {
-  const [profile, household] = await Promise.all([
+  const [profile, household, settlementActionCount] = await Promise.all([
     runtime.application.profiles.getCurrentProfile(),
     runtime.application.households.getCurrentAccessState(),
+    runtime.application.settlements.countCurrentUserSettlementActions(),
   ]);
   const isLeader = household.status === "active-leader";
   const isMember = household.status === "active-member";
@@ -100,6 +102,7 @@ async function loadSessionView(
       displayName: profile.displayName,
       displayEmail: profile.displayEmail,
       roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
+      settlementActionCount,
       ...(isLeader || isMember ? { householdName: household.household.name } : {}),
     }),
     household,
@@ -132,6 +135,7 @@ export function LocalApplicationRuntime({
 
     let actions: HouseholdApplicationActions;
     let expenseActions: ExpenseApplicationActions;
+    let settlementActions: SettlementApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -139,7 +143,13 @@ export function LocalApplicationRuntime({
       try {
         const view = await loadSessionView(runtime);
         if (!disposed && reconstruction === reconstructionRef.current) {
-          setState({ status: "ready", ...view, householdActions: actions, expenseActions });
+          setState({
+            status: "ready",
+            ...view,
+            householdActions: actions,
+            expenseActions,
+            settlementActions,
+          });
         }
       } catch {
         if (!disposed && reconstruction === reconstructionRef.current) {
@@ -157,15 +167,20 @@ export function LocalApplicationRuntime({
         const runtime = await acquireRuntime();
         if (disposed) return;
         runtimeRef.current = runtime;
-        const mutateAndReconstruct = async (mutation: () => Promise<unknown>) => {
-          await mutation();
+        const mutateAndReconstruct = async <T,>(mutation: () => Promise<T>): Promise<T> => {
+          const result = await mutation();
           await reconstructState(runtime);
+          return result;
         };
         actions = Object.freeze<HouseholdApplicationActions>({
           generateCode: () => runtime.application.households.generateUniqueHouseholdCode(),
-          createHousehold: (name, code) => mutateAndReconstruct(() => runtime.application.households.createHousehold(name, code)),
+          createHousehold: async (name, code) => {
+            await mutateAndReconstruct(() => runtime.application.households.createHousehold(name, code));
+          },
           findHousehold: (code) => runtime.application.households.findHouseholdForJoin(code),
-          requestToJoin: (householdId) => mutateAndReconstruct(() => runtime.application.households.requestToJoin(householdId)),
+          requestToJoin: async (householdId) => {
+            await mutateAndReconstruct(() => runtime.application.households.requestToJoin(householdId));
+          },
           cancelJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.cancelJoinRequest(joinRequestId)),
           acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
           rejectJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.rejectJoinRequest(joinRequestId)),
@@ -197,6 +212,29 @@ export function LocalApplicationRuntime({
             runtime.application.receipts.deleteReceipt(receiptId),
           listActivity: (expenseId) =>
             runtime.application.expenses.listExpenseActivity(expenseId),
+        });
+        settlementActions = Object.freeze<SettlementApplicationActions>({
+          getPage: (householdId) =>
+            runtime.application.settlements.getSettlementPage(householdId),
+          getPendingPreview: (settlementId) =>
+            runtime.application.settlements.getPendingSettlementActionPreview(settlementId),
+          markRecommendationPaid: async (recommendation) => {
+            await mutateAndReconstruct(() =>
+              runtime.application.settlements.createSettlement(recommendation),
+            );
+          },
+          confirm: (settlementId) =>
+            mutateAndReconstruct(() =>
+              runtime.application.settlements.confirmSettlement(settlementId),
+            ),
+          reject: (settlementId) =>
+            mutateAndReconstruct(() =>
+              runtime.application.settlements.rejectSettlement(settlementId),
+            ),
+          cancel: (settlementId) =>
+            mutateAndReconstruct(() =>
+              runtime.application.settlements.cancelSettlement(settlementId),
+            ),
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);

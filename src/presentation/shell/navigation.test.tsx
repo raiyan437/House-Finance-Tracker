@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => currentPathname,
 }));
 
-function renderWithRuntime(children: React.ReactNode) {
+function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0) {
   return render(
     <ApplicationRuntimeProvider
       value={{
@@ -23,6 +23,7 @@ function renderWithRuntime(children: React.ReactNode) {
           displayEmail: "raiyan@local.test",
           roleLabel: "Leader",
           householdName: "Raiyan House",
+          settlementActionCount,
         },
         household: {
           status: "active-leader",
@@ -55,6 +56,14 @@ function renderWithRuntime(children: React.ReactNode) {
           readReceipt: vi.fn(),
           deleteReceipt: vi.fn(),
           listActivity: vi.fn(),
+        },
+        settlementActions: {
+          getPage: vi.fn(),
+          getPendingPreview: vi.fn(),
+          markRecommendationPaid: vi.fn(),
+          confirm: vi.fn(),
+          reject: vi.fn(),
+          cancel: vi.fn(),
         },
       }}
     >
@@ -115,5 +124,16 @@ describe("responsive navigation", () => {
     expect(screen.getByRole("link", { name: "Expenses" })).not.toHaveAttribute(
       "aria-current",
     );
+  });
+});
+
+describe("settlement attention badge", () => {
+  it("announces only the derived receiver-action count in desktop and mobile navigation", () => {
+    const desktop = renderWithRuntime(<DesktopSidebar />, 2);
+    expect(screen.getByLabelText("2 settlement actions waiting for you")).toHaveTextContent("2");
+    desktop.unmount();
+
+    renderWithRuntime(<MobileNavigation />, 2);
+    expect(screen.getByRole("link", { name: "Settlements, 2 actions waiting for you" })).toBeInTheDocument();
   });
 });

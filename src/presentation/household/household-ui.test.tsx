@@ -8,6 +8,7 @@ import {
   type ApplicationRuntimeState,
   type ExpenseApplicationActions,
   type HouseholdApplicationActions,
+  type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { routeRequiresHousehold } from "@/presentation/runtime/household-access-gate.client";
 import { CreateHouseholdForm } from "./create-household-form.client";
@@ -51,6 +52,17 @@ function expenseActions(): ExpenseApplicationActions {
   };
 }
 
+function settlementActions(): SettlementApplicationActions {
+  return {
+    getPage: vi.fn(),
+    getPendingPreview: vi.fn(),
+    markRecommendationPaid: vi.fn(),
+    confirm: vi.fn(),
+    reject: vi.fn(),
+    cancel: vi.fn(),
+  };
+}
+
 function readyState(
   household: Extract<ApplicationRuntimeState, { status: "ready" }>["household"],
   householdActions = actions(),
@@ -64,11 +76,13 @@ function readyState(
       displayName: "Alex",
       displayEmail: "alex@local.test",
       roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
+      settlementActionCount: 0,
       ...(isLeader || isMember ? { householdName: household.household.name } : {}),
     },
     household,
     householdActions,
     expenseActions: expenseActions(),
+    settlementActions: settlementActions(),
   };
 }
 

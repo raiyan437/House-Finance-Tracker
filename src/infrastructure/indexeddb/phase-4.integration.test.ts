@@ -365,6 +365,60 @@ describe("Phase 4 IndexedDB local persistence", () => {
     db.close(); await deleteLocalDatabase(name);
   });
 
+  it("atomically revalidates the exact current recommendation before creating a Pending settlement", async () => {
+    const name = databaseName("settlement-current-recommendation");
+    const db = await openLocalDatabase(name);
+    await seedLocalDatabase(db);
+    const secondConnection = await openLocalDatabase(name);
+    const atomic = new IndexedDbAtomicApplicationPersistence(secondConnection);
+    const id = settlementId("settlement-stale-request");
+    const staleRequest: SettlementRecord = {
+      settlementId: id,
+      householdId: SEEDED_HOUSEHOLD_ID,
+      senderId: SEEDED_USER_IDS.sarah,
+      receiverId: SEEDED_USER_IDS.raiyan,
+      amount: positivePoisha(17500),
+      originatingRecommendation: {
+        householdId: SEEDED_HOUSEHOLD_ID,
+        senderId: SEEDED_USER_IDS.sarah,
+        receiverId: SEEDED_USER_IDS.raiyan,
+        amount: positivePoisha(17500),
+      },
+      createdAt: now,
+      status: "pending",
+    };
+    const staleAudit: AuditEvent = {
+      ...audit("settlement-stale-request", "settlement", id),
+      actorId: SEEDED_USER_IDS.sarah,
+    };
+
+    const groceries = deterministicSeedData().expenses[0];
+    const expenseTransaction = db.transaction("expenses", "readwrite");
+    const expenseWrite = expenseTransaction.store.put(toExpenseRecord({
+      ...groceries,
+      updatedAt: now,
+      deletedAt: now,
+      deletedByUserId: SEEDED_USER_IDS.raiyan,
+    }));
+    const staleCreate = atomic.createSettlement({
+      settlement: staleRequest,
+      auditEvent: staleAudit,
+    });
+    await expenseWrite;
+    await expenseTransaction.done;
+
+    await expect(
+      staleCreate,
+    ).rejects.toMatchObject({
+      name: "ApplicationError",
+      code: "CONFLICT",
+      message: "Settlement recommendation changed. Refresh and try again.",
+    });
+    expect(await db.get("settlements", id)).toBeUndefined();
+    expect(await db.get("auditEvents", staleAudit.auditEventId)).toBeUndefined();
+    secondConnection.close(); db.close(); await deleteLocalDatabase(name);
+  });
+
   it("rejects malformed persisted records without returning private record contents", async () => {
     const name = databaseName("malformed");
     const db = await openLocalDatabase(name);

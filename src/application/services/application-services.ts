@@ -42,6 +42,12 @@ import type { SettlementRecommendation, SettlementStatus } from "@/domain/settle
 import type { PercentageSplitEntry, SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { PositivePoisha } from "@/domain/money/poisha";
+import {
+  buildPendingSettlementActionPreview,
+  buildSettlementPageView,
+  type PendingSettlementView,
+  type SettlementPageView,
+} from "@/application/settlements/settlement-page";
 import type {
   AuditEventRepository,
   CardRepository,
@@ -655,10 +661,140 @@ export class ExpenseApplicationService {
 
 export class SettlementApplicationService {
   constructor(private readonly deps: Dependencies) {}
-  async recommendations(household: HouseholdId): Promise<readonly SettlementRecommendation[]> { const actor = await this.deps.session.getCurrentUserId(); await requireActiveMembership(this.deps.repositories, household, actor); return generateSettlementRecommendations((await financialContext(this.deps.repositories, household)).sheet); }
-  async listHouseholdSettlements(household: HouseholdId) { const actor = await this.deps.session.getCurrentUserId(); await requireActiveMembership(this.deps.repositories, household, actor); return this.deps.repositories.settlements.listByHousehold(household); }
-  async createSettlement(requested: SettlementRecommendation): Promise<SettlementId> { const actor = await this.deps.session.getCurrentUserId(); const context = await financialContext(this.deps.repositories, requested.householdId); const created = createPendingSettlement({ settlementId: settlementId(this.deps.values.nextId("settlement")), householdId: requested.householdId, actorId: actor, requestedRecommendation: requested, createdAt: this.deps.values.now(), memberships: context.memberships, currentRecommendations: generateSettlementRecommendations(context.sheet), existingSettlements: context.settlements }); await this.deps.atomic.createSettlement({ settlement: created, auditEvent: event(this.deps.values, requested.householdId, actor, "settlement", created.settlementId, "created-pending", ["status", "amount"]) }); return created.settlementId; }
-  async transitionSettlement(id: SettlementId, status: Exclude<SettlementStatus, "pending">): Promise<void> { const actor = await this.deps.session.getCurrentUserId(); const current = await this.deps.repositories.settlements.getById(id); if (!current) throw new ApplicationError("NOT_FOUND", "Settlement not found."); const now = this.deps.values.now(); const updated = status === "confirmed" ? confirmSettlement(current, actor, now) : status === "rejected" ? rejectSettlement(current, actor, now) : cancelSettlement(current, actor, now); await this.deps.atomic.transitionSettlement({ settlement: updated, expectedStatus: "pending", auditEvent: event(this.deps.values, current.householdId, actor, "settlement", id, status, ["status"]) }); }
+
+  private async pageForActor(
+    household: HouseholdId,
+    actor: UserId,
+  ): Promise<SettlementPageView> {
+    await requireActiveMembership(this.deps.repositories, household, actor);
+    const context = await financialContext(this.deps.repositories, household);
+    const profiles = await this.deps.repositories.profiles.getByIds(
+      context.memberships.map((membership) => membership.userId),
+    );
+    const recommendations = generateSettlementRecommendations(context.sheet);
+    return buildSettlementPageView({
+      householdId: household,
+      actorId: actor,
+      sheet: context.sheet,
+      recommendations,
+      settlements: context.settlements,
+      memberships: context.memberships,
+      profiles,
+    });
+  }
+
+  async getSettlementPage(household: HouseholdId): Promise<SettlementPageView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    return this.pageForActor(household, actor);
+  }
+
+  async getPendingSettlementActionPreview(id: SettlementId): Promise<PendingSettlementView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const current = await this.deps.repositories.settlements.getById(id);
+    if (
+      !current ||
+      current.status !== "pending" ||
+      (current.senderId !== actor && current.receiverId !== actor)
+    ) {
+      throw new ApplicationError("NOT_FOUND", "Pending settlement not found.");
+    }
+    return buildPendingSettlementActionPreview(
+      await this.pageForActor(current.householdId, actor),
+      id,
+    );
+  }
+
+  async recommendations(household: HouseholdId): Promise<readonly SettlementRecommendation[]> {
+    const actor = await this.deps.session.getCurrentUserId();
+    await requireActiveMembership(this.deps.repositories, household, actor);
+    return generateSettlementRecommendations(
+      (await financialContext(this.deps.repositories, household)).sheet,
+    );
+  }
+
+  async listHouseholdSettlements(household: HouseholdId) {
+    const actor = await this.deps.session.getCurrentUserId();
+    await requireActiveMembership(this.deps.repositories, household, actor);
+    return this.deps.repositories.settlements.listByHousehold(household);
+  }
+
+  async countCurrentUserSettlementActions(): Promise<number> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const membership = await this.deps.repositories.memberships.findActiveByUser(actor);
+    if (!membership) return 0;
+    return (await this.deps.repositories.settlements.listByHousehold(membership.householdId))
+      .filter((item) => item.status === "pending" && item.receiverId === actor)
+      .length;
+  }
+
+  async createSettlement(requested: SettlementRecommendation): Promise<SettlementId> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const context = await financialContext(this.deps.repositories, requested.householdId);
+    const created = createPendingSettlement({
+      settlementId: settlementId(this.deps.values.nextId("settlement")),
+      householdId: requested.householdId,
+      actorId: actor,
+      requestedRecommendation: requested,
+      createdAt: this.deps.values.now(),
+      memberships: context.memberships,
+      currentRecommendations: generateSettlementRecommendations(context.sheet),
+      existingSettlements: context.settlements,
+    });
+    await this.deps.atomic.createSettlement({
+      settlement: created,
+      auditEvent: event(
+        this.deps.values,
+        requested.householdId,
+        actor,
+        "settlement",
+        created.settlementId,
+        "created-pending",
+        ["status", "amount"],
+      ),
+    });
+    return created.settlementId;
+  }
+
+  async transitionSettlement(
+    id: SettlementId,
+    status: Exclude<SettlementStatus, "pending">,
+  ): Promise<void> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const current = await this.deps.repositories.settlements.getById(id);
+    if (!current) throw new ApplicationError("NOT_FOUND", "Settlement not found.");
+    await requireActiveMembership(this.deps.repositories, current.householdId, actor);
+    const now = this.deps.values.now();
+    const updated = status === "confirmed"
+      ? confirmSettlement(current, actor, now)
+      : status === "rejected"
+        ? rejectSettlement(current, actor, now)
+        : cancelSettlement(current, actor, now);
+    await this.deps.atomic.transitionSettlement({
+      settlement: updated,
+      expectedStatus: "pending",
+      auditEvent: event(
+        this.deps.values,
+        current.householdId,
+        actor,
+        "settlement",
+        id,
+        status,
+        ["status", "resolvedAt"],
+      ),
+    });
+  }
+
+  async confirmSettlement(id: SettlementId): Promise<void> {
+    return this.transitionSettlement(id, "confirmed");
+  }
+
+  async rejectSettlement(id: SettlementId): Promise<void> {
+    return this.transitionSettlement(id, "rejected");
+  }
+
+  async cancelSettlement(id: SettlementId): Promise<void> {
+    return this.transitionSettlement(id, "cancelled");
+  }
 }
 
 export class CardApplicationService {

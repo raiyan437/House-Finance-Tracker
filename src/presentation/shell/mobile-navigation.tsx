@@ -19,6 +19,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { moreNavigationItems } from "./navigation-items";
 
 interface MobileLinkProps {
@@ -27,6 +28,7 @@ interface MobileLinkProps {
   readonly active: boolean;
   readonly icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   readonly emphasized?: boolean;
+  readonly actionCount?: number;
 }
 
 function MobileLink({
@@ -35,9 +37,13 @@ function MobileLink({
   active,
   icon: Icon,
   emphasized = false,
+  actionCount = 0,
 }: MobileLinkProps) {
   return (
     <Link
+      aria-label={actionCount > 0
+        ? `${label}, ${actionCount} ${actionCount === 1 ? "action" : "actions"} waiting for you`
+        : label}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
@@ -47,12 +53,20 @@ function MobileLink({
     >
       <span
         className={cn(
-          "flex size-7 items-center justify-center rounded-full",
+          "relative flex size-7 items-center justify-center rounded-full",
           emphasized && "size-10 bg-brand text-foreground shadow-[var(--shadow-small)]",
           active && !emphasized && "bg-brand-soft text-foreground",
         )}
       >
         <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
+        {actionCount > 0 ? (
+          <span
+            aria-hidden="true"
+            className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-semibold leading-5 text-white"
+          >
+            {actionCount}
+          </span>
+        ) : null}
       </span>
       <span className="truncate">{label}</span>
     </Link>
@@ -61,7 +75,11 @@ function MobileLink({
 
 export function MobileNavigation() {
   const pathname = usePathname();
+  const runtime = useApplicationRuntime();
   const moreActive = moreNavigationItems.some((item) => item.isActive(pathname));
+  const settlementActionCount = runtime.status === "ready"
+    ? runtime.session.settlementActionCount
+    : 0;
 
   return (
     <nav
@@ -93,6 +111,7 @@ export function MobileNavigation() {
         />
         <MobileLink
           active={pathname.startsWith("/settlements")}
+          actionCount={settlementActionCount}
           href="/settlements"
           icon={HandCoins}
           label="Settlements"

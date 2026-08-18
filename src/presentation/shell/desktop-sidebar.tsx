@@ -29,6 +29,9 @@ export function DesktopSidebar() {
           {desktopNavigationItems.map((item) => {
             const active = item.isActive(pathname);
             const Icon = item.icon;
+            const actionCount = item.href === "/settlements" && runtime.status === "ready"
+              ? runtime.session.settlementActionCount
+              : 0;
 
             return (
               <li key={item.href}>
@@ -44,6 +47,14 @@ export function DesktopSidebar() {
                 >
                   <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
                   <span>{item.label}</span>
+                  {actionCount > 0 ? (
+                    <span
+                      aria-label={`${actionCount} settlement ${actionCount === 1 ? "action" : "actions"} waiting for you`}
+                      className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[0.6875rem] font-semibold leading-5 text-foreground"
+                    >
+                      {actionCount}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );
