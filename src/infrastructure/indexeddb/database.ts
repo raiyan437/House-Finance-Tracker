@@ -1,9 +1,10 @@
 import { ApplicationError } from "@/application/errors/application-error";
-import { deleteDB, openDB, type IDBPDatabase } from "idb";
+import { deleteDB, openDB, unwrap, type IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "./records";
+import { migrateExpenseRecordV1ToV2 } from "./mappers";
 
 export const LOCAL_DATABASE_NAME = "house-finance-tracker-local";
-export const LOCAL_DATABASE_VERSION = 1;
+export const LOCAL_DATABASE_VERSION = 2;
 
 function createSchemaV1(database: IDBPDatabase<HouseFinanceDatabase>): void {
   database.createObjectStore("appMeta", { keyPath: "key" });
@@ -57,8 +58,28 @@ export async function openLocalDatabase(
     rejectBlocked = reject;
   });
   const opening = openDB<HouseFinanceDatabase>(name, LOCAL_DATABASE_VERSION, {
-    upgrade(database, oldVersion) {
+    upgrade(database, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) createSchemaV1(database);
+      if (oldVersion >= 1 && oldVersion < 2) {
+        const nativeTransaction = unwrap(transaction);
+        const request = nativeTransaction.objectStore("expenses").openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          try {
+            const updateRequest = cursor.update(
+              migrateExpenseRecordV1ToV2(
+                cursor.value,
+                String(cursor.primaryKey),
+              ),
+            );
+            updateRequest.onsuccess = () => cursor.continue();
+          } catch {
+            void transaction.done.catch(() => undefined);
+            nativeTransaction.abort();
+          }
+        };
+      }
     },
     blocked() {
       rejectBlocked?.(new ApplicationError("DATABASE_VERSION_BLOCKED", "IndexedDB upgrade is blocked by another open connection."));

@@ -119,7 +119,14 @@ export interface AtomicApplicationPersistence {
   endMembership(input: Readonly<{ membership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
   deleteHousehold(input: Readonly<{ household: Household; formerMemberships: readonly MembershipSnapshot[]; auditEvent: AuditEvent }>): Promise<void>;
   createExpense(input: Readonly<{ expense: Expense; privateCardSnapshot?: ExpenseCardPrivateSnapshot; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }>): Promise<void>;
-  editExpense(input: Readonly<{ expense: Expense; privateCardSnapshot?: ExpenseCardPrivateSnapshot; removePrivateCardSnapshot: boolean; auditEvent: AuditEvent }>): Promise<void>;
+  editExpense(input: Readonly<{
+    expense: Expense;
+    expectedUpdatedAt: string;
+    privateCardSnapshot?: ExpenseCardPrivateSnapshot;
+    receiptAdditions?: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[];
+    receiptRemovals?: readonly ReceiptMetadata[];
+    auditEvents: readonly AuditEvent[];
+  }>): Promise<void>;
   createSettlement(input: Readonly<{ settlement: SettlementRecord; auditEvent: AuditEvent }>): Promise<void>;
   transitionSettlement(input: Readonly<{ settlement: SettlementRecord; expectedStatus: SettlementStatus; auditEvent: AuditEvent }>): Promise<void>;
   createCard(input: Readonly<{ card: Card; auditEvent: AuditEvent }>): Promise<void>;

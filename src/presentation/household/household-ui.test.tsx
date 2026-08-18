@@ -6,6 +6,7 @@ import { isoInstant } from "@/domain/shared/instant";
 import {
   ApplicationRuntimeProvider,
   type ApplicationRuntimeState,
+  type ExpenseApplicationActions,
   type HouseholdApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { routeRequiresHousehold } from "@/presentation/runtime/household-access-gate.client";
@@ -34,6 +35,22 @@ function actions(overrides: Partial<HouseholdApplicationActions> = {}): Househol
   };
 }
 
+function expenseActions(): ExpenseApplicationActions {
+  return {
+    listExpenses: vi.fn(),
+    listMembers: vi.fn(),
+    listSelectableCards: vi.fn(),
+    getExpense: vi.fn(),
+    createExpense: vi.fn(),
+    editExpense: vi.fn(),
+    deleteExpense: vi.fn(),
+    listReceipts: vi.fn(),
+    readReceipt: vi.fn(),
+    deleteReceipt: vi.fn(),
+    listActivity: vi.fn(),
+  };
+}
+
 function readyState(
   household: Extract<ApplicationRuntimeState, { status: "ready" }>["household"],
   householdActions = actions(),
@@ -51,6 +68,7 @@ function readyState(
     },
     household,
     householdActions,
+    expenseActions: expenseActions(),
   };
 }
 

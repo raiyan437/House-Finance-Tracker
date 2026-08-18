@@ -61,3 +61,10 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - One-house and Pending-request checks must be repeated inside the named IndexedDB transaction. Application prechecks improve errors, while transaction-time index checks close the cross-tab race window and rollback tests prove no partial request/membership/audit state.
 - Client-only membership routing needs a deterministic loading gate for household-dependent routes, while independent routes remain explicitly outside the gate. Mutation handlers should retain their local pending state until authoritative runtime reconstruction and success navigation finish.
 - Injected household-code candidates make the 32-collision limit deterministic in tests; the browser generator can use unbiased cryptographic randomness without coupling application services to browser APIs.
+
+## 2026-08-18 - Phase 7 financial source persistence
+
+- Persist user-entered financial source data together with its derived result whenever the source cannot be uniquely reconstructed. Domain reconstruction must prove the two representations agree instead of silently preferring one.
+- Legacy derived-only financial records can remain effective history without fabricated source inputs: identify the limitation explicitly, preserve their stored result, and block workflows that require reconstruction while retaining provably non-financial edits.
+- Receipt edits are safest as draft additions/removals committed with the expense and audit events in one transaction; expense soft deletion is a separate historical state and must not destroy retained receipt evidence.
+- Permission and former-member checks need a transaction-time membership recheck as well as application prevalidation, because a local cross-tab membership change can occur between form load and Save.

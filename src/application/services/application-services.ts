@@ -4,9 +4,13 @@ import type {
   CurrentSession,
   ReceiptContent,
 } from "../repositories";
+
+export type ExpenseReceiptContent = ReceiptContent;
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
-import { assertFormerMemberChangeAllowed } from "@/domain/expenses/expense-financial-fingerprint";
+import { assertFormerMemberChangeAllowed, assertLegacyPercentageChangeAllowed, expenseInvolvesFormerMember, type ExpenseFinancialFingerprint } from "@/domain/expenses/expense-financial-fingerprint";
+import { expensePercentageSourceStatus, type ExpensePercentageSourceStatus } from "@/domain/expenses/expense-percentage-source";
+import { DomainError } from "@/domain/shared/domain-error";
 import { leaveHousehold, removeHouseholdMember, evaluateHouseholdDeletionEligibility, assertEligible } from "@/domain/membership/membership-eligibility";
 import { transferLeadership } from "@/domain/membership/leadership-policy";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
@@ -35,7 +39,7 @@ import type { IsoInstant } from "@/domain/shared/instant";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
 import { cancelSettlement, confirmSettlement, rejectSettlement } from "@/domain/settlements/settlement-lifecycle";
 import type { SettlementRecommendation, SettlementStatus } from "@/domain/settlements/settlement-types";
-import type { SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
+import type { PercentageSplitEntry, SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { PositivePoisha } from "@/domain/money/poisha";
 import type {
@@ -355,6 +359,7 @@ export interface CreateExpenseCommand {
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
+  readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly payment: { readonly method: "cash" } | { readonly method: "card"; readonly cardId: CardId };
   readonly receipts?: readonly Readonly<{ originalFilename?: string; content: ReceiptContent }>[];
@@ -362,7 +367,65 @@ export interface CreateExpenseCommand {
 
 export interface ExpenseView {
   readonly expense: Omit<Expense, "payment"> & { readonly payment: { readonly method: "cash" } | { readonly method: "card" } };
+  readonly percentageSourceStatus: ExpensePercentageSourceStatus;
+  readonly permissions: Readonly<{ canEdit: boolean; canDelete: boolean }>;
+  readonly financialEditState:
+    | "editable"
+    | "former-member-frozen"
+    | "legacy-percentage-input-unavailable"
+    | "deleted";
   readonly privateCardSnapshot?: ExpenseCardPrivateSnapshot;
+}
+
+export interface ExpenseMemberView {
+  readonly userId: UserId;
+  readonly displayName: string;
+  readonly status: MembershipSnapshot["status"];
+  readonly role: MembershipSnapshot["role"];
+}
+
+export interface ExpenseActivityView {
+  readonly action: string;
+  readonly actorName: string;
+  readonly occurredAt: IsoInstant;
+  readonly changedFields: readonly string[];
+}
+
+function financialFingerprint(expense: Expense): ExpenseFinancialFingerprint {
+  return {
+    householdId: expense.householdId,
+    amount: expense.amount,
+    payerId: expense.payerId,
+    splitMethod: expense.splitMethod,
+    percentageEntries: expense.percentageEntries,
+    allocations: expense.allocations,
+    expenseDate: expense.expenseDate,
+    payment: expense.payment,
+    deleted: Boolean(expense.deletedAt),
+  };
+}
+
+function assertExpenseParticipantsBelongToHousehold(
+  expense: Expense,
+  memberships: readonly MembershipSnapshot[],
+  requireActive: boolean,
+): void {
+  const membershipByUserId = new Map(
+    memberships
+      .filter((membership) => membership.householdId === expense.householdId)
+      .map((membership) => [membership.userId, membership]),
+  );
+  for (const allocation of expense.allocations) {
+    const membership = membershipByUserId.get(allocation.participantId);
+    if (!membership || (requireActive && membership.status !== "active")) {
+      throw new DomainError(
+        "INVALID_EXPENSE",
+        requireActive
+          ? "New expense participants must be active household members."
+          : "Expense participants must belong to household history.",
+      );
+    }
+  }
 }
 
 export interface EditExpenseCommand {
@@ -371,18 +434,60 @@ export interface EditExpenseCommand {
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
+  readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly payment:
     | { readonly kind: "preserve" }
     | { readonly kind: "cash"; readonly confirmedPrivateReferenceDetachment: boolean }
     | { readonly kind: "card"; readonly cardId: CardId };
+  readonly newReceipts?: readonly Readonly<{
+    originalFilename?: string;
+    content: ReceiptContent;
+  }>[];
+  readonly removedReceiptIds?: readonly ReceiptId[];
 }
 
 export class ExpenseApplicationService {
   constructor(private readonly deps: Dependencies) {}
+
+  async listHouseholdMembers(household: HouseholdId): Promise<readonly ExpenseMemberView[]> {
+    const actor = await this.deps.session.getCurrentUserId();
+    await requireActiveMembership(this.deps.repositories, household, actor);
+    const memberships = await this.deps.repositories.memberships.listByHousehold(household);
+    const profiles = await this.deps.repositories.profiles.getByIds(
+      memberships.map((membership) => membership.userId),
+    );
+    const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    return memberships.map((membership) => Object.freeze({
+      userId: membership.userId,
+      displayName: names.get(membership.userId) ?? "Unknown member",
+      status: membership.status,
+      role: membership.role,
+    }));
+  }
+
+  async listExpenseActivity(id: ExpenseId): Promise<readonly ExpenseActivityView[]> {
+    const view = await this.getExpense(id);
+    const audits = (await this.deps.repositories.auditEvents.listByHousehold(
+      view.expense.householdId,
+    )).filter(
+      (audit) => audit.aggregateType === "expense" && audit.aggregateId === id,
+    );
+    const profiles = await this.deps.repositories.profiles.getByIds(
+      audits.map((audit) => audit.actorId),
+    );
+    const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    return audits.map((audit) => Object.freeze({
+        action: audit.action,
+        actorName: names.get(audit.actorId) ?? "Unknown member",
+        occurredAt: audit.occurredAt,
+        changedFields: Object.freeze([...audit.changedFields]),
+      }));
+  }
   async createExpense(command: CreateExpenseCommand): Promise<ExpenseView> {
     const actor = await this.deps.session.getCurrentUserId();
     await requireActiveMembership(this.deps.repositories, command.householdId, actor);
+    const memberships = await this.deps.repositories.memberships.listByHousehold(command.householdId);
     const id = expenseId(this.deps.values.nextId("expense"));
     const now = this.deps.values.now();
     let snapshot: ExpenseCardPrivateSnapshot | undefined;
@@ -391,11 +496,24 @@ export class ExpenseApplicationService {
       if (!card || card.archivedAt) throw new ApplicationError("NOT_FOUND", "Selectable card not found.");
       snapshot = { expenseId: id, ownerId: actor, cardId: card.cardId, cardName: card.name, cardType: card.type, color: card.color };
     }
-    const expense: Expense = { expenseId: id, householdId: command.householdId, creatorId: actor, payerId: actor, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, allocations: command.allocations, payment: command.payment.method === "cash" ? { method: "cash" } : { method: "card", cardReference: expensePrivateReference(id) }, createdAt: now, updatedAt: now };
+    if (command.splitMethod === "percentage" && command.percentageEntries === undefined) {
+      throw new DomainError(
+        "LEGACY_PERCENTAGE_INPUT_UNAVAILABLE",
+        "New percentage expenses require their original basis-point entries.",
+      );
+    }
+    if (command.splitMethod !== "percentage" && command.percentageEntries !== undefined) {
+      throw new DomainError(
+        "INVALID_EXPENSE",
+        "Only percentage expenses may include percentage source entries.",
+      );
+    }
+    const expense: Expense = { expenseId: id, householdId: command.householdId, creatorId: actor, payerId: actor, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(command.splitMethod === "percentage" ? { percentageEntries: command.percentageEntries } : {}), allocations: command.allocations, payment: command.payment.method === "cash" ? { method: "cash" } : { method: "card", cardReference: expensePrivateReference(id) }, createdAt: now, updatedAt: now };
     assertExpense(expense);
+    assertExpenseParticipantsBelongToHousehold(expense, memberships, true);
     const receipts = (command.receipts ?? []).map((item) => { const metadata: ReceiptMetadata = { receiptId: receiptId(this.deps.values.nextId("receipt")), householdId: command.householdId, expenseId: id, createdByUserId: actor, mimeType: item.content.mimeType, ...(item.originalFilename ? { originalFilename: item.originalFilename.trim() } : {}), sizeBytes: item.content.bytes.byteLength, createdAt: now }; assertReceiptMetadata(metadata); return { metadata, content: item.content }; });
     await this.deps.atomic.createExpense({ expense, ...(snapshot ? { privateCardSnapshot: snapshot } : {}), receipts, auditEvent: event(this.deps.values, command.householdId, actor, "expense", id, "created", ["name", "amount", "expenseDate", "allocations", "payment", ...(receipts.length ? ["receipts"] : [])]) });
-    return this.view(expense, actor, snapshot);
+    return this.view(expense, actor, memberships, snapshot);
   }
 
   async getExpense(id: ExpenseId): Promise<ExpenseView> {
@@ -404,24 +522,31 @@ export class ExpenseApplicationService {
     if (!expense) throw new ApplicationError("NOT_FOUND", "Expense not found.");
     const memberships = await this.deps.repositories.memberships.listByHousehold(expense.householdId);
     assertCanViewExpense(getExpensePermissions(expense.householdId, actor, expense.creatorId, memberships));
-    const snapshot = actor === expense.creatorId ? await this.deps.repositories.expenses.getPrivateCardSnapshot(id, actor) : undefined;
-    return this.view(expense, actor, snapshot);
+    const snapshot = actor === expense.creatorId && expense.payment.method === "card" ? await this.deps.repositories.expenses.getPrivateCardSnapshot(id, actor) : undefined;
+    return this.view(expense, actor, memberships, snapshot);
   }
 
   async listHouseholdExpenses(household: HouseholdId, includeDeleted = false): Promise<readonly ExpenseView[]> {
     const actor = await this.deps.session.getCurrentUserId();
     await requireActiveMembership(this.deps.repositories, household, actor);
     const history = await this.deps.repositories.expenses.listHouseholdHistory(household);
+    const memberships = await this.deps.repositories.memberships.listByHousehold(household);
     const visible = includeDeleted ? history : history.filter((expense) => !expense.deletedAt);
-    return Promise.all(visible.map(async (expense) => this.view(expense, actor, actor === expense.creatorId ? await this.deps.repositories.expenses.getPrivateCardSnapshot(expense.expenseId, actor) : undefined)));
+    return Promise.all(visible.map(async (expense) => this.view(expense, actor, memberships, actor === expense.creatorId && expense.payment.method === "card" ? await this.deps.repositories.expenses.getPrivateCardSnapshot(expense.expenseId, actor) : undefined)));
   }
 
   async editExpense(command: EditExpenseCommand): Promise<ExpenseView> {
     const actor = await this.deps.session.getCurrentUserId();
     const original = await this.deps.repositories.expenses.getById(command.expenseId);
-    if (!original) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+    if (!original || original.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
     const memberships = await this.deps.repositories.memberships.listByHousehold(original.householdId);
     assertCanEditExpense(getExpensePermissions(original.householdId, actor, original.creatorId, memberships));
+    if (command.splitMethod !== "percentage" && command.percentageEntries !== undefined) {
+      throw new DomainError(
+        "INVALID_EXPENSE",
+        "Only percentage expenses may include percentage source entries.",
+      );
+    }
     let snapshot = actor === original.creatorId
       ? await this.deps.repositories.expenses.getPrivateCardSnapshot(original.expenseId, actor)
       : undefined;
@@ -438,12 +563,63 @@ export class ExpenseApplicationService {
     if (payment.method === "cash") snapshot = undefined;
     const preserveOpaquePrivateSnapshot = actor !== original.creatorId && payment.method === "card";
     if (payment.method === "card" && !snapshot && !preserveOpaquePrivateSnapshot) throw new ApplicationError("CONFLICT", "Card expense history requires a private snapshot.");
-    const proposed: Expense = { ...original, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, allocations: command.allocations, payment };
+    const percentageEntries = command.splitMethod === "percentage"
+      ? command.percentageEntries ?? (original.splitMethod === "percentage" ? original.percentageEntries : undefined)
+      : undefined;
+    if (command.splitMethod === "percentage" && original.splitMethod !== "percentage" && percentageEntries === undefined) {
+      throw new DomainError(
+        "LEGACY_PERCENTAGE_INPUT_UNAVAILABLE",
+        "Changing to a percentage split requires original basis-point entries.",
+      );
+    }
+    const proposed: Expense = { ...original, percentageEntries: undefined, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(percentageEntries === undefined ? {} : { percentageEntries }), allocations: command.allocations, payment };
     assertExpense(proposed);
-    assertFormerMemberChangeAllowed({ householdId: original.householdId, amount: original.amount, payerId: original.payerId, allocations: original.allocations, expenseDate: original.expenseDate, payment: original.payment, deleted: Boolean(original.deletedAt) }, { householdId: proposed.householdId, amount: proposed.amount, payerId: proposed.payerId, allocations: proposed.allocations, expenseDate: proposed.expenseDate, payment: proposed.payment, deleted: Boolean(proposed.deletedAt) }, memberships);
+    assertExpenseParticipantsBelongToHousehold(proposed, memberships, false);
+    const originalFingerprint = financialFingerprint(original);
+    const proposedFingerprint = financialFingerprint(proposed);
+    assertLegacyPercentageChangeAllowed(originalFingerprint, proposedFingerprint);
+    assertFormerMemberChangeAllowed(originalFingerprint, proposedFingerprint, memberships);
     const updated = { ...proposed, updatedAt: this.deps.values.now() };
-    await this.deps.atomic.editExpense({ expense: updated, ...(snapshot ? { privateCardSnapshot: snapshot } : {}), removePrivateCardSnapshot: payment.method === "cash", auditEvent: event(this.deps.values, original.householdId, actor, "expense", original.expenseId, "edited", ["expense"]) });
-    return this.view(updated, actor, actor === original.creatorId ? snapshot : undefined);
+    const receiptIds = command.removedReceiptIds ?? [];
+    if (new Set(receiptIds).size !== receiptIds.length) {
+      throw new ApplicationError("CONFLICT", "A receipt cannot be removed twice in one edit.");
+    }
+    const receiptRemovals = await Promise.all(
+      receiptIds.map(async (id) => {
+        const metadata = await this.deps.repositories.receipts.getMetadata(id);
+        if (!metadata || metadata.deletedAt || metadata.expenseId !== original.expenseId) {
+          throw new ApplicationError("NOT_FOUND", "Receipt not found.");
+        }
+        return {
+          ...metadata,
+          deletedAt: updated.updatedAt,
+          deletedByUserId: actor,
+        };
+      }),
+    );
+    const receiptAdditions = (command.newReceipts ?? []).map((item) => {
+      const metadata: ReceiptMetadata = {
+        receiptId: receiptId(this.deps.values.nextId("receipt")),
+        householdId: original.householdId,
+        expenseId: original.expenseId,
+        createdByUserId: actor,
+        mimeType: item.content.mimeType,
+        ...(item.originalFilename
+          ? { originalFilename: item.originalFilename.trim() }
+          : {}),
+        sizeBytes: item.content.bytes.byteLength,
+        createdAt: updated.updatedAt,
+      };
+      assertReceiptMetadata(metadata);
+      return { metadata, content: item.content };
+    });
+    const auditEvents = [
+      event(this.deps.values, original.householdId, actor, "expense", original.expenseId, "edited", ["expense", ...(receiptAdditions.length || receiptRemovals.length ? ["receipts"] : [])]),
+      ...receiptAdditions.map((item) => event(this.deps.values, original.householdId, actor, "receipt", item.metadata.receiptId, "created", ["mimeType", "sizeBytes"])),
+      ...receiptRemovals.map((item) => event(this.deps.values, original.householdId, actor, "receipt", item.receiptId, "deleted", ["deletedAt"])),
+    ];
+    await this.deps.atomic.editExpense({ expense: updated, expectedUpdatedAt: original.updatedAt, ...(snapshot ? { privateCardSnapshot: snapshot } : {}), receiptAdditions, receiptRemovals, auditEvents });
+    return this.view(updated, actor, memberships, actor === original.creatorId ? snapshot : undefined);
   }
 
   async deleteExpense(id: ExpenseId): Promise<void> {
@@ -454,14 +630,26 @@ export class ExpenseApplicationService {
     assertCanDeleteExpense(getExpensePermissions(original.householdId, actor, original.creatorId, memberships));
     const now = this.deps.values.now();
     const deleted: Expense = { ...original, updatedAt: now, deletedAt: now, deletedByUserId: actor };
-    assertFormerMemberChangeAllowed({ householdId: original.householdId, amount: original.amount, payerId: original.payerId, allocations: original.allocations, expenseDate: original.expenseDate, payment: original.payment, deleted: false }, { householdId: deleted.householdId, amount: deleted.amount, payerId: deleted.payerId, allocations: deleted.allocations, expenseDate: deleted.expenseDate, payment: deleted.payment, deleted: true }, memberships);
-    await this.deps.atomic.editExpense({ expense: deleted, removePrivateCardSnapshot: false, auditEvent: event(this.deps.values, original.householdId, actor, "expense", id, "deleted", ["deletedAt"]) });
+    assertLegacyPercentageChangeAllowed(financialFingerprint(original), financialFingerprint(deleted));
+    assertFormerMemberChangeAllowed(financialFingerprint(original), financialFingerprint(deleted), memberships);
+    await this.deps.atomic.editExpense({ expense: deleted, expectedUpdatedAt: original.updatedAt, auditEvents: [event(this.deps.values, original.householdId, actor, "expense", id, "deleted", ["deletedAt"])] });
   }
 
-  private view(expense: Expense, viewer: UserId, snapshot?: ExpenseCardPrivateSnapshot): ExpenseView {
+  private view(expense: Expense, viewer: UserId, memberships: readonly MembershipSnapshot[], snapshot?: ExpenseCardPrivateSnapshot): ExpenseView {
     const projection = projectExpensePayment(viewer, expense.creatorId, expense.payment);
     const publicPayment = projection.method === "cash" ? { method: "cash" as const } : { method: "card" as const };
-    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), ...(snapshot && viewer === expense.creatorId ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
+    const percentageSourceStatus = expensePercentageSourceStatus(expense.splitMethod, expense.percentageEntries);
+    const basePermissions = getExpensePermissions(expense.householdId, viewer, expense.creatorId, memberships);
+    const formerMemberFrozen = expenseInvolvesFormerMember(financialFingerprint(expense), memberships);
+    const financialEditState = expense.deletedAt
+      ? "deleted"
+      : formerMemberFrozen
+        ? "former-member-frozen"
+        : percentageSourceStatus === "legacy-percentage-input-unavailable"
+          ? "legacy-percentage-input-unavailable"
+          : "editable";
+    const isReadOnlyHistory = financialEditState === "deleted";
+    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), percentageSourceStatus, permissions: Object.freeze({ canEdit: basePermissions.canEdit && !isReadOnlyHistory, canDelete: basePermissions.canDelete && financialEditState === "editable" }), financialEditState, ...(snapshot && viewer === expense.creatorId && expense.payment.method === "card" ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
   }
 }
 

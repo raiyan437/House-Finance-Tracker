@@ -6,6 +6,7 @@ export * from "./dates/expense-date";
 export * from "./expenses/balance-expense";
 export * from "./expenses/expense-financial-input";
 export * from "./expenses/expense-financial-fingerprint";
+export * from "./expenses/expense-percentage-source";
 export * from "./membership/leadership-policy";
 export * from "./membership/membership-eligibility";
 export * from "./membership/membership-invariants";

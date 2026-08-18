@@ -1,6 +1,12 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import type { AtomicApplicationPersistence } from "@/application/repositories";
 import { DomainError } from "@/domain/shared/domain-error";
+import {
+  assertFormerMemberChangeAllowed,
+  assertLegacyPercentageChangeAllowed,
+  type ExpenseFinancialFingerprint,
+} from "@/domain/expenses/expense-financial-fingerprint";
+import type { Expense } from "@/domain/records/domain-records";
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from "idb";
 import {
   assertSettlementIdentityUnchanged,
@@ -9,6 +15,7 @@ import {
 } from "./repositories";
 import {
   fromCardRecord,
+  fromExpenseRecord,
   fromJoinRequestRecord,
   fromMembershipRecord,
   fromSettlementRecord,
@@ -38,6 +45,20 @@ function abortSafely(transaction: IDBPTransaction<HouseFinanceDatabase, StoreNam
   } catch {
     // The transaction may already have failed and aborted itself.
   }
+}
+
+function expenseFingerprint(expense: Expense): ExpenseFinancialFingerprint {
+  return {
+    householdId: expense.householdId,
+    amount: expense.amount,
+    payerId: expense.payerId,
+    splitMethod: expense.splitMethod,
+    percentageEntries: expense.percentageEntries,
+    allocations: expense.allocations,
+    expenseDate: expense.expenseDate,
+    payment: expense.payment,
+    deleted: Boolean(expense.deletedAt),
+  };
 }
 
 export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationPersistence {
@@ -163,8 +184,36 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     const privateCard = input.privateCardSnapshot ? toPrivateCardRecord(input.privateCardSnapshot) : undefined;
     if ((input.expense.payment.method === "card") !== Boolean(privateCard)) throw new ApplicationError("CONFLICT", "Card expenses require exactly one private historical snapshot.");
     const receipts = input.receipts.map((item) => ({ metadata: toReceiptRecord(item.metadata), blob: receiptBlob(item.metadata, item.content) }));
-    const tx = (await this.db()).transaction(["expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
     try {
+      const membershipRaw = await tx.objectStore("memberships").get(
+        membershipKey(input.expense.householdId, input.expense.creatorId),
+      );
+      if (
+        !membershipRaw ||
+        fromMembershipRecord(
+          membershipRaw,
+          membershipKey(input.expense.householdId, input.expense.creatorId),
+        ).status !== "active"
+      ) {
+        throw new ApplicationError("CONFLICT", "Expense creator is no longer an active household member.");
+      }
+      for (const allocation of input.expense.allocations) {
+        const participantKey = membershipKey(
+          input.expense.householdId,
+          allocation.participantId,
+        );
+        const participantRaw = await tx.objectStore("memberships").get(participantKey);
+        if (
+          !participantRaw ||
+          fromMembershipRecord(participantRaw, participantKey).status !== "active"
+        ) {
+          throw new ApplicationError(
+            "CONFLICT",
+            "Expense participants changed before creation.",
+          );
+        }
+      }
       await tx.objectStore("expenses").add(expense);
       if (privateCard) await tx.objectStore("expenseCardPrivateDetails").add(privateCard);
       for (const receipt of receipts) { await tx.objectStore("receiptMetadata").add(receipt.metadata); await tx.objectStore("receiptBlobs").add(receipt.blob); }
@@ -174,13 +223,77 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   }
 
   async editExpense(input: Parameters<AtomicApplicationPersistence["editExpense"]>[0]): Promise<void> {
-    const tx = (await this.db()).transaction(["expenses", "expenseCardPrivateDetails", "auditEvents"], "readwrite");
+    const expenseRecord = toExpenseRecord(input.expense);
+    const privateCardRecord = input.privateCardSnapshot
+      ? toPrivateCardRecord(input.privateCardSnapshot)
+      : undefined;
+    const additions = (input.receiptAdditions ?? []).map((item) => ({
+      metadata: toReceiptRecord(item.metadata),
+      blob: receiptBlob(item.metadata, item.content),
+    }));
+    const removals = (input.receiptRemovals ?? []).map(toReceiptRecord);
+    const audits = input.auditEvents.map(toAuditRecord);
+    const tx = (await this.db()).transaction(["memberships", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
     try {
-      if (!(await tx.objectStore("expenses").getKey(input.expense.expenseId))) throw new ApplicationError("NOT_FOUND", "Expense not found.");
-      await tx.objectStore("expenses").put(toExpenseRecord(input.expense));
-      if (input.removePrivateCardSnapshot) await tx.objectStore("expenseCardPrivateDetails").delete(input.expense.expenseId);
-      else if (input.privateCardSnapshot) await tx.objectStore("expenseCardPrivateDetails").put(toPrivateCardRecord(input.privateCardSnapshot));
-      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const currentRaw = await tx.objectStore("expenses").get(input.expense.expenseId);
+      if (!currentRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      const current = fromExpenseRecord(currentRaw, input.expense.expenseId);
+      if (current.updatedAt !== input.expectedUpdatedAt) {
+        throw new ApplicationError("CONFLICT", "Expense changed before this edit could be saved.");
+      }
+      const actorId = input.auditEvents[0]?.actorId;
+      if (!actorId || input.auditEvents.some((audit) => audit.actorId !== actorId)) {
+        throw new ApplicationError("CONFLICT", "Expense edit audit actors must match.");
+      }
+      const membershipRecordKey = membershipKey(input.expense.householdId, actorId);
+      const membershipRaw = await tx.objectStore("memberships").get(membershipRecordKey);
+      if (!membershipRaw) throw new ApplicationError("CONFLICT", "Expense editor is no longer an active household member.");
+      const membership = fromMembershipRecord(membershipRaw, membershipRecordKey);
+      if (
+        membership.status !== "active" ||
+        (actorId !== current.creatorId && membership.role !== "leader")
+      ) {
+        throw new ApplicationError("CONFLICT", "Expense edit permission changed before save.");
+      }
+      const currentMembershipRecords = await tx
+        .objectStore("memberships")
+        .index("householdId")
+        .getAll(input.expense.householdId);
+      const currentMemberships = currentMembershipRecords.map((record) =>
+        fromMembershipRecord(record, record.key),
+      );
+      assertLegacyPercentageChangeAllowed(
+        expenseFingerprint(current),
+        expenseFingerprint(input.expense),
+      );
+      assertFormerMemberChangeAllowed(
+        expenseFingerprint(current),
+        expenseFingerprint(input.expense),
+        currentMemberships,
+      );
+      await tx.objectStore("expenses").put(expenseRecord);
+      if (privateCardRecord) {
+        await tx.objectStore("expenseCardPrivateDetails").put(privateCardRecord);
+      }
+      for (const addition of additions) {
+        await tx.objectStore("receiptMetadata").add(addition.metadata);
+        await tx.objectStore("receiptBlobs").add(addition.blob);
+      }
+      for (const removal of removals) {
+        const currentReceipt = await tx.objectStore("receiptMetadata").get(removal.id);
+        if (
+          !currentReceipt ||
+          currentReceipt.expenseId !== input.expense.expenseId ||
+          currentReceipt.deletedAt
+        ) {
+          throw new ApplicationError("CONFLICT", "A staged receipt changed before save.");
+        }
+        await tx.objectStore("receiptMetadata").put(removal);
+        await tx.objectStore("receiptBlobs").delete(removal.id);
+      }
+      for (const audit of audits) {
+        await tx.objectStore("auditEvents").add(audit);
+      }
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }

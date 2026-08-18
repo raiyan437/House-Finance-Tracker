@@ -4,7 +4,10 @@ import { basisPoints } from "../money/basis-points";
 import { positivePoisha } from "../money/poisha";
 import { DomainError } from "../shared/domain-error";
 import { userId, type UserId } from "../shared/identifiers";
-import { allocatePercentageSplit } from "./percentage-split";
+import {
+  allocatePercentageSplit,
+  summarizePercentageSplitDraft,
+} from "./percentage-split";
 import type { PercentageSplitEntry } from "./split-types";
 
 function ids(...values: string[]): UserId[] {
@@ -46,6 +49,53 @@ function permutations<T>(values: readonly T[]): T[][] {
 }
 
 describe("percentage split", () => {
+  it("provides provisional floor shares only for valid totals below 100%", () => {
+    const summary = summarizePercentageSplitDraft(
+      positivePoisha(101),
+      ids("b", "a"),
+      [entry("b", 2_500), entry("a", 3_333)],
+    );
+
+    expect(summary).toMatchObject({
+      totalBasisPoints: 5_833,
+      remainingBasisPoints: 4_167,
+      isExact: false,
+      provisional: true,
+      allocatedTotal: 58,
+      remainingAmount: 43,
+    });
+    expect(shareRecord(summary.allocations)).toEqual({ a: 33, b: 25 });
+  });
+
+  it("returns canonical largest-remainder shares when the draft reaches 100%", () => {
+    const summary = summarizePercentageSplitDraft(
+      positivePoisha(1),
+      ids("b", "a"),
+      [entry("b", 5_000), entry("a", 5_000)],
+    );
+
+    expect(summary).toMatchObject({
+      totalBasisPoints: 10_000,
+      remainingBasisPoints: 0,
+      isExact: true,
+      provisional: false,
+      allocatedTotal: 1,
+      remainingAmount: 0,
+    });
+    expect(shareRecord(summary.allocations)).toEqual({ a: 1, b: 0 });
+  });
+
+  it("rejects provisional totals above 100%", () => {
+    expectCode(
+      () =>
+        summarizePercentageSplitDraft(positivePoisha(100), ids("a", "b"), [
+          entry("a", 5_001),
+          entry("b", 5_000),
+        ]),
+      "PERCENTAGE_TOTAL_NOT_100",
+    );
+  });
+
   it("allocates 100% to one participant", () => {
     expect(
       shareRecord(

@@ -7,6 +7,7 @@ import {
   ApplicationRuntimeProvider,
   type ApplicationRuntimeState,
   type CurrentSessionView,
+  type ExpenseApplicationActions,
   type HouseholdApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import {
@@ -130,6 +131,7 @@ export function LocalApplicationRuntime({
     let unsubscribe: (() => void) | undefined;
 
     let actions: HouseholdApplicationActions;
+    let expenseActions: ExpenseApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -137,7 +139,7 @@ export function LocalApplicationRuntime({
       try {
         const view = await loadSessionView(runtime);
         if (!disposed && reconstruction === reconstructionRef.current) {
-          setState({ status: "ready", ...view, householdActions: actions });
+          setState({ status: "ready", ...view, householdActions: actions, expenseActions });
         }
       } catch {
         if (!disposed && reconstruction === reconstructionRef.current) {
@@ -168,6 +170,33 @@ export function LocalApplicationRuntime({
           acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
           rejectJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.rejectJoinRequest(joinRequestId)),
           refresh: () => reconstructState(runtime, true),
+        });
+        expenseActions = Object.freeze<ExpenseApplicationActions>({
+          listExpenses: (householdId, includeDeleted) =>
+            runtime.application.expenses.listHouseholdExpenses(
+              householdId,
+              includeDeleted,
+            ),
+          listMembers: (householdId) =>
+            runtime.application.expenses.listHouseholdMembers(householdId),
+          listSelectableCards: () =>
+            runtime.application.cards.listCurrentUsersCards(),
+          getExpense: (expenseId) =>
+            runtime.application.expenses.getExpense(expenseId),
+          createExpense: (command) =>
+            runtime.application.expenses.createExpense(command),
+          editExpense: (command) =>
+            runtime.application.expenses.editExpense(command),
+          deleteExpense: (expenseId) =>
+            runtime.application.expenses.deleteExpense(expenseId),
+          listReceipts: (expenseId) =>
+            runtime.application.receipts.listExpenseReceipts(expenseId),
+          readReceipt: (receiptId) =>
+            runtime.application.receipts.readReceipt(receiptId),
+          deleteReceipt: (receiptId) =>
+            runtime.application.receipts.deleteReceipt(receiptId),
+          listActivity: (expenseId) =>
+            runtime.application.expenses.listExpenseActivity(expenseId),
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);

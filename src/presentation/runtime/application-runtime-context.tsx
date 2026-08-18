@@ -2,12 +2,21 @@
 
 import { createContext, useContext } from "react";
 import type {
+  CreateExpenseCommand,
+  EditExpenseCommand,
+  ExpenseActivityView,
+  ExpenseReceiptContent,
   HouseholdAccessState,
+  ExpenseMemberView,
+  ExpenseView,
   JoinableHouseholdView,
 } from "@/application/services/application-services";
+import type { Card, ReceiptMetadata } from "@/domain/records/domain-records";
 import type {
+  ExpenseId,
   HouseholdId,
   JoinRequestId,
+  ReceiptId,
   UserId,
 } from "@/domain/shared/identifiers";
 
@@ -30,6 +39,29 @@ export interface HouseholdApplicationActions {
   readonly refresh: () => Promise<void>;
 }
 
+export interface ExpenseApplicationActions {
+  readonly listExpenses: (
+    householdId: HouseholdId,
+    includeDeleted?: boolean,
+  ) => Promise<readonly ExpenseView[]>;
+  readonly listMembers: (
+    householdId: HouseholdId,
+  ) => Promise<readonly ExpenseMemberView[]>;
+  readonly listSelectableCards: () => Promise<readonly Card[]>;
+  readonly getExpense: (expenseId: ExpenseId) => Promise<ExpenseView>;
+  readonly createExpense: (command: CreateExpenseCommand) => Promise<ExpenseView>;
+  readonly editExpense: (command: EditExpenseCommand) => Promise<ExpenseView>;
+  readonly deleteExpense: (expenseId: ExpenseId) => Promise<void>;
+  readonly listReceipts: (
+    expenseId: ExpenseId,
+  ) => Promise<readonly ReceiptMetadata[]>;
+  readonly readReceipt: (receiptId: ReceiptId) => Promise<ExpenseReceiptContent>;
+  readonly deleteReceipt: (receiptId: ReceiptId) => Promise<void>;
+  readonly listActivity: (
+    expenseId: ExpenseId,
+  ) => Promise<readonly ExpenseActivityView[]>;
+}
+
 export type ApplicationRuntimeState =
   | Readonly<{ status: "loading" }>
   | Readonly<{
@@ -37,6 +69,7 @@ export type ApplicationRuntimeState =
       session: CurrentSessionView;
       household: HouseholdAccessState;
       householdActions: HouseholdApplicationActions;
+      expenseActions: ExpenseApplicationActions;
     }>
   | Readonly<{
       status: "error";

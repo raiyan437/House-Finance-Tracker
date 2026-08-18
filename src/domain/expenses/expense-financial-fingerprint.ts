@@ -1,5 +1,6 @@
 import { expenseDate, type ExpenseDate } from "../dates/expense-date";
 import { positivePoisha, type PositivePoisha } from "../money/poisha";
+import { assertExpensePercentageSource } from "./expense-percentage-source";
 import { canonicalMemberships } from "../membership/membership-invariants";
 import type { MembershipSnapshot } from "../membership/membership-types";
 import {
@@ -15,16 +16,38 @@ import {
   type UserId,
 } from "../shared/identifiers";
 import { assertCompleteAllocation } from "../splits/split-invariants";
-import type { SplitAllocation } from "../splits/split-types";
+import type {
+  PercentageSplitEntry,
+  SplitAllocation,
+  SplitMethod,
+} from "../splits/split-types";
 
 export interface ExpenseFinancialFingerprint {
   readonly householdId: HouseholdId;
   readonly amount: PositivePoisha;
   readonly payerId: UserId;
+  readonly splitMethod: SplitMethod;
+  readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly expenseDate: ExpenseDate;
   readonly payment: ExpensePayment;
   readonly deleted: boolean;
+}
+
+export function expenseInvolvesFormerMember(
+  fingerprint: ExpenseFinancialFingerprint,
+  memberships: readonly MembershipSnapshot[],
+): boolean {
+  canonicalAllocations(fingerprint);
+  const formerIds = new Set(
+    canonicalMemberships(fingerprint.householdId, memberships)
+      .filter((membership) => membership.status === "former")
+      .map((membership) => membership.userId),
+  );
+  return [
+    fingerprint.payerId,
+    ...fingerprint.allocations.map((allocation) => allocation.participantId),
+  ].some((id) => formerIds.has(id));
 }
 
 function canonicalAllocations(
@@ -45,6 +68,12 @@ function canonicalAllocations(
       compareUserIds(left.participantId, right.participantId),
     ),
   );
+  assertExpensePercentageSource(
+    fingerprint.amount,
+    fingerprint.splitMethod,
+    fingerprint.allocations,
+    fingerprint.percentageEntries,
+  );
   return [...fingerprint.allocations].sort((left, right) =>
     compareUserIds(left.participantId, right.participantId),
   );
@@ -54,6 +83,27 @@ function paymentEquals(left: ExpensePayment, right: ExpensePayment): boolean {
   if (left.method !== right.method) return false;
   if (left.method === "cash" || right.method === "cash") return true;
   return left.cardReference === right.cardReference;
+}
+
+function percentageEntriesEqual(
+  left: readonly PercentageSplitEntry[] | undefined,
+  right: readonly PercentageSplitEntry[] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  const canonicalLeft = [...left].sort((a, b) =>
+    compareUserIds(a.participantId, b.participantId),
+  );
+  const canonicalRight = [...right].sort((a, b) =>
+    compareUserIds(a.participantId, b.participantId),
+  );
+  return (
+    canonicalLeft.length === canonicalRight.length &&
+    canonicalLeft.every(
+      (entry, index) =>
+        entry.participantId === canonicalRight[index]?.participantId &&
+        entry.basisPoints === canonicalRight[index]?.basisPoints,
+    )
+  );
 }
 
 function fingerprintsEqual(
@@ -66,6 +116,8 @@ function fingerprintsEqual(
     left.householdId === right.householdId &&
     left.amount === right.amount &&
     left.payerId === right.payerId &&
+    left.splitMethod === right.splitMethod &&
+    percentageEntriesEqual(left.percentageEntries, right.percentageEntries) &&
     left.expenseDate === right.expenseDate &&
     left.deleted === right.deleted &&
     paymentEquals(left.payment, right.payment) &&
@@ -76,6 +128,23 @@ function fingerprintsEqual(
         allocation.share === rightAllocations[index]?.share,
     )
   );
+}
+
+export function assertLegacyPercentageChangeAllowed(
+  original: ExpenseFinancialFingerprint,
+  proposed: ExpenseFinancialFingerprint,
+): void {
+  canonicalAllocations(original);
+  canonicalAllocations(proposed);
+  const originalIsLegacyPercentage =
+    original.splitMethod === "percentage" &&
+    original.percentageEntries === undefined;
+  if (originalIsLegacyPercentage && !fingerprintsEqual(original, proposed)) {
+    throw new DomainError(
+      "LEGACY_PERCENTAGE_INPUT_UNAVAILABLE",
+      "This legacy percentage expense cannot be financially edited because its original percentage inputs are unavailable.",
+    );
+  }
 }
 
 export function assertFormerMemberChangeAllowed(
@@ -91,22 +160,9 @@ export function assertFormerMemberChangeAllowed(
       "An expense cannot move between households.",
     );
   }
-  const canonicalMembers = canonicalMemberships(
-    original.householdId,
-    memberships,
-  );
-  const formerIds = new Set(
-    canonicalMembers
-      .filter((membership) => membership.status === "former")
-      .map((membership) => membership.userId),
-  );
-  const involvedIds = [
-    original.payerId,
-    ...original.allocations.map((allocation) => allocation.participantId),
-    proposed.payerId,
-    ...proposed.allocations.map((allocation) => allocation.participantId),
-  ];
-  const involvesFormerMember = involvedIds.some((id) => formerIds.has(id));
+  const involvesFormerMember =
+    expenseInvolvesFormerMember(original, memberships) ||
+    expenseInvolvesFormerMember(proposed, memberships);
 
   if (involvesFormerMember && !fingerprintsEqual(original, proposed)) {
     throw new DomainError(

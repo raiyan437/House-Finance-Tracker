@@ -1,5 +1,6 @@
 import { expenseDate, type ExpenseDate } from "../dates/expense-date";
 import type { BalanceExpense } from "../expenses/balance-expense";
+import { assertExpensePercentageSource } from "../expenses/expense-percentage-source";
 import { positivePoisha, type PositivePoisha } from "../money/poisha";
 import {
   assertExpensePayment,
@@ -24,7 +25,11 @@ import {
 } from "../shared/identifiers";
 import { isoInstant, type IsoInstant } from "../shared/instant";
 import { assertCompleteAllocation } from "../splits/split-invariants";
-import type { SplitAllocation, SplitMethod } from "../splits/split-types";
+import type {
+  PercentageSplitEntry,
+  SplitAllocation,
+  SplitMethod,
+} from "../splits/split-types";
 
 export interface UserProfile {
   readonly userId: UserId;
@@ -66,6 +71,7 @@ export interface Expense {
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
+  readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly payment: ExpensePayment;
   readonly createdAt: IsoInstant;
@@ -207,6 +213,12 @@ export function assertExpense(value: Expense): void {
     throw new DomainError("INVALID_EXPENSE", "Unsupported expense split method.");
   }
   assertCompleteAllocation(value.amount, value.allocations.map((item) => item.participantId), value.allocations);
+  assertExpensePercentageSource(
+    value.amount,
+    value.splitMethod,
+    value.allocations,
+    value.percentageEntries,
+  );
   assertExpensePayment(value.payment);
   isoInstant(value.createdAt);
   isoInstant(value.updatedAt);

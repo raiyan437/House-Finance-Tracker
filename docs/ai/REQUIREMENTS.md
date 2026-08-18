@@ -143,6 +143,20 @@ Approved on 2026-08-13:
 - No live cross-tab synchronization is required. Only version-change, blocked-upgrade, and reset coordination are supported.
 - IndexedDB and the development-session implementation remain behind a client-only Next.js boundary. Server Components cannot import browser infrastructure, and local persistence does not make the whole application client-rendered.
 
+## Frozen Phase 7 percentage-source persistence requirement
+
+Approved on 2026-08-18 as a requirement change:
+
+- Every newly created or financially edited percentage expense persists both the original validated participant basis-point entries and the canonical final poisha allocations in the same atomic transaction.
+- Percentage entries contain exactly the selected participants once each, use integer basis points, total exactly 10,000, reconstruct through the existing branded/domain validation, and must reproduce the persisted allocations exactly when passed with the persisted amount through the canonical percentage allocator. Any disagreement is corrupt persisted financial data.
+- Percentage source entries exist only for the current state of percentage expenses. Equal expenses remain reproducible from amount and participants; Amount allocations remain the exact monetary source. Changing Percentage to Equal or Amount removes percentage entries from the current expense state without deleting safe audit history.
+- Existing percentage expenses without original basis points are retained as explicit legacy percentage records. Their persisted poisha allocations remain authoritative for their financial effect, but the application never infers or invents percentages from those allocations.
+- Authorized viewers may view legacy percentage expenses. Financial edits and any workflow requiring original percentage reconstruction are blocked. Existing non-financial Expense Name and receipt-lifecycle edits remain permitted only when the approved financial fingerprint is identical.
+- The expense record version and IndexedDB schema version advance through the existing monotonic transactional migration architecture. Migration changes only the record envelope/version for legacy data; it never fabricates basis points, rewrites final allocations, drops historical expenses, or partially rewrites financial history.
+- The accepted seed contains no percentage expense and its product behavior remains unchanged.
+
+The durable data-model rule is: persist user-entered financial source data together with its derived financial result whenever the source cannot be uniquely reconstructed, and validate that both representations agree.
+
 ## Frozen Phase 5 shell clarifications
 
 Approved on 2026-08-13:
@@ -171,3 +185,24 @@ Approved on 2026-08-13:
 - A Pending requester must explicitly cancel before creating a household. Only Pending requests block another request; Accepted, Rejected, and Cancelled records remain retained terminal history.
 - Leader acceptance and rejection require confirmation and application authorization. Acceptance atomically rechecks Pending status and active membership, transitions the request, creates exactly one active membership, and appends audit history; any failure rolls back all writes.
 - The Phase 4 seed remains Raiyan as leader, John and Sarah as members, and Alex as a Pending requester. Tests cancel Alex's request when they need the no-household state.
+
+## Frozen Phase 7 expense-and-receipt clarifications
+
+Approved on 2026-08-13:
+
+- Expenses default to the current local calendar month and also support All Months. Search is trimmed, case-insensitive Expense Name substring matching only. Search, Expense Date month, payer, and Cash/Card filters compose with AND before deterministic sorting. Clear Filters restores current month, all payers, all payments, and newest first.
+- Newest ordering is Expense Date descending, `createdAt` descending, then ExpenseId ascending. Oldest reverses the first two keys and retains ExpenseId ascending. Repository/input ordering is never a display tie-break.
+- Creator and payer both equal the current actor at creation and are immutable afterward. Edit never offers a payer selector and application services must reject identity changes.
+- New expenses select all active members by default but allow any exclusion, including payer; at least one participant remains required. Historical/former participants are retained and never silently removed.
+- Persisted Equal, Amount, and Percentage allocations come only from the existing Phase 2 engines. Amount preview shows Allocated plus Remaining/Over by and requires an exact sum. Percentage preview may show clearly provisional amounts only while all entries are valid and total below 10,000 basis points; invalid, unparsable, or over-100% drafts show validation instead. Only the exact 10,000-basis-point largest-remainder allocation is persisted. Zero-share participants remain explicit.
+- Cash is the create default and stores no current Card association. Card creation selection is limited to the actor's active/non-archived private cards. No-card UI remains usable with Cash and adds no Card CRUD or unfinished-management redirect.
+- Owners may change Cash/Card and select another owned active Card; an archived historical association may be preserved but cannot be newly selected. A non-owner leader may preserve an opaque Card association or confirm Card to Cash, but cannot change Cash to Card or Card to another Card and receives no private reference/name/type/color.
+- Current details follow current Payment Method. Cash exposes no current Card association. Any retained older private Card/audit facts stay owner-private and are not deleted or promoted into current state.
+- Receipts remain uncapped by business rule but use conservative incremental resource handling, object URLs with prompt revocation, no base64, no unnecessary duplicate loading, and form-draft preservation on quota/persistence failure. A technical count cap requires a separate proposal.
+- Edit stages receipt additions and removals until Save or Cancel. Save atomically commits expense changes, receipt additions, receipt tombstones/Blob removals, and audit; Cancel persists nothing. Expense soft deletion never deletes or tombstones its remaining receipts.
+- A known soft-deleted expense remains directly accessible to authorized household viewers as clearly Deleted, read-only history. It stays out of normal lists and all derived financial calculations.
+- Details and editor models are privacy-safe application projections, never broad records later hidden in React. Activity contains only safe action, actor, timestamp, and changed-field names, never private Card metadata, receipt bytes, or serialized expense objects.
+- If an expense involves a former member, amount, payer, participants, shares, Expense Date, Payment Method, and deleted state are frozen. Only policy-proven non-financial name/receipt changes are allowed, with application/domain enforcement repeated at Save.
+- Expense changes never modify confirmed settlements. Current balances are re-derived from source history and legitimate reverse balances are accepted.
+- Paid By options retain relevant former historical payers. Expense dates remain `YYYY-MM-DD` and are never UTC-round-tripped in a way that shifts the day.
+- Filter state may remain local presentation state; URL query persistence is not required. Canonical Expenses, Add Expense, and Expense Details references remain implementation authority across responsive layouts.

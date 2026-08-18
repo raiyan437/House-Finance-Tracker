@@ -4,7 +4,9 @@ import {
 } from "../money/basis-points";
 import {
   poishaFromBigInt,
+  poisha,
   positivePoisha,
+  type Poisha,
   type PositivePoisha,
 } from "../money/poisha";
 import { DomainError } from "../shared/domain-error";
@@ -18,7 +20,17 @@ interface RankedShare {
   readonly remainder: bigint;
 }
 
-function canonicalPercentageEntries(
+export interface PercentageSplitDraftSummary {
+  readonly totalBasisPoints: number;
+  readonly remainingBasisPoints: number;
+  readonly isExact: boolean;
+  readonly provisional: boolean;
+  readonly allocatedTotal: Poisha;
+  readonly remainingAmount: Poisha;
+  readonly allocations: readonly SplitAllocation[];
+}
+
+function canonicalPercentageDraftEntries(
   participantIds: readonly UserId[],
   entries: readonly PercentageSplitEntry[],
 ): readonly PercentageSplitEntry[] {
@@ -35,7 +47,6 @@ function canonicalPercentageEntries(
       );
     }
     entryIds.add(entry.participantId);
-
     if (!participantSet.has(entry.participantId)) {
       throw new DomainError(
         "UNKNOWN_SPLIT_PARTICIPANT",
@@ -51,7 +62,18 @@ function canonicalPercentageEntries(
     );
   }
 
-  const totalBasisPoints = entries.reduce(
+  return [...entries].sort((left, right) =>
+    compareUserIds(left.participantId, right.participantId),
+  );
+}
+
+function canonicalPercentageEntries(
+  participantIds: readonly UserId[],
+  entries: readonly PercentageSplitEntry[],
+): readonly PercentageSplitEntry[] {
+  const canonicalEntries = canonicalPercentageDraftEntries(participantIds, entries);
+
+  const totalBasisPoints = canonicalEntries.reduce(
     (sum, entry) => sum + BigInt(entry.basisPoints),
     BigInt(0),
   );
@@ -63,9 +85,59 @@ function canonicalPercentageEntries(
     );
   }
 
-  return [...entries].sort((left, right) =>
-    compareUserIds(left.participantId, right.participantId),
+  return canonicalEntries;
+}
+
+export function summarizePercentageSplitDraft(
+  expenseAmount: PositivePoisha,
+  participantIds: readonly UserId[],
+  entries: readonly PercentageSplitEntry[],
+): PercentageSplitDraftSummary {
+  positivePoisha(expenseAmount);
+  const canonicalEntries = canonicalPercentageDraftEntries(participantIds, entries);
+  const total = canonicalEntries.reduce(
+    (sum, entry) => sum + BigInt(entry.basisPoints),
+    BigInt(0),
   );
+  if (total > BigInt(FULL_PERCENTAGE_BASIS_POINTS)) {
+    throw new DomainError(
+      "PERCENTAGE_TOTAL_NOT_100",
+      "Percentage-split entries cannot total more than 10,000 basis points.",
+    );
+  }
+
+  if (total === BigInt(FULL_PERCENTAGE_BASIS_POINTS)) {
+    return {
+      totalBasisPoints: Number(total),
+      remainingBasisPoints: 0,
+      isExact: true,
+      provisional: false,
+      allocatedTotal: poisha(expenseAmount),
+      remainingAmount: poisha(0),
+      allocations: allocatePercentageSplit(expenseAmount, participantIds, canonicalEntries),
+    };
+  }
+
+  const denominator = BigInt(FULL_PERCENTAGE_BASIS_POINTS);
+  const amount = BigInt(expenseAmount);
+  const allocations = canonicalEntries.map((entry) => ({
+    participantId: entry.participantId,
+    share: poishaFromBigInt((amount * BigInt(entry.basisPoints)) / denominator),
+  }));
+  const allocated = allocations.reduce(
+    (sum, allocation) => sum + BigInt(allocation.share),
+    BigInt(0),
+  );
+
+  return {
+    totalBasisPoints: Number(total),
+    remainingBasisPoints: FULL_PERCENTAGE_BASIS_POINTS - Number(total),
+    isExact: false,
+    provisional: true,
+    allocatedTotal: poishaFromBigInt(allocated),
+    remainingAmount: poishaFromBigInt(amount - allocated),
+    allocations,
+  };
 }
 
 export function allocatePercentageSplit(

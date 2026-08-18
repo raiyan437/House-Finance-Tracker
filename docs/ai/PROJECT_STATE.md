@@ -3,12 +3,12 @@
 ## Snapshot
 
 - Project: House Finance Tracker
-- Stage: Phase 6 implementation complete and uncommitted; awaiting review and Phase 7 authorization
-- Application implementation: foundation, pure domain engines, application services/ports, local IndexedDB infrastructure, responsive application shell/design system, and local household onboarding
-- Local MVP: local session and household onboarding are usable; financial product features remain unimplemented
+- Stage: Phase 7 expenses and receipts implemented and verified; awaiting review uncommitted
+- Application implementation: foundation, pure domain engines, application services/ports, IndexedDB v2 persistence/migration, responsive application shell/design system, household onboarding, and the complete local Expense/receipt experience
+- Local MVP: local session, household onboarding, expense list/create/details/edit/delete, exact split allocation, private Card consumption, and local receipt evidence are usable; Phase 8+ product features remain unimplemented
 - Appwrite integration: intentionally deferred
 - Requirements/design status: approved frozen context received and reconciled
-- Active implementation plan: Phases 1-6 completed; Phase 7 not authorized
+- Active implementation plan: Phases 1-6 completed and committed; Phase 7 implemented/verified and intentionally uncommitted for review; Phase 8 remains unauthorized
 
 ## Confirmed direction
 
@@ -16,8 +16,8 @@ The product is a shared household expense tracker with a local/mock MVP, exact i
 
 ## Current gate
 
-Review the completed Phase 6 household onboarding and verification evidence in `work/ACTIVE_PLAN.md`. Do not begin Phase 7 expenses and receipts without explicit authorization.
+Review the completed uncommitted Phase 7 expenses-and-receipts implementation. Stop before Phase 8.
 
 ## Next safe action
 
-Review and approve or request changes to Phase 6. Appwrite remains deferred until local MVP stability is demonstrated.
+User reviews Phase 7 and decides whether to accept/request changes. Do not create the Phase 7 commit or begin Phase 8 without explicit instruction. Appwrite remains deferred.

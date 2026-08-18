@@ -7,6 +7,7 @@ import { DomainError } from "../shared/domain-error";
 import { householdId, userId } from "../shared/identifiers";
 import {
   assertFormerMemberChangeAllowed,
+  expenseInvolvesFormerMember,
   type ExpenseFinancialFingerprint,
 } from "./expense-financial-fingerprint";
 
@@ -25,6 +26,7 @@ function fingerprint(): ExpenseFinancialFingerprint {
     householdId: house,
     amount: positivePoisha(100),
     payerId: active,
+    splitMethod: "amount",
     allocations: [
       { participantId: active, share: poisha(40) },
       { participantId: former, share: poisha(60) },
@@ -46,6 +48,19 @@ function expectFrozenChange(proposed: ExpenseFinancialFingerprint): void {
 }
 
 describe("former-member financial fingerprint", () => {
+  it("projects whether the immutable financial fingerprint involves a former member", () => {
+    expect(expenseInvolvesFormerMember(fingerprint(), memberships)).toBe(true);
+    expect(
+      expenseInvolvesFormerMember(
+        {
+          ...fingerprint(),
+          allocations: [{ participantId: active, share: poisha(100) }],
+        },
+        memberships,
+      ),
+    ).toBe(false);
+  });
+
   it("allows a provably non-financial edit represented by an unchanged fingerprint", () => {
     const same = {
       ...fingerprint(),

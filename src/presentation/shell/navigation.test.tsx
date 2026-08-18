@@ -43,6 +43,19 @@ function renderWithRuntime(children: React.ReactNode) {
           rejectJoinRequest: vi.fn(),
           refresh: vi.fn(),
         },
+        expenseActions: {
+          listExpenses: vi.fn(),
+          listMembers: vi.fn(),
+          listSelectableCards: vi.fn(),
+          getExpense: vi.fn(),
+          createExpense: vi.fn(),
+          editExpense: vi.fn(),
+          deleteExpense: vi.fn(),
+          listReceipts: vi.fn(),
+          readReceipt: vi.fn(),
+          deleteReceipt: vi.fn(),
+          listActivity: vi.fn(),
+        },
       }}
     >
       {children}

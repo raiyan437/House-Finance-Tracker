@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through Phase 6 are approved. Phases 1-6 are complete. Phase 7 and all later phases remain unauthorized until explicitly approved.
+The roadmap and frozen implementation decisions through Phase 7 are approved. Phases 1-6 are complete. Phase 7 implementation is explicitly authorized and documented in `PHASE_7_PLAN.md`; Phase 8 and all later phases remain unauthorized.
 
 ## Reconciliation findings
 
@@ -83,13 +83,17 @@ Build responsive desktop sidebar/mobile navigation, route shell, tokens, typogra
 
 Use the existing development session as the local authenticated-user equivalent; add household-aware startup, create/join/cancel/accept/reject flows, and pre-acceptance privacy boundaries without fake authentication UI. **Reasoning: high** due permission, privacy, transaction, and runtime-state boundaries. Exit: multi-user Playwright onboarding flows and proof that pending requesters cannot access household data.
 
-**Result: complete (2026-08-13; uncommitted for review).** Added presentation-safe household access states; centrally configured membership guards for Dashboard, Expenses, Add Expense, and Settlements; independent Household/Profile/Cards routing; React Hook Form + Zod create/join forms; exact leading-zero code handling; secure injected code generation with 32 bounded uniqueness attempts; minimal pre-acceptance lookup projection; Pending cancellation; leader Accept/Reject confirmations; and centralized authoritative runtime reconstruction after every mutation and development identity change. Named IndexedDB transactions now recheck active membership and Pending constraints during create/join and recheck membership during atomic acceptance. Terminal request/audit history and the Phase 4 seed remain unchanged. No login/password/authentication, financial feature, full member management, Appwrite, or Phase 7 work was added.
+**Result: complete and accepted (2026-08-13; committed as `f5719b9`).** Added presentation-safe household access states; centrally configured membership guards for Dashboard, Expenses, Add Expense, and Settlements; independent Household/Profile/Cards routing; React Hook Form + Zod create/join forms; exact leading-zero code handling; secure injected code generation with 32 bounded uniqueness attempts; minimal pre-acceptance lookup projection; Pending cancellation; leader Accept/Reject confirmations; and centralized authoritative runtime reconstruction after every mutation and development identity change. Named IndexedDB transactions now recheck active membership and Pending constraints during create/join and recheck membership during atomic acceptance. Terminal request/audit history and the Phase 4 seed remain unchanged. No login/password/authentication, financial feature, full member management, Appwrite, or Phase 7 work was added.
 
 **Verification:** full Vitest passed 264 tests across 31 files; Phase 6 application/component coverage includes no-household, leading-zero/manual/generated/duplicate codes, 32 collision retries, one-house/Pending gates, lookup privacy, cancellation and terminal history, leader/non-leader/wrong-house authorization, exactly-one membership, and forced transaction rollback. Architecture guards passed 11 cases; lint, TypeScript, production build, and `git diff --check` passed; all 11 routes remained statically prerendered. Playwright Chromium passed 17 tests, including native IndexedDB close/reopen persistence, cross-identity create/join/accept/reject, approved route gating, mobile/tablet/desktop layouts, keyboard focus return, no overflow, zero serious/critical Axe findings, and no console/page/hydration errors. Dependency audit reported zero vulnerabilities.
 
 ### Phase 7 - Expenses and receipts
 
 Build expense list/search/filter/sort, single-page add form with live allocation summary, owner-only card selection, local receipt previews/storage, details/history, edit, and soft delete. **Reasoning: high** because this joins forms, money, privacy, audit, and recalculation. Exit: all split modes and edit/delete permissions pass unit, component, and multi-user browser tests.
+
+**Result: implemented and verified (2026-08-18; uncommitted for review).** Added the household-only Expense list with exact local-month/search/payer/payment/sort composition; responsive Add/Edit/Details screens; strict application/domain split previews and persistence; owner/leader/member permissions; privacy-safe Card projections and edit transitions; staged atomic receipt additions/removals; retained receipts on expense soft deletion; safe activity; explicit former/legacy read-only financial states; and transactional membership-race rechecks. Expense record version `2` and IndexedDB schema version `2` persist modern percentage basis-point source entries alongside canonical poisha allocations. The migration preserves v1 allocations exactly and marks missing percentage source as non-reconstructable legacy history without fabricating values.
+
+**Verification:** focused migration/domain/application/persistence suites passed; full Vitest passed 296 tests across 34 files; architecture guards passed 11 cases; lint and TypeScript passed; production build passed with dynamic Details/Edit routes and all other approved routes; full Playwright Chromium passed 21 flows, including four Phase 7 product flows, native IndexedDB reload, responsive breakpoints, keyboard navigation, no private Card strings for non-owners, and zero serious/critical Axe findings. Dependency audit found zero vulnerabilities. `git diff --check` passed. Manual source audits found no presentation persistence imports, no private Card reference fields in presentation, no expense-date UTC round trips, and no new floating-point financial arithmetic. Phase 8 was not started.
 
 ### Phase 8 - Settlements
 
@@ -125,4 +129,4 @@ Choose only zero-cost approved infrastructure, configure environments/secrets, C
 
 ## Current authorization boundary
 
-Stop after Phase 6. Phase 6 is complete and uncommitted for review; Phase 7 may begin only after separate user authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.
+Stop after Phase 7 implementation and verification. Phase 6 is accepted and committed as `f5719b9`; Phase 7 is authorized and must remain uncommitted for review. Phase 8 may begin only after separate explicit authorization. Before each later phase, re-check current state, frozen decisions, and prior exit evidence.

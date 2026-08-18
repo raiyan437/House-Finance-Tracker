@@ -1,12 +1,5 @@
-import { ReceiptText } from "lucide-react";
-import { FeaturePlaceholder } from "@/presentation/shell/feature-placeholder";
+import { ExpensesPageClient } from "@/presentation/expenses/expenses-page.client";
 
 export default function ExpensesPage() {
-  return (
-    <FeaturePlaceholder
-      description="Expense browsing and filters are intentionally reserved for the Expenses feature phase."
-      icon={ReceiptText}
-      title="Expenses"
-    />
-  );
+  return <ExpensesPageClient />;
 }

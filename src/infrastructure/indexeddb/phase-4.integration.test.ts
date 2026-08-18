@@ -6,11 +6,15 @@ import { openDB } from "idb";
 import { ApplicationError } from "@/application/errors/application-error";
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
-import { positivePoisha } from "@/domain/money/poisha";
+import { expenseDate } from "@/domain/dates/expense-date";
+import { poisha, positivePoisha } from "@/domain/money/poisha";
+import { basisPoints } from "@/domain/money/basis-points";
 import type { AuditEvent, Card, Expense, Household, JoinRequest, ReceiptMetadata, UserProfile } from "@/domain/records/domain-records";
 import { auditEventId, cardId, expenseId, householdId, joinRequestId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { DomainError } from "@/domain/shared/domain-error";
+import { expensePercentageSourceStatus } from "@/domain/expenses/expense-percentage-source";
+import { allocatePercentageSplit } from "@/domain/splits/percentage-split";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 import { IndexedDbAtomicApplicationPersistence } from "./atomic-persistence";
 import { deleteLocalDatabase, LOCAL_DATABASE_VERSION, openLocalDatabase } from "./database";
@@ -37,7 +41,7 @@ async function expectApplicationCode(promise: Promise<unknown>, code: Applicatio
 }
 
 describe("Phase 4 IndexedDB local persistence", () => {
-  it("initializes schema v1 without derived financial stores", async () => {
+  it("initializes the current schema without derived financial stores", async () => {
     const name = databaseName("schema");
     const db = await openLocalDatabase(name);
     expect(db.version).toBe(LOCAL_DATABASE_VERSION);
@@ -46,6 +50,232 @@ describe("Phase 4 IndexedDB local persistence", () => {
     ]);
     expect([...db.objectStoreNames]).not.toEqual(expect.arrayContaining(["balances", "recommendations", "dashboardTotals", "analytics"]));
     db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("migrates Expense V1 records transactionally without changing allocations", async () => {
+    const name = databaseName("expense-v2-migration");
+    const current = toExpenseRecord(deterministicSeedData().expenses[0]);
+    const currentWithoutPercentageEntries = { ...current };
+    delete currentWithoutPercentageEntries.percentageEntries;
+    const legacy = { ...currentWithoutPercentageEntries, recordVersion: 1 as const };
+    const old = await openDB(name, 1, {
+      upgrade(database) {
+        database.createObjectStore("expenses", { keyPath: "id" });
+      },
+    });
+    await old.add("expenses", legacy);
+    old.close();
+
+    const db = await openLocalDatabase(name);
+    expect(await db.get("expenses", legacy.id)).toEqual({
+      ...legacy,
+      recordVersion: 2,
+    });
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("preserves a legacy percentage expense and its financial allocation without inventing source inputs", async () => {
+    const name = databaseName("legacy-percentage");
+    const participantIds = [userId("legacy-a"), userId("legacy-b")];
+    const amount = positivePoisha(1);
+    const source = [
+      { participantId: participantIds[0]!, basisPoints: basisPoints(5001) },
+      { participantId: participantIds[1]!, basisPoints: basisPoints(4999) },
+    ];
+    const allocations = allocatePercentageSplit(amount, participantIds, source);
+    const legacy = {
+      recordVersion: 1 as const,
+      id: "expense-legacy-percentage",
+      householdId: "house-legacy",
+      creatorId: "legacy-a",
+      payerId: "legacy-a",
+      name: "Legacy percentage",
+      amountPoisha: amount,
+      expenseDate: "2026-08-18",
+      splitMethod: "percentage" as const,
+      allocations: allocations.map((allocation) => ({
+        participantId: allocation.participantId,
+        sharePoisha: allocation.share,
+      })),
+      paymentMethod: "cash" as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const old = await openDB(name, 1, {
+      upgrade(database) {
+        database.createObjectStore("expenses", { keyPath: "id" });
+      },
+    });
+    await old.add("expenses", legacy);
+    old.close();
+
+    const db = await openLocalDatabase(name);
+    const expense = await new IndexedDbRepositories(db).expenses.getById(
+      expenseId(legacy.id),
+    );
+    expect(expense?.allocations).toEqual(allocations);
+    expect(expense?.percentageEntries).toBeUndefined();
+    expect(
+      expensePercentageSourceStatus(
+        expense!.splitMethod,
+        expense!.percentageEntries,
+      ),
+    ).toBe("legacy-percentage-input-unavailable");
+    expect((await db.get("expenses", legacy.id))?.allocations).toEqual(
+      legacy.allocations,
+    );
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("round-trips exact 33.34/33.33/33.33 percentage source with its canonical allocation", async () => {
+    const name = databaseName("modern-percentage");
+    let db = await openLocalDatabase(name);
+    const participantIds = [
+      userId("percentage-raiyan"),
+      userId("percentage-john"),
+      userId("percentage-sarah"),
+    ];
+    const percentageEntries = [
+      { participantId: participantIds[0]!, basisPoints: basisPoints(3334) },
+      { participantId: participantIds[1]!, basisPoints: basisPoints(3333) },
+      { participantId: participantIds[2]!, basisPoints: basisPoints(3333) },
+    ];
+    const amount = positivePoisha(10_000);
+    const expense: Expense = {
+      expenseId: expenseId("expense-modern-percentage"),
+      householdId: householdId("house-modern-percentage"),
+      creatorId: participantIds[0]!,
+      payerId: participantIds[0]!,
+      name: "Modern percentage",
+      amount,
+      expenseDate: expenseDate("2026-08-18"),
+      splitMethod: "percentage",
+      percentageEntries,
+      allocations: allocatePercentageSplit(
+        amount,
+        participantIds,
+        percentageEntries,
+      ),
+      payment: { method: "cash" },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await new IndexedDbRepositories(db).expenses.create(expense);
+    db.close();
+
+    db = await openLocalDatabase(name);
+    const reloaded = await new IndexedDbRepositories(db).expenses.getById(
+      expense.expenseId,
+    );
+    expect(reloaded).toEqual(expense);
+    expect(reloaded?.percentageEntries?.map((entry) => entry.basisPoints)).toEqual([
+      3334,
+      3333,
+      3333,
+    ]);
+    expect(
+      allocatePercentageSplit(
+        reloaded!.amount,
+        reloaded!.allocations.map((allocation) => allocation.participantId),
+        reloaded!.percentageEntries!,
+      ),
+    ).toEqual(reloaded!.allocations);
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("rejects malformed percentage source and source/allocation disagreement on reconstruction", async () => {
+    const name = databaseName("malformed-percentage-source");
+    const db = await openLocalDatabase(name);
+    const participantIds = [userId("malformed-a"), userId("malformed-b")];
+    const percentageEntries = [
+      { participantId: participantIds[0]!, basisPoints: basisPoints(5000) },
+      { participantId: participantIds[1]!, basisPoints: basisPoints(5000) },
+    ];
+    const amount = positivePoisha(101);
+    const expense: Expense = {
+      expenseId: expenseId("expense-malformed-source"),
+      householdId: householdId("house-malformed-source"),
+      creatorId: participantIds[0]!,
+      payerId: participantIds[0]!,
+      name: "Malformed source",
+      amount,
+      expenseDate: expenseDate("2026-08-18"),
+      splitMethod: "percentage",
+      percentageEntries,
+      allocations: allocatePercentageSplit(
+        amount,
+        participantIds,
+        percentageEntries,
+      ),
+      payment: { method: "cash" },
+      createdAt: now,
+      updatedAt: now,
+    };
+    const record = toExpenseRecord(expense);
+    await db.put("expenses", {
+      ...record,
+      percentageEntries: [
+        { ...record.percentageEntries![0]!, basisPoints: 4999 },
+        record.percentageEntries![1]!,
+      ],
+    });
+    await expectApplicationCode(
+      new IndexedDbRepositories(db).expenses.getById(expense.expenseId),
+      "MALFORMED_PERSISTED_DATA",
+    );
+    await db.put("expenses", {
+      ...record,
+      allocations: record.allocations.map((allocation, index) => ({
+        ...allocation,
+        sharePoisha:
+          allocation.sharePoisha + (index === 0 ? -1 : index === 1 ? 1 : 0),
+      })),
+    });
+    await expectApplicationCode(
+      new IndexedDbRepositories(db).expenses.getById(expense.expenseId),
+      "MALFORMED_PERSISTED_DATA",
+    );
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("rolls back the full schema migration when any legacy Expense record is malformed", async () => {
+    const name = databaseName("migration-rollback");
+    const current = toExpenseRecord(deterministicSeedData().expenses[0]);
+    const currentWithoutPercentageEntries = { ...current };
+    delete currentWithoutPercentageEntries.percentageEntries;
+    const validLegacy = {
+      ...currentWithoutPercentageEntries,
+      recordVersion: 1 as const,
+    };
+    const old = await openDB(name, 1, {
+      upgrade(database) {
+        database.createObjectStore("expenses", { keyPath: "id" });
+      },
+    });
+    await old.add("expenses", validLegacy);
+    await old.add("expenses", {
+      ...validLegacy,
+      id: "expense-malformed-migration",
+      name: "",
+    });
+    old.close();
+
+    await expectApplicationCode(
+      openLocalDatabase(name),
+      "PERSISTENCE_FAILURE",
+    );
+    const unchanged = await openDB(name, 1);
+    expect((await unchanged.get("expenses", validLegacy.id)).recordVersion).toBe(1);
+    expect(
+      (await unchanged.get("expenses", "expense-malformed-migration"))
+        .recordVersion,
+    ).toBe(1);
+    unchanged.close();
     await deleteLocalDatabase(name);
   });
 
@@ -187,6 +417,112 @@ describe("Phase 4 IndexedDB local persistence", () => {
     db.close(); await deleteLocalDatabase(name);
   });
 
+  it("rolls back expense and staged receipt edits together", async () => {
+    const name = databaseName("edit-receipt-rollback");
+    const db = await openLocalDatabase(name);
+    await seedLocalDatabase(db);
+    const repositories = new IndexedDbRepositories(db);
+    const atomic = new IndexedDbAtomicApplicationPersistence(db);
+    const original = (await repositories.expenses.getById(
+      expenseId("expense-groceries"),
+    ))!;
+    const existingReceipt = (await repositories.receipts.listForExpense(
+      original.expenseId,
+    ))[0]!;
+    const duplicateAudit = audit(
+      "edit-receipt-duplicate",
+      "expense",
+      original.expenseId,
+    );
+    await db.add("auditEvents", {
+      recordVersion: 1,
+      id: duplicateAudit.auditEventId,
+      householdId: duplicateAudit.householdId,
+      actorId: duplicateAudit.actorId,
+      aggregateType: duplicateAudit.aggregateType,
+      aggregateId: duplicateAudit.aggregateId,
+      action: duplicateAudit.action,
+      occurredAt: duplicateAudit.occurredAt,
+      changedFields: duplicateAudit.changedFields,
+    });
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+    const added: ReceiptMetadata = {
+      receiptId: receiptId("receipt-edit-added"),
+      householdId: original.householdId,
+      expenseId: original.expenseId,
+      createdByUserId: SEEDED_USER_IDS.raiyan,
+      mimeType: "image/png",
+      originalFilename: "added.png",
+      sizeBytes: bytes.byteLength,
+      createdAt: now,
+    };
+    await expectApplicationCode(
+      atomic.editExpense({
+        expense: { ...original, name: "Should roll back", updatedAt: now },
+        expectedUpdatedAt: original.updatedAt,
+        receiptAdditions: [
+          { metadata: added, content: { bytes, mimeType: "image/png" } },
+        ],
+        receiptRemovals: [
+          {
+            ...existingReceipt,
+            deletedAt: now,
+            deletedByUserId: SEEDED_USER_IDS.raiyan,
+          },
+        ],
+        auditEvents: [duplicateAudit],
+      }),
+      "CONFLICT",
+    );
+    expect((await repositories.expenses.getById(original.expenseId))?.name).toBe(
+      original.name,
+    );
+    expect(await repositories.receipts.getMetadata(existingReceipt.receiptId)).not.toHaveProperty("deletedAt");
+    expect(await repositories.receipts.readContent(existingReceipt.receiptId)).toBeDefined();
+    expect(await repositories.receipts.getMetadata(added.receiptId)).toBeUndefined();
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("rechecks former-member financial protection inside the edit transaction", async () => {
+    const name = databaseName("edit-membership-race");
+    const db = await openLocalDatabase(name);
+    await seedLocalDatabase(db);
+    const repositories = new IndexedDbRepositories(db);
+    const original = (await repositories.expenses.getById(
+      expenseId("expense-groceries"),
+    ))!;
+    await repositories.memberships.replace({
+      householdId: original.householdId,
+      userId: SEEDED_USER_IDS.sarah,
+      status: "former",
+      role: "member",
+    });
+    const changed: Expense = {
+      ...original,
+      amount: positivePoisha(30_003),
+      allocations: original.allocations.map((allocation) => ({
+        ...allocation,
+        share: poisha(allocation.share + 1),
+      })),
+      updatedAt: now,
+    };
+    await expect(
+      new IndexedDbAtomicApplicationPersistence(db).editExpense({
+        expense: changed,
+        expectedUpdatedAt: original.updatedAt,
+        auditEvents: [audit("membership-race", "expense", original.expenseId)],
+      }),
+    ).rejects.toMatchObject({ code: "FORMER_MEMBER_FINANCIAL_HISTORY_FROZEN" });
+    expect((await repositories.expenses.getById(original.expenseId))?.amount).toBe(
+      original.amount,
+    );
+    db.close();
+    await deleteLocalDatabase(name);
+  });
+
   it("soft-deletes a household and releases active membership keys atomically", async () => {
     const name = databaseName("household-delete");
     const db = await openLocalDatabase(name);
@@ -294,6 +630,6 @@ describe("Phase 4 IndexedDB local persistence", () => {
 
   it("validates record versions separately from the database schema version", () => {
     const valid = toExpenseRecord(deterministicSeedData().expenses[0]);
-    expect(() => fromExpenseRecord({ ...valid, recordVersion: 2 }, valid.id)).toThrowError(ApplicationError);
+    expect(() => fromExpenseRecord({ ...valid, recordVersion: 3 }, valid.id)).toThrowError(ApplicationError);
   });
 });
