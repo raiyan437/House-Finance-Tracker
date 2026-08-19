@@ -1,10 +1,58 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import { deleteDB, openDB, unwrap, type IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "./records";
-import { migrateExpenseRecordV1ToV2 } from "./mappers";
+import {
+  migrateCardRecordV1ToV2,
+  migrateExpenseRecordV1ToV2,
+  migratePrivateCardRecordV1ToV2,
+} from "./mappers";
 
 export const LOCAL_DATABASE_NAME = "house-finance-tracker-local";
-export const LOCAL_DATABASE_VERSION = 2;
+export const LOCAL_DATABASE_VERSION = 3;
+
+function sanitizedMigrationError(error: unknown, store: string): ApplicationError {
+  if (error instanceof ApplicationError) {
+    return new ApplicationError(error.code, error.message, { store });
+  }
+  return new ApplicationError(
+    "PERSISTENCE_FAILURE",
+    "The local database migration could not be completed.",
+    { store },
+  );
+}
+
+function migrateStore(
+  transaction: IDBTransaction,
+  store: "expenses" | "cards" | "expenseCardPrivateDetails",
+  transform: (value: unknown) => unknown,
+  onError: (error: ApplicationError) => void,
+): void {
+  const request = transaction.objectStore(store).openCursor();
+  request.onerror = () => {
+    onError(new ApplicationError(
+      "PERSISTENCE_FAILURE",
+      "The local database migration could not be completed.",
+      { store },
+    ));
+  };
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    try {
+      const updateRequest = cursor.update(transform(cursor.value));
+      updateRequest.onerror = () => {
+        onError(new ApplicationError(
+          "PERSISTENCE_FAILURE",
+          "The local database migration could not be completed.",
+          { store },
+        ));
+      };
+      updateRequest.onsuccess = () => cursor.continue();
+    } catch (error) {
+      onError(sanitizedMigrationError(error, store));
+    }
+  };
+}
 
 function createSchemaV1(database: IDBPDatabase<HouseFinanceDatabase>): void {
   database.createObjectStore("appMeta", { keyPath: "key" });
@@ -53,6 +101,7 @@ function createSchemaV1(database: IDBPDatabase<HouseFinanceDatabase>): void {
 export async function openLocalDatabase(
   name = LOCAL_DATABASE_NAME,
 ): Promise<IDBPDatabase<HouseFinanceDatabase>> {
+  let migrationError: ApplicationError | undefined;
   let rejectBlocked: ((reason: ApplicationError) => void) | undefined;
   const blocked = new Promise<never>((_resolve, reject) => {
     rejectBlocked = reject;
@@ -60,25 +109,41 @@ export async function openLocalDatabase(
   const opening = openDB<HouseFinanceDatabase>(name, LOCAL_DATABASE_VERSION, {
     upgrade(database, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) createSchemaV1(database);
+      const nativeTransaction = unwrap(transaction);
+      const failMigration = (error: ApplicationError) => {
+        if (!migrationError) migrationError = error;
+        void transaction.done.catch(() => undefined);
+        try {
+          nativeTransaction.abort();
+        } catch {
+          // The first migration failure may already have aborted the transaction.
+        }
+      };
       if (oldVersion >= 1 && oldVersion < 2) {
-        const nativeTransaction = unwrap(transaction);
-        const request = nativeTransaction.objectStore("expenses").openCursor();
-        request.onsuccess = () => {
-          const cursor = request.result;
-          if (!cursor) return;
-          try {
-            const updateRequest = cursor.update(
-              migrateExpenseRecordV1ToV2(
-                cursor.value,
-                String(cursor.primaryKey),
-              ),
-            );
-            updateRequest.onsuccess = () => cursor.continue();
-          } catch {
-            void transaction.done.catch(() => undefined);
-            nativeTransaction.abort();
-          }
-        };
+        migrateStore(
+          nativeTransaction,
+          "expenses",
+          (value) => migrateExpenseRecordV1ToV2(value),
+          failMigration,
+        );
+      }
+      if (oldVersion >= 1 && oldVersion < 3) {
+        if (database.objectStoreNames.contains("cards")) {
+          migrateStore(
+            nativeTransaction,
+            "cards",
+            migrateCardRecordV1ToV2,
+            failMigration,
+          );
+        }
+        if (database.objectStoreNames.contains("expenseCardPrivateDetails")) {
+          migrateStore(
+            nativeTransaction,
+            "expenseCardPrivateDetails",
+            migratePrivateCardRecordV1ToV2,
+            failMigration,
+          );
+        }
       }
     },
     blocked() {
@@ -89,6 +154,7 @@ export async function openLocalDatabase(
       database?.close();
     },
   }).catch((error: unknown) => {
+    if (migrationError) throw migrationError;
     if (error instanceof DOMException && error.name === "VersionError") {
       throw new ApplicationError("UNSUPPORTED_DATABASE_VERSION", "The local database was created by a newer unsupported schema version.");
     }

@@ -1,5 +1,6 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import { expenseDate } from "@/domain/dates/expense-date";
+import { CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { poisha, positivePoisha } from "@/domain/money/poisha";
 import { basisPoints } from "@/domain/money/basis-points";
@@ -43,8 +44,8 @@ import {
 } from "./keys";
 import type {
   AuditEventRecordV1,
-  CardRecordV1,
-  ExpenseCardPrivateRecordV1,
+  CardRecordV2,
+  ExpenseCardPrivateRecordV2,
   ExpenseRecordV2,
   HouseholdRecordV1,
   JoinRequestRecordV1,
@@ -56,6 +57,7 @@ import type {
 
 const recordVersion = z.literal(1);
 const expenseRecordVersion = z.literal(2);
+const cardRecordVersion = z.literal(2);
 const trimmed = z.string().min(1).refine((value) => value.trim() === value);
 const idText = trimmed;
 const instantText = z.string();
@@ -89,9 +91,11 @@ const expenseSchema = z.object({
   ...expenseRecordFields,
   percentageEntries: z.array(percentageEntrySchema).optional(),
 }).strict();
-const privateCardSchema = z.object({ recordVersion, expenseId: idText, ownerId: idText, cardId: idText, cardNameSnapshot: trimmed, cardTypeSnapshot: z.enum(["debit", "credit"]), colorSnapshot: trimmed }).strict();
+const legacyPrivateCardSchema = z.object({ recordVersion, expenseId: idText, ownerId: idText, cardId: idText, cardNameSnapshot: trimmed, cardTypeSnapshot: z.enum(["debit", "credit"]), colorSnapshot: trimmed }).strict();
+const privateCardSchema = z.object({ recordVersion: cardRecordVersion, expenseId: idText, ownerId: idText, cardId: idText, cardNameSnapshot: trimmed, cardTypeSnapshot: z.enum(["debit", "credit"]), colorIdSnapshot: z.enum(CARD_COLOR_IDS) }).strict();
 const settlementSchema = z.object({ recordVersion, id: idText, householdId: idText, senderId: idText, receiverId: idText, amountPoisha: safeInteger, recommendationHouseholdId: idText, recommendationSenderId: idText, recommendationReceiverId: idText, recommendationAmountPoisha: safeInteger, createdAt: instantText, status: z.enum(["pending", "confirmed", "rejected", "cancelled"]), resolvedAt: instantText.optional(), pendingSettlementPairKey: trimmed.optional() }).strict();
-const cardSchema = z.object({ recordVersion, id: idText, ownerId: idText, name: trimmed, type: z.enum(["debit", "credit"]), color: trimmed, createdAt: instantText, updatedAt: instantText, archivedAt: instantText.optional() }).strict();
+const legacyCardSchema = z.object({ recordVersion, id: idText, ownerId: idText, name: trimmed, type: z.enum(["debit", "credit"]), color: trimmed, createdAt: instantText, updatedAt: instantText, archivedAt: instantText.optional() }).strict();
+const cardSchema = z.object({ recordVersion: cardRecordVersion, id: idText, ownerId: idText, name: trimmed, type: z.enum(["debit", "credit"]), colorId: z.enum(CARD_COLOR_IDS), createdAt: instantText, updatedAt: instantText, archivedAt: instantText.optional() }).strict();
 const receiptSchema = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
 const auditSchema = z.object({ recordVersion, id: idText, householdId: idText, actorId: idText, aggregateType: z.enum(["household", "membership", "join-request", "expense", "settlement", "card", "receipt"]), aggregateId: trimmed, action: trimmed, occurredAt: instantText, changedFields: z.array(trimmed) }).strict();
 
@@ -197,14 +201,54 @@ export const fromExpenseRecord = (raw: unknown, key?: string): Expense => {
   });
 };
 
-export const toPrivateCardRecord = (value: ExpenseCardPrivateSnapshot): ExpenseCardPrivateRecordV1 => {
+function migrateLegacyColor(value: string, store: "cards" | "expenseCardPrivateDetails"): CardColorId {
+  if ((CARD_COLOR_IDS as readonly string[]).includes(value)) return cardColorId(value);
+  if (value === "lime") return "mint";
+  if (value === "blue") return "powder-blue";
+  if (value === "gray") return "charcoal";
+  throw new ApplicationError(
+    "MALFORMED_PERSISTED_DATA",
+    `Stored ${store} color data is unsupported.`,
+    { store },
+  );
+}
+
+export function migrateCardRecordV1ToV2(raw: unknown): CardRecordV2 {
+  const value = parsed(legacyCardSchema, raw, "cards");
+  return {
+    recordVersion: 2,
+    id: value.id,
+    ownerId: value.ownerId,
+    name: value.name,
+    type: value.type,
+    colorId: migrateLegacyColor(value.color, "cards"),
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    ...(value.archivedAt ? { archivedAt: value.archivedAt } : {}),
+  };
+}
+
+export function migratePrivateCardRecordV1ToV2(raw: unknown): ExpenseCardPrivateRecordV2 {
+  const value = parsed(legacyPrivateCardSchema, raw, "expenseCardPrivateDetails");
+  return {
+    recordVersion: 2,
+    expenseId: value.expenseId,
+    ownerId: value.ownerId,
+    cardId: value.cardId,
+    cardNameSnapshot: value.cardNameSnapshot,
+    cardTypeSnapshot: value.cardTypeSnapshot,
+    colorIdSnapshot: migrateLegacyColor(value.colorSnapshot, "expenseCardPrivateDetails"),
+  };
+}
+
+export const toPrivateCardRecord = (value: ExpenseCardPrivateSnapshot): ExpenseCardPrivateRecordV2 => {
   assertExpenseCardPrivateSnapshot(value);
-  return { recordVersion: 1, expenseId: value.expenseId, ownerId: value.ownerId, cardId: value.cardId, cardNameSnapshot: value.cardName, cardTypeSnapshot: value.cardType, colorSnapshot: value.color };
+  return { recordVersion: 2, expenseId: value.expenseId, ownerId: value.ownerId, cardId: value.cardId, cardNameSnapshot: value.cardName, cardTypeSnapshot: value.cardType, colorIdSnapshot: value.colorId };
 };
 export const fromPrivateCardRecord = (raw: unknown, key?: string): ExpenseCardPrivateSnapshot => {
   const value = parsed(privateCardSchema, raw, "expenseCardPrivateDetails", key);
   return reconstructed("expenseCardPrivateDetails", key, () => {
-    const domain = { expenseId: expenseId(value.expenseId), ownerId: userId(value.ownerId), cardId: cardId(value.cardId), cardName: value.cardNameSnapshot, cardType: value.cardTypeSnapshot, color: value.colorSnapshot };
+    const domain = { expenseId: expenseId(value.expenseId), ownerId: userId(value.ownerId), cardId: cardId(value.cardId), cardName: value.cardNameSnapshot, cardType: value.cardTypeSnapshot, colorId: cardColorId(value.colorIdSnapshot) };
     assertExpenseCardPrivateSnapshot(domain);
     return Object.freeze(domain);
   });
@@ -229,8 +273,8 @@ export const fromSettlementRecord = (raw: unknown, key?: string): SettlementReco
   });
 };
 
-export const toCardRecord = (value: Card): CardRecordV1 => { assertCard(value); return { recordVersion: 1, id: value.cardId, ownerId: value.ownerId, name: value.name, type: value.type, color: value.color, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.archivedAt ? { archivedAt: value.archivedAt } : {}) }; };
-export const fromCardRecord = (raw: unknown, key?: string): Card => { const value = parsed(cardSchema, raw, "cards", key); return reconstructed("cards", key, () => { const domain: Card = { cardId: cardId(value.id), ownerId: userId(value.ownerId), name: value.name, type: value.type, color: value.color, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.archivedAt ? { archivedAt: isoInstant(value.archivedAt) } : {}) }; assertCard(domain); return Object.freeze(domain); }); };
+export const toCardRecord = (value: Card): CardRecordV2 => { assertCard(value); return { recordVersion: 2, id: value.cardId, ownerId: value.ownerId, name: value.name, type: value.type, colorId: value.colorId, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.archivedAt ? { archivedAt: value.archivedAt } : {}) }; };
+export const fromCardRecord = (raw: unknown, key?: string): Card => { const value = parsed(cardSchema, raw, "cards", key); return reconstructed("cards", key, () => { const domain: Card = { cardId: cardId(value.id), ownerId: userId(value.ownerId), name: value.name, type: value.type, colorId: cardColorId(value.colorId), createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.archivedAt ? { archivedAt: isoInstant(value.archivedAt) } : {}) }; assertCard(domain); return Object.freeze(domain); }); };
 
 export const toReceiptRecord = (value: ReceiptMetadata): ReceiptMetadataRecordV1 => { assertReceiptMetadata(value); return { recordVersion: 1, id: value.receiptId, householdId: value.householdId, expenseId: value.expenseId, createdByUserId: value.createdByUserId, mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: value.createdAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) }; };
 export const fromReceiptRecord = (raw: unknown, key?: string): ReceiptMetadata => { const value = parsed(receiptSchema, raw, "receiptMetadata", key); return reconstructed("receiptMetadata", key, () => { const domain: ReceiptMetadata = { receiptId: receiptId(value.id), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), createdByUserId: userId(value.createdByUserId), mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: isoInstant(value.createdAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) }; assertReceiptMetadata(domain); return Object.freeze(domain); }); };

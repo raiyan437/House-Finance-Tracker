@@ -42,7 +42,8 @@ test("guards only household-dependent routes for a Pending requester", async ({ 
   await expect(page.getByRole("heading", { name: "Profile foundation ready" })).toBeVisible();
   await page.goto("/cards");
   await expect(page).toHaveURL(/\/cards$/);
-  await expect(page.getByRole("heading", { name: "Cards foundation ready" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My Cards" })).toBeVisible();
+  await expect(page.getByText("No cards yet")).toBeVisible();
   await page.goto("/expenses/new");
   await expect(page).toHaveURL(/\/household$/);
   expectNoErrors();

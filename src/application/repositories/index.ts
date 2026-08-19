@@ -10,6 +10,7 @@ import type {
   UserProfile,
 } from "@/domain/records/domain-records";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
+import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-lifecycle";
 import type { SettlementRecord, SettlementStatus } from "@/domain/settlements/settlement-types";
 import type {
   CardId,
@@ -20,6 +21,7 @@ import type {
   SettlementId,
   UserId,
 } from "@/domain/shared/identifiers";
+import type { IsoInstant } from "@/domain/shared/instant";
 
 export interface UserProfileRepository {
   getById(userId: UserId): Promise<UserProfile | undefined>;
@@ -60,7 +62,6 @@ export interface ExpenseRepository {
   create(expense: Expense): Promise<void>;
   replace(expense: Expense): Promise<void>;
   markDeleted(expense: Expense): Promise<void>;
-  hasCardReference(cardId: CardId): Promise<boolean>;
   getPrivateCardSnapshot(expenseId: ExpenseId, ownerId: UserId): Promise<ExpenseCardPrivateSnapshot | undefined>;
 }
 
@@ -75,6 +76,7 @@ export interface SettlementRepository {
 export interface CardRepository {
   getOwned(cardId: CardId, ownerId: UserId): Promise<Card | undefined>;
   listOwned(ownerId: UserId, includeArchived?: boolean): Promise<readonly Card[]>;
+  getOwnedRemovalAction(cardId: CardId, ownerId: UserId): Promise<CardRemovalAction | undefined>;
   create(card: Card): Promise<void>;
   updateDetails(card: Card): Promise<void>;
   archive(card: Card): Promise<void>;
@@ -118,21 +120,25 @@ export interface AtomicApplicationPersistence {
   transferLeadership(input: Readonly<{ formerLeader: MembershipSnapshot; newLeader: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
   endMembership(input: Readonly<{ membership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
   deleteHousehold(input: Readonly<{ household: Household; formerMemberships: readonly MembershipSnapshot[]; auditEvent: AuditEvent }>): Promise<void>;
-  createExpense(input: Readonly<{ expense: Expense; privateCardSnapshot?: ExpenseCardPrivateSnapshot; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }>): Promise<void>;
+  createExpense(input: Readonly<{ expense: Expense; selectedCardId?: CardId; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }>): Promise<void>;
   editExpense(input: Readonly<{
     expense: Expense;
     expectedUpdatedAt: string;
-    privateCardSnapshot?: ExpenseCardPrivateSnapshot;
+    selectedCardId?: CardId;
     receiptAdditions?: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[];
     receiptRemovals?: readonly ReceiptMetadata[];
     auditEvents: readonly AuditEvent[];
   }>): Promise<void>;
   createSettlement(input: Readonly<{ settlement: SettlementRecord; auditEvent: AuditEvent }>): Promise<void>;
   transitionSettlement(input: Readonly<{ settlement: SettlementRecord; expectedStatus: SettlementStatus; auditEvent: AuditEvent }>): Promise<void>;
-  createCard(input: Readonly<{ card: Card; auditEvent: AuditEvent }>): Promise<void>;
-  updateCard(input: Readonly<{ card: Card; auditEvent: AuditEvent }>): Promise<void>;
-  archiveCard(input: Readonly<{ card: Card; auditEvent: AuditEvent }>): Promise<void>;
-  deleteCard(input: Readonly<{ cardId: CardId; ownerId: UserId; auditEvent: AuditEvent }>): Promise<void>;
+  createCard(input: Readonly<{ card: Card }>): Promise<void>;
+  updateCard(input: Readonly<{ card: Card; expectedUpdatedAt: string }>): Promise<void>;
+  removeCard(input: Readonly<{
+    cardId: CardId;
+    ownerId: UserId;
+    expectedAction: CardRemovalAction;
+    occurredAt: IsoInstant;
+  }>): Promise<CardRemovalResult>;
   createReceipt(input: Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent; auditEvent: AuditEvent }>): Promise<void>;
   deleteReceipt(input: Readonly<{ metadata: ReceiptMetadata; auditEvent: AuditEvent }>): Promise<void>;
 }

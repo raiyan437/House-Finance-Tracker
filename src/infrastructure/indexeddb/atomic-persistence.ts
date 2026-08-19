@@ -8,7 +8,12 @@ import {
   assertLegacyPercentageChangeAllowed,
   type ExpenseFinancialFingerprint,
 } from "@/domain/expenses/expense-financial-fingerprint";
-import { toBalanceExpense, type Expense } from "@/domain/records/domain-records";
+import {
+  toBalanceExpense,
+  type Card,
+  type Expense,
+  type ExpenseCardPrivateSnapshot,
+} from "@/domain/records/domain-records";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from "idb";
 import {
@@ -21,6 +26,7 @@ import {
   fromExpenseRecord,
   fromJoinRequestRecord,
   fromMembershipRecord,
+  fromPrivateCardRecord,
   fromSettlementRecord,
   toAuditRecord,
   toCardRecord,
@@ -41,7 +47,9 @@ import type { HouseFinanceDatabase } from "./records";
 
 type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
 
-function abortSafely(transaction: IDBPTransaction<HouseFinanceDatabase, StoreNames<HouseFinanceDatabase>[], "readwrite">): void {
+function abortSafely<Stores extends StoreNames<HouseFinanceDatabase>[]>(
+  transaction: IDBPTransaction<HouseFinanceDatabase, Stores, "readwrite">,
+): void {
   void transaction.done.catch(() => undefined);
   try {
     transaction.abort();
@@ -61,6 +69,17 @@ function expenseFingerprint(expense: Expense): ExpenseFinancialFingerprint {
     expenseDate: expense.expenseDate,
     payment: expense.payment,
     deleted: Boolean(expense.deletedAt),
+  };
+}
+
+function cardSnapshot(expense: Expense, card: Card): ExpenseCardPrivateSnapshot {
+  return {
+    expenseId: expense.expenseId,
+    ownerId: expense.creatorId,
+    cardId: card.cardId,
+    cardName: card.name,
+    cardType: card.type,
+    colorId: card.colorId,
   };
 }
 
@@ -184,10 +203,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async createExpense(input: Parameters<AtomicApplicationPersistence["createExpense"]>[0]): Promise<void> {
     const expense = toExpenseRecord(input.expense);
-    const privateCard = input.privateCardSnapshot ? toPrivateCardRecord(input.privateCardSnapshot) : undefined;
-    if ((input.expense.payment.method === "card") !== Boolean(privateCard)) throw new ApplicationError("CONFLICT", "Card expenses require exactly one private historical snapshot.");
+    if ((input.expense.payment.method === "card") !== Boolean(input.selectedCardId)) throw new ApplicationError("CONFLICT", "Card expenses require exactly one selected Card.");
     const receipts = input.receipts.map((item) => ({ metadata: toReceiptRecord(item.metadata), blob: receiptBlob(item.metadata, item.content) }));
-    const tx = (await this.db()).transaction(["memberships", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
     try {
       const membershipRaw = await tx.objectStore("memberships").get(
         membershipKey(input.expense.householdId, input.expense.creatorId),
@@ -217,6 +235,16 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
           );
         }
       }
+      let privateCard;
+      if (input.selectedCardId) {
+        const cardRaw = await tx.objectStore("cards").get(input.selectedCardId);
+        if (!cardRaw) throw new ApplicationError("CONFLICT", "The selected Card changed. Refresh and try again.");
+        const selectedCard = fromCardRecord(cardRaw, input.selectedCardId);
+        if (selectedCard.ownerId !== input.expense.creatorId || selectedCard.archivedAt) {
+          throw new ApplicationError("CONFLICT", "The selected Card is no longer available. Refresh and try again.");
+        }
+        privateCard = toPrivateCardRecord(cardSnapshot(input.expense, selectedCard));
+      }
       await tx.objectStore("expenses").add(expense);
       if (privateCard) await tx.objectStore("expenseCardPrivateDetails").add(privateCard);
       for (const receipt of receipts) { await tx.objectStore("receiptMetadata").add(receipt.metadata); await tx.objectStore("receiptBlobs").add(receipt.blob); }
@@ -227,16 +255,13 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async editExpense(input: Parameters<AtomicApplicationPersistence["editExpense"]>[0]): Promise<void> {
     const expenseRecord = toExpenseRecord(input.expense);
-    const privateCardRecord = input.privateCardSnapshot
-      ? toPrivateCardRecord(input.privateCardSnapshot)
-      : undefined;
     const additions = (input.receiptAdditions ?? []).map((item) => ({
       metadata: toReceiptRecord(item.metadata),
       blob: receiptBlob(item.metadata, item.content),
     }));
     const removals = (input.receiptRemovals ?? []).map(toReceiptRecord);
     const audits = input.auditEvents.map(toAuditRecord);
-    const tx = (await this.db()).transaction(["memberships", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
     try {
       const currentRaw = await tx.objectStore("expenses").get(input.expense.expenseId);
       if (!currentRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
@@ -274,6 +299,29 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
         expenseFingerprint(input.expense),
         currentMemberships,
       );
+      let privateCardRecord;
+      if (input.selectedCardId) {
+        if (actorId !== current.creatorId || input.expense.payment.method !== "card") {
+          throw new ApplicationError("CONFLICT", "Only the Expense owner may select a Card.");
+        }
+        const cardRaw = await tx.objectStore("cards").get(input.selectedCardId);
+        if (!cardRaw) throw new ApplicationError("CONFLICT", "The selected Card changed. Refresh and try again.");
+        const selectedCard = fromCardRecord(cardRaw, input.selectedCardId);
+        if (selectedCard.ownerId !== current.creatorId || selectedCard.archivedAt) {
+          throw new ApplicationError("CONFLICT", "The selected Card is no longer available. Refresh and try again.");
+        }
+        privateCardRecord = toPrivateCardRecord(cardSnapshot(input.expense, selectedCard));
+      } else if (input.expense.payment.method === "card") {
+        if (current.payment.method !== "card") {
+          throw new ApplicationError("CONFLICT", "A new Card association requires an active selected Card.");
+        }
+        const existingPrivate = await tx.objectStore("expenseCardPrivateDetails").get(input.expense.expenseId);
+        if (!existingPrivate) throw new ApplicationError("CONFLICT", "Card expense history is unavailable.");
+        const snapshot = fromPrivateCardRecord(existingPrivate, input.expense.expenseId);
+        if (snapshot.ownerId !== current.creatorId) {
+          throw new ApplicationError("CONFLICT", "Card expense history is inconsistent.");
+        }
+      }
       await tx.objectStore("expenses").put(expenseRecord);
       if (privateCardRecord) {
         await tx.objectStore("expenseCardPrivateDetails").put(privateCardRecord);
@@ -385,29 +433,62 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async createCard(input: Parameters<AtomicApplicationPersistence["createCard"]>[0]): Promise<void> {
     if (input.card.archivedAt) throw new ApplicationError("CONFLICT", "A new card cannot be archived.");
-    const tx = (await this.db()).transaction(["cards", "auditEvents"], "readwrite");
-    try { await tx.objectStore("cards").add(toCardRecord(input.card)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
+    const tx = (await this.db()).transaction("cards", "readwrite");
+    try { await tx.store.add(toCardRecord(input.card)); await tx.done; }
     catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async updateCard(input: Parameters<AtomicApplicationPersistence["updateCard"]>[0]): Promise<void> {
     if (input.card.archivedAt) throw new ApplicationError("CONFLICT", "Archived cards cannot be edited.");
-    const tx = (await this.db()).transaction(["cards", "auditEvents"], "readwrite");
-    try { const raw = await tx.objectStore("cards").get(input.card.cardId); if (!raw || fromCardRecord(raw, input.card.cardId).ownerId !== input.card.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found."); await tx.objectStore("cards").put(toCardRecord(input.card)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
+    const tx = (await this.db()).transaction("cards", "readwrite");
+    try {
+      const raw = await tx.store.get(input.card.cardId);
+      if (!raw) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      const current = fromCardRecord(raw, input.card.cardId);
+      if (current.ownerId !== input.card.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      if (current.archivedAt) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      if (current.updatedAt !== input.expectedUpdatedAt) throw new ApplicationError("CONFLICT", "Card changed before this edit could be saved.");
+      if (current.createdAt !== input.card.createdAt) throw new ApplicationError("CONFLICT", "Card identity metadata cannot be changed.");
+      await tx.store.put(toCardRecord(input.card));
+      await tx.done;
+    }
     catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
-  async archiveCard(input: Parameters<AtomicApplicationPersistence["archiveCard"]>[0]): Promise<void> {
-    if (!input.card.archivedAt) throw new ApplicationError("CONFLICT", "Archive operation requires an archived card.");
-    const tx = (await this.db()).transaction(["cards", "auditEvents"], "readwrite");
-    try { const raw = await tx.objectStore("cards").get(input.card.cardId); if (!raw || fromCardRecord(raw, input.card.cardId).ownerId !== input.card.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found."); await tx.objectStore("cards").put(toCardRecord(input.card)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
-  }
-
-  async deleteCard(input: Parameters<AtomicApplicationPersistence["deleteCard"]>[0]): Promise<void> {
-    const tx = (await this.db()).transaction(["cards", "expenseCardPrivateDetails", "auditEvents"], "readwrite");
-    try { const raw = await tx.objectStore("cards").get(input.cardId); if (!raw || raw.ownerId !== input.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found."); if (await tx.objectStore("expenseCardPrivateDetails").index("cardId").getKey(input.cardId)) throw new ApplicationError("CONFLICT", "Referenced cards must be archived instead of deleted."); await tx.objectStore("cards").delete(input.cardId); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
+  async removeCard(input: Parameters<AtomicApplicationPersistence["removeCard"]>[0]) {
+    const tx = (await this.db()).transaction(["cards", "expenseCardPrivateDetails"], "readwrite");
+    try {
+      const raw = await tx.objectStore("cards").get(input.cardId);
+      if (!raw) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      const current = fromCardRecord(raw, input.cardId);
+      if (current.ownerId !== input.ownerId || current.archivedAt) {
+        throw new ApplicationError("NOT_FOUND", "Card not found.");
+      }
+      const referenced = Boolean(
+        await tx.objectStore("expenseCardPrivateDetails").index("cardId").getKey(input.cardId),
+      );
+      const actualAction = referenced ? "archive" as const : "delete" as const;
+      if (actualAction !== input.expectedAction) {
+        throw new ApplicationError(
+          "CONFLICT",
+          "Card usage changed. Refresh and confirm the updated action.",
+        );
+      }
+      if (actualAction === "archive") {
+        await tx.objectStore("cards").put(toCardRecord({
+          ...current,
+          updatedAt: input.occurredAt,
+          archivedAt: input.occurredAt,
+        }));
+      } else {
+        await tx.objectStore("cards").delete(input.cardId);
+      }
+      await tx.done;
+      return actualAction === "archive" ? "archived" as const : "deleted" as const;
+    } catch (error) {
+      abortSafely(tx);
+      persistenceFailure(error);
+    }
   }
 
   async createReceipt(input: Parameters<AtomicApplicationPersistence["createReceipt"]>[0]): Promise<void> {

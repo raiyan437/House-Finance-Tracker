@@ -142,7 +142,6 @@ export class IndexedDbExpenseRepository implements ExpenseRepository {
   async replace(value: Parameters<ExpenseRepository["replace"]>[0]) { await this.replaceExisting(value, false); }
   async markDeleted(value: Parameters<ExpenseRepository["markDeleted"]>[0]) { await this.replaceExisting(value, true); }
   private async replaceExisting(value: Parameters<ExpenseRepository["replace"]>[0], mustBeDeleted: boolean) { try { if (mustBeDeleted !== Boolean(value.deletedAt)) throw new ApplicationError("CONFLICT", "Expense deletion state does not match the operation."); const db = await database(this.source); if (!(await db.getKey("expenses", value.expenseId))) throw new ApplicationError("NOT_FOUND", "Expense not found."); await db.put("expenses", toExpenseRecord(value)); } catch (error) { persistenceFailure(error); } }
-  async hasCardReference(id: CardId) { return Boolean(await (await database(this.source)).getKeyFromIndex("expenseCardPrivateDetails", "cardId", id)); }
   async getPrivateCardSnapshot(id: ExpenseId, owner: UserId) { const raw = await (await database(this.source)).get("expenseCardPrivateDetails", id); if (!raw || raw.ownerId !== owner) return undefined; return fromPrivateCardRecord(raw, id); }
 }
 
@@ -159,6 +158,20 @@ export class IndexedDbCardRepository implements CardRepository {
   constructor(private readonly source: DatabaseSource) {}
   async getOwned(id: CardId, owner: UserId) { const raw = await (await database(this.source)).get("cards", id); return raw && raw.ownerId === owner ? fromCardRecord(raw, id) : undefined; }
   async listOwned(owner: UserId, includeArchived = false) { const raw = await (await database(this.source)).getAllFromIndex("cards", "ownerId", owner); return raw.map((item) => fromCardRecord(item, item.id)).filter((item) => includeArchived || !item.archivedAt); }
+  async getOwnedRemovalAction(id: CardId, owner: UserId) {
+    const db = await database(this.source);
+    const transaction = db.transaction(["cards", "expenseCardPrivateDetails"], "readonly");
+    const raw = await transaction.objectStore("cards").get(id);
+    if (!raw || raw.ownerId !== owner || raw.archivedAt) {
+      await transaction.done;
+      return undefined;
+    }
+    const referenced = Boolean(
+      await transaction.objectStore("expenseCardPrivateDetails").index("cardId").getKey(id),
+    );
+    await transaction.done;
+    return referenced ? "archive" as const : "delete" as const;
+  }
   async create(value: Parameters<CardRepository["create"]>[0]) { try { if (value.archivedAt) throw new ApplicationError("CONFLICT", "A new card cannot be archived."); await (await database(this.source)).add("cards", toCardRecord(value)); } catch (error) { persistenceFailure(error); } }
   async updateDetails(value: Parameters<CardRepository["updateDetails"]>[0]) { try { const db = await database(this.source); const raw = await db.get("cards", value.cardId); if (!raw || raw.ownerId !== value.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found."); if (raw.archivedAt || value.archivedAt) throw new ApplicationError("CONFLICT", "Archived cards cannot be edited."); await db.put("cards", toCardRecord(value)); } catch (error) { persistenceFailure(error); } }
   async archive(value: Parameters<CardRepository["archive"]>[0]) { try { if (!value.archivedAt) throw new ApplicationError("CONFLICT", "Archive operation requires an archived card."); const db = await database(this.source); const raw = await db.get("cards", value.cardId); if (!raw || raw.ownerId !== value.ownerId) throw new ApplicationError("NOT_FOUND", "Card not found."); await db.put("cards", toCardRecord(value)); } catch (error) { persistenceFailure(error); } }

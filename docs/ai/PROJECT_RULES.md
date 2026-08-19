@@ -29,4 +29,4 @@ House Finance Tracker is a local-first shared household expense-tracking applica
 
 ## Execution gate
 
-The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-7 are complete; Phase 7 expenses and receipts is accepted and committed as `ff5a878`. Phase 8 settlement workflows are implemented and verified in the uncommitted worktree under `docs/ai/work/PHASE_8_PLAN.md`, including authoritative atomic recommendation revalidation at creation. Stop for Phase 8 review. Do not commit Phase 8 or begin Phase 9 without explicit instruction. Appwrite remains gated until the local MVP is declared stable.
+The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-8 are complete; Phase 8 settlement workflows are accepted and committed as `c75d18b`. Phase 9 private Cards management is implemented and verified under `docs/ai/work/PHASE_9_PLAN.md` and remains intentionally uncommitted for review. Do not begin Phase 10. Appwrite remains gated until the local MVP is declared stable.

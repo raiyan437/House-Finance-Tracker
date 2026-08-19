@@ -75,3 +75,11 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Pending settlement staleness is a fresh presentation concern over immutable historical source: refresh it before receiver confirmation, translate it outside React, and never let it alter or block the original-amount lifecycle.
 - Current-user settlement views and attention badges are derived projections, not persisted state. Reconstruct them after every mutation and identity switch so sender waiting, receiver actions, and navigation attention remain consistent.
 - Date-only expense values and settlement instants need separate presentation paths: expense dates never pass through timezones, while settlement/audit ISO instants render in the viewer's local timezone.
+
+## 2026-08-18 - Phase 9 owner-private Cards
+
+- A private user resource should not be forced into a Household audit model: when the existing audit store is broadly Household-scoped, omitting Card lifecycle events is safer than duplicating private IDs or inventing a Household relationship.
+- Historical snapshots must be derived inside the authoritative write transaction from a selected private identity, not accepted as metadata from React. This both closes Card edit/archive races and keeps presentation projections narrow.
+- Informed destructive consent is part of the transaction contract: pass the previewed Delete/Archive consequence, recompute reference status at commit, and reject drift so a physical Delete can never silently become Archive.
+- IndexedDB versionchange migrations can safely reject unsupported private data when the first typed, sanitized failure is retained and the whole transaction is explicitly aborted; tests must reopen the old version to prove that even earlier cursor writes rolled back.
+- Owner-keying the private feature subtree is a robust identity-switch boundary: it discards form, dialog, request, and Card-list state immediately instead of relying on an effect to clear prior-user data after render.

@@ -65,6 +65,10 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
           reject: vi.fn(),
           cancel: vi.fn(),
         },
+        cardActions: {
+          getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
+          getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
+        },
       }}
     >
       {children}

@@ -1,4 +1,5 @@
 import { expenseDate, type ExpenseDate } from "../dates/expense-date";
+import { cardColorId, type CardColorId } from "../cards/card-color";
 import type { BalanceExpense } from "../expenses/balance-expense";
 import { assertExpensePercentageSource } from "../expenses/expense-percentage-source";
 import { positivePoisha, type PositivePoisha } from "../money/poisha";
@@ -87,7 +88,7 @@ export interface Card {
   readonly ownerId: UserId;
   readonly name: string;
   readonly type: CardType;
-  readonly color: string;
+  readonly colorId: CardColorId;
   readonly createdAt: IsoInstant;
   readonly updatedAt: IsoInstant;
   readonly archivedAt?: IsoInstant;
@@ -99,7 +100,7 @@ export interface ExpenseCardPrivateSnapshot {
   readonly cardId: CardId;
   readonly cardName: string;
   readonly cardType: CardType;
-  readonly color: string;
+  readonly colorId: CardColorId;
 }
 
 export const RECEIPT_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -245,7 +246,7 @@ export function assertCard(value: Card): void {
   cardId(value.cardId);
   userId(value.ownerId);
   assertTrimmedText(value.name, "INVALID_CARD");
-  assertTrimmedText(value.color, "INVALID_CARD");
+  cardColorId(value.colorId);
   if (value.type !== "debit" && value.type !== "credit") {
     throw new DomainError("INVALID_CARD", "Unsupported card type.");
   }
@@ -259,7 +260,7 @@ export function assertExpenseCardPrivateSnapshot(value: ExpenseCardPrivateSnapsh
   userId(value.ownerId);
   cardId(value.cardId);
   assertTrimmedText(value.cardName, "INVALID_CARD");
-  assertTrimmedText(value.color, "INVALID_CARD");
+  cardColorId(value.colorId);
   if (value.cardType !== "debit" && value.cardType !== "credit") {
     throw new DomainError("INVALID_CARD", "Unsupported historical card type.");
   }

@@ -267,13 +267,125 @@ describe("Phase 4 IndexedDB local persistence", () => {
 
     await expectApplicationCode(
       openLocalDatabase(name),
-      "PERSISTENCE_FAILURE",
+      "MALFORMED_PERSISTED_DATA",
     );
     const unchanged = await openDB(name, 1);
     expect((await unchanged.get("expenses", validLegacy.id)).recordVersion).toBe(1);
     expect(
       (await unchanged.get("expenses", "expense-malformed-migration"))
         .recordVersion,
+    ).toBe(1);
+    unchanged.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("migrates every approved legacy Card palette value deterministically", async () => {
+    const name = databaseName("card-palette-v3-migration");
+    const legacyCards = [
+      { id: "card-legacy-lime", color: "lime", expected: "mint" },
+      { id: "card-legacy-blue", color: "blue", expected: "powder-blue" },
+      { id: "card-legacy-gray", color: "gray", expected: "charcoal" },
+    ] as const;
+    const old = await openDB(name, 2, {
+      upgrade(database) {
+        const cards = database.createObjectStore("cards", { keyPath: "id" });
+        cards.createIndex("ownerId", "ownerId");
+        const details = database.createObjectStore("expenseCardPrivateDetails", {
+          keyPath: "expenseId",
+        });
+        details.createIndex("ownerId", "ownerId");
+        details.createIndex("cardId", "cardId");
+      },
+    });
+    for (const legacy of legacyCards) {
+      await old.add("cards", {
+        recordVersion: 1,
+        id: legacy.id,
+        ownerId: "legacy-owner",
+        name: "Private legacy Card",
+        type: "debit",
+        color: legacy.color,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await old.add("expenseCardPrivateDetails", {
+      recordVersion: 1,
+      expenseId: "expense-legacy-card",
+      ownerId: "legacy-owner",
+      cardId: "card-legacy-blue",
+      cardNameSnapshot: "Historical private Card",
+      cardTypeSnapshot: "credit",
+      colorSnapshot: "blue",
+    });
+    old.close();
+
+    const migrated = await openLocalDatabase(name);
+    for (const legacy of legacyCards) {
+      expect(await migrated.get("cards", legacy.id)).toMatchObject({
+        recordVersion: 2,
+        colorId: legacy.expected,
+      });
+    }
+    expect(
+      await migrated.get("expenseCardPrivateDetails", "expense-legacy-card"),
+    ).toMatchObject({ recordVersion: 2, colorIdSnapshot: "powder-blue" });
+    migrated.close();
+    await deleteLocalDatabase(name);
+  });
+
+  it("rejects an unknown private Card palette value without leaking or partially upgrading", async () => {
+    const name = databaseName("card-palette-v3-rollback");
+    const privateName = "Do not expose this Card name";
+    const privateColor = "unsupported-private-neon";
+    const old = await openDB(name, 2, {
+      upgrade(database) {
+        const cards = database.createObjectStore("cards", { keyPath: "id" });
+        cards.createIndex("ownerId", "ownerId");
+        const details = database.createObjectStore("expenseCardPrivateDetails", {
+          keyPath: "expenseId",
+        });
+        details.createIndex("ownerId", "ownerId");
+        details.createIndex("cardId", "cardId");
+      },
+    });
+    await old.add("cards", {
+      recordVersion: 1,
+      id: "card-known-first",
+      ownerId: "private-owner",
+      name: "Known private Card",
+      type: "debit",
+      color: "lime",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await old.add("cards", {
+      recordVersion: 1,
+      id: "card-malformed-private",
+      ownerId: "private-owner",
+      name: privateName,
+      type: "credit",
+      color: privateColor,
+      createdAt: now,
+      updatedAt: now,
+    });
+    old.close();
+
+    const failure = await openLocalDatabase(name).catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      name: "ApplicationError",
+      code: "MALFORMED_PERSISTED_DATA",
+      context: { store: "cards" },
+    });
+    expect(String((failure as Error).message)).not.toContain(privateName);
+    expect(String((failure as Error).message)).not.toContain(privateColor);
+    expect(JSON.stringify(failure)).not.toContain("card-malformed-private");
+
+    const unchanged = await openDB(name, 2);
+    expect(unchanged.version).toBe(2);
+    expect((await unchanged.get("cards", "card-known-first")).recordVersion).toBe(1);
+    expect(
+      (await unchanged.get("cards", "card-malformed-private")).recordVersion,
     ).toBe(1);
     unchanged.close();
     await deleteLocalDatabase(name);
@@ -602,7 +714,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     expect(expense?.payment).toEqual({ method: "card", cardReference: "private:expense-internet" });
     expect(JSON.stringify(await db.get("expenses", "expense-internet"))).not.toMatch(/John Credit|blue|card-john-credit/);
     expect(await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.raiyan)).toBeUndefined();
-    expect(await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.john)).toMatchObject({ cardName: "John Credit", color: "blue" });
+    expect(await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.john)).toMatchObject({ cardName: "John Credit", colorId: "powder-blue" });
     expect(JSON.stringify(await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID))).not.toMatch(/John Credit|blue|card-john-credit/);
     db.close(); await deleteLocalDatabase(name);
   });
@@ -617,7 +729,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     await repositories.cards.archive({ ...referenced!, updatedAt: now, archivedAt: now });
     expect(await repositories.cards.listOwned(SEEDED_USER_IDS.john)).toEqual([]);
     expect(await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.john)).toMatchObject({ cardName: "John Credit" });
-    const unused: Card = { cardId: cardId("card-unused"), ownerId: SEEDED_USER_IDS.john, name: "Unused", type: "debit", color: "gray", createdAt: now, updatedAt: now };
+    const unused: Card = { cardId: cardId("card-unused"), ownerId: SEEDED_USER_IDS.john, name: "Unused", type: "debit", colorId: "charcoal", createdAt: now, updatedAt: now };
     await repositories.cards.create(unused);
     await repositories.cards.deleteUnreferenced(unused.cardId, unused.ownerId);
     expect(await repositories.cards.getOwned(unused.cardId, unused.ownerId)).toBeUndefined();

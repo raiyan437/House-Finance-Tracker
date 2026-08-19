@@ -34,6 +34,7 @@ describe("Phase 4 application services with IndexedDB", () => {
   let db: IDBPDatabase<HouseFinanceDatabase>;
   let repositories: IndexedDbRepositories;
   let session: LocalCurrentSession;
+  let atomic: IndexedDbAtomicApplicationPersistence;
   let application: HouseFinanceApplication;
 
   beforeEach(async () => {
@@ -42,7 +43,8 @@ describe("Phase 4 application services with IndexedDB", () => {
     await seedLocalDatabase(db);
     repositories = new IndexedDbRepositories(db);
     session = new LocalCurrentSession(db);
-    application = new HouseFinanceApplication({ repositories, atomic: new IndexedDbAtomicApplicationPersistence(db), session, values: new FixedValues() });
+    atomic = new IndexedDbAtomicApplicationPersistence(db);
+    application = new HouseFinanceApplication({ repositories, atomic, session, values: new FixedValues() });
   });
 
   afterEach(async () => {
@@ -58,7 +60,7 @@ describe("Phase 4 application services with IndexedDB", () => {
 
     await session.switchIdentity(SEEDED_USER_IDS.john);
     const ownerView = await application.expenses.getExpense(expenseId("expense-internet"));
-    expect(ownerView.privateCardSnapshot).toMatchObject({ cardName: "John Credit", cardType: "credit", color: "blue" });
+    expect(ownerView.privateCardSnapshot).toMatchObject({ cardName: "John Credit", cardType: "credit", colorId: "powder-blue" });
   });
 
   it("lets a leader preserve an opaque Card expense without loading private metadata", async () => {
@@ -145,6 +147,26 @@ describe("Phase 4 application services with IndexedDB", () => {
         payment: { kind: "card", cardId: card.cardId },
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const active = await application.cards.createMyCard({
+      name: "Active replacement",
+      type: "debit",
+      colorId: "soft-coral",
+    });
+    const switched = await application.expenses.editExpense({
+      expenseId: original.expenseId,
+      name: original.name,
+      amount: original.amount,
+      expenseDate: original.expenseDate,
+      splitMethod: original.splitMethod,
+      allocations: original.allocations,
+      payment: { kind: "card", cardId: active.cardId },
+    });
+    expect(switched.privateCardSnapshot).toMatchObject({
+      cardId: active.cardId,
+      cardName: "Active replacement",
+      colorId: "soft-coral",
+    });
   });
 
   it("requires explicit Card-to-Cash confirmation while retaining owner-private history", async () => {
@@ -277,7 +299,9 @@ describe("Phase 4 application services with IndexedDB", () => {
 
   it("archives referenced cards through the application service", async () => {
     await session.switchIdentity(SEEDED_USER_IDS.john);
-    expect(await application.cards.deleteCard((await repositories.cards.listOwned(SEEDED_USER_IDS.john))[0]!.cardId)).toBe("archived");
+    const referencedCard = (await repositories.cards.listOwned(SEEDED_USER_IDS.john))[0]!;
+    const removal = await application.cards.getMyCardRemovalPreview(referencedCard.cardId);
+    expect(await application.cards.deleteOrArchiveMyCard(referencedCard.cardId, removal.expectedAction)).toBe("archived");
     expect(await repositories.cards.listOwned(SEEDED_USER_IDS.john)).toEqual([]);
     expect(await repositories.cards.listOwned(SEEDED_USER_IDS.john, true)).toHaveLength(1);
   });
@@ -581,5 +605,109 @@ describe("Phase 4 application services with IndexedDB", () => {
     });
     expect(await db.get("settlements", confirmed.settlementId)).toEqual(before);
     expect(await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID)).not.toEqual([]);
+  });
+
+  it("manages duplicate private Cards without a Household and derives ownership from session", async () => {
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    const beforeAudits = await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID);
+    const first = await application.cards.createMyCard({ name: "  Personal  ", type: "debit", colorId: "mint" });
+    const second = await application.cards.createMyCard({ name: "Personal", type: "credit", colorId: "lavender" });
+    expect((await application.cards.getMyCards()).cards).toEqual([first, second]);
+
+    const updated = await application.cards.updateMyCard(first.cardId, {
+      name: "Everyday",
+      type: "credit",
+      colorId: "soft-coral",
+    });
+    expect(updated).toMatchObject({ name: "Everyday", type: "credit", colorId: "soft-coral" });
+    const preview = await application.cards.getMyCardRemovalPreview(second.cardId);
+    expect(preview.expectedAction).toBe("delete");
+    await expect(application.cards.deleteOrArchiveMyCard(second.cardId, "delete")).resolves.toBe("deleted");
+    expect(await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).toEqual(beforeAudits);
+
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    expect((await application.cards.getMyCards()).cards).not.toContainEqual(updated);
+    await expect(application.cards.updateMyCard(first.cardId, {
+      name: "Forbidden",
+      type: "debit",
+      colorId: "charcoal",
+    })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.cards.getMyCardRemovalPreview(first.cardId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("keeps historical snapshots unchanged while future Expenses use authoritative edited Card data", async () => {
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    const card = (await repositories.cards.listOwned(SEEDED_USER_IDS.john))[0]!;
+    const historicalBefore = await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.john);
+    await application.cards.updateMyCard(card.cardId, {
+      name: "Main Card",
+      type: "debit",
+      colorId: "warm-sand",
+    });
+    expect(await repositories.expenses.getPrivateCardSnapshot(expenseId("expense-internet"), SEEDED_USER_IDS.john)).toEqual(historicalBefore);
+
+    const created = await application.expenses.createExpense({
+      householdId: SEEDED_HOUSEHOLD_ID,
+      name: "Future Card Expense",
+      amount: positivePoisha(500),
+      expenseDate: expenseDate("2026-08-18"),
+      splitMethod: "equal",
+      allocations: [{ participantId: SEEDED_USER_IDS.john, share: poisha(500) }],
+      payment: { method: "card", cardId: card.cardId },
+    });
+    expect(created.privateCardSnapshot).toMatchObject({ cardName: "Main Card", cardType: "debit", colorId: "warm-sand" });
+    expect((await application.cards.listMySelectableCards())[0]).toMatchObject({ name: "Main Card", type: "debit", colorId: "warm-sand" });
+  });
+
+  it("creates a new Expense snapshot from Card state re-read inside the committing transaction", async () => {
+    const card = (await repositories.cards.listOwned(SEEDED_USER_IDS.raiyan))[0]!;
+    const persist = atomic.createExpense.bind(atomic);
+    vi.spyOn(atomic, "createExpense").mockImplementationOnce(async (input) => {
+      await repositories.cards.updateDetails({
+        ...card,
+        name: "Transaction-current Card",
+        type: "credit",
+        colorId: "charcoal",
+        updatedAt: isoInstant("2026-08-13T12:59:59.000Z"),
+      });
+      await persist(input);
+    });
+
+    const created = await application.expenses.createExpense({
+      householdId: SEEDED_HOUSEHOLD_ID,
+      name: "Concurrent Card Expense",
+      amount: positivePoisha(900),
+      expenseDate: expenseDate("2026-08-18"),
+      splitMethod: "equal",
+      allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: poisha(900) }],
+      payment: { method: "card", cardId: card.cardId },
+    });
+    expect(created.privateCardSnapshot).toMatchObject({
+      cardId: card.cardId,
+      cardName: "Transaction-current Card",
+      cardType: "credit",
+      colorId: "charcoal",
+    });
+  });
+
+  it("rejects stale Delete consent and requires a refreshed Archive confirmation", async () => {
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    const card = await application.cards.createMyCard({ name: "Temporary", type: "debit", colorId: "powder-blue" });
+    expect((await application.cards.getMyCardRemovalPreview(card.cardId)).expectedAction).toBe("delete");
+    await application.expenses.createExpense({
+      householdId: SEEDED_HOUSEHOLD_ID,
+      name: "New reference",
+      amount: positivePoisha(700),
+      expenseDate: expenseDate("2026-08-18"),
+      splitMethod: "equal",
+      allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: poisha(700) }],
+      payment: { method: "card", cardId: card.cardId },
+    });
+    await expect(application.cards.deleteOrArchiveMyCard(card.cardId, "delete")).rejects.toMatchObject({ code: "CONFLICT" });
+    const refreshed = await application.cards.getMyCardRemovalPreview(card.cardId);
+    expect(refreshed.expectedAction).toBe("archive");
+    await expect(application.cards.deleteOrArchiveMyCard(card.cardId, "archive")).resolves.toBe("archived");
+    expect(await application.cards.listMySelectableCards()).not.toContainEqual(card);
+    expect(await repositories.cards.getOwned(card.cardId, SEEDED_USER_IDS.raiyan)).toMatchObject({ archivedAt: expect.any(String) });
   });
 });

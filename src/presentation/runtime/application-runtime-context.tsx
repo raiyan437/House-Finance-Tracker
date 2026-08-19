@@ -2,6 +2,11 @@
 
 import { createContext, useContext } from "react";
 import type {
+  CardPageView,
+  CardRemovalPreview,
+  MyCardSummaryView,
+} from "@/application/cards/card-page";
+import type {
   CreateExpenseCommand,
   EditExpenseCommand,
   ExpenseActivityView,
@@ -11,14 +16,17 @@ import type {
   ExpenseView,
   JoinableHouseholdView,
 } from "@/application/services/application-services";
+import type { CardFormValues } from "@/application/validation/card-form.schema";
+import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-lifecycle";
 import type {
   PendingSettlementView,
   SettlementPageView,
 } from "@/application/settlements/settlement-page";
-import type { Card, ReceiptMetadata } from "@/domain/records/domain-records";
+import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import type { SettlementRecommendation } from "@/domain/settlements/settlement-types";
 import type {
   ExpenseId,
+  CardId,
   HouseholdId,
   JoinRequestId,
   ReceiptId,
@@ -54,7 +62,7 @@ export interface ExpenseApplicationActions {
   readonly listMembers: (
     householdId: HouseholdId,
   ) => Promise<readonly ExpenseMemberView[]>;
-  readonly listSelectableCards: () => Promise<readonly Card[]>;
+  readonly listSelectableCards: () => Promise<readonly MyCardSummaryView[]>;
   readonly getExpense: (expenseId: ExpenseId) => Promise<ExpenseView>;
   readonly createExpense: (command: CreateExpenseCommand) => Promise<ExpenseView>;
   readonly editExpense: (command: EditExpenseCommand) => Promise<ExpenseView>;
@@ -67,6 +75,17 @@ export interface ExpenseApplicationActions {
   readonly listActivity: (
     expenseId: ExpenseId,
   ) => Promise<readonly ExpenseActivityView[]>;
+}
+
+export interface CardApplicationActions {
+  readonly getMyCards: () => Promise<CardPageView>;
+  readonly createMyCard: (input: CardFormValues) => Promise<MyCardSummaryView>;
+  readonly updateMyCard: (cardId: CardId, input: CardFormValues) => Promise<MyCardSummaryView>;
+  readonly getRemovalPreview: (cardId: CardId) => Promise<CardRemovalPreview>;
+  readonly deleteOrArchive: (
+    cardId: CardId,
+    expectedAction: CardRemovalAction,
+  ) => Promise<CardRemovalResult>;
 }
 
 export interface SettlementApplicationActions {
@@ -91,6 +110,7 @@ export type ApplicationRuntimeState =
       householdActions: HouseholdApplicationActions;
       expenseActions: ExpenseApplicationActions;
       settlementActions: SettlementApplicationActions;
+      cardActions: CardApplicationActions;
     }>
   | Readonly<{
       status: "error";

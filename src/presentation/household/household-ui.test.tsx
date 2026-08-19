@@ -83,6 +83,10 @@ function readyState(
     householdActions,
     expenseActions: expenseActions(),
     settlementActions: settlementActions(),
+    cardActions: {
+      getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
+      getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
+    },
   };
 }
 

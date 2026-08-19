@@ -21,11 +21,12 @@ import type {
   ExpenseMemberView,
   ExpenseView,
 } from "@/application/services/application-services";
+import type { MyCardSummaryView } from "@/application/cards/card-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
-import type { Card, ReceiptMetadata } from "@/domain/records/domain-records";
+import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import { expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { Surface } from "@/presentation/components/surface";
@@ -90,7 +91,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   const runtime = useApplicationRuntime();
   const router = useRouter();
   const [members, setMembers] = useState<readonly ExpenseMemberView[]>([]);
-  const [cards, setCards] = useState<readonly Card[]>([]);
+  const [cards, setCards] = useState<readonly MyCardSummaryView[]>([]);
   const [original, setOriginal] = useState<ExpenseView>();
   const [existingReceipts, setExistingReceipts] = useState<readonly ExistingReceiptPreview[]>([]);
   const [removedReceiptIds, setRemovedReceiptIds] = useState<readonly string[]>([]);
@@ -394,7 +395,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
               </div>
             </fieldset>
             {draft.paymentMethod === "card" ? (
-              ownerEditing || mode === "create" ? <div className="space-y-2"><Label htmlFor="expense-card">Your Card</Label><select id="expense-card" className={selectClassName()} disabled={financialLocked} {...form.register("selectedCardId")}><option value="">{cards.length ? "Select a Card" : "No cards available"}</option>{original?.privateCardSnapshot && !cards.some((card) => card.cardId === original.privateCardSnapshot?.cardId) ? <option value={original.privateCardSnapshot.cardId}>Keep {original.privateCardSnapshot.cardName} (archived)</option> : null}{cards.map((card) => <option key={card.cardId} value={card.cardId}>{card.name} · {card.type}</option>)}</select>{cards.length === 0 && !original?.privateCardSnapshot ? <p className="text-sm text-text-secondary">No cards available. Cash remains available; Card management arrives in Phase 9.</p> : null}</div> : <p className="text-sm text-text-secondary">The existing private Card association will be preserved opaquely.</p>
+              ownerEditing || mode === "create" ? <div className="space-y-2"><Label htmlFor="expense-card">Your Card</Label><select id="expense-card" className={selectClassName()} disabled={financialLocked} {...form.register("selectedCardId")}><option value="">{cards.length ? "Select a Card" : "No cards available"}</option>{original?.privateCardSnapshot && !cards.some((card) => card.cardId === original.privateCardSnapshot?.cardId) ? <option value={original.privateCardSnapshot.cardId}>Keep {original.privateCardSnapshot.cardName} (archived)</option> : null}{cards.map((card) => <option key={card.cardId} value={card.cardId}>{card.name} · {card.type}</option>)}</select>{cards.length === 0 && !original?.privateCardSnapshot ? <p className="text-sm text-text-secondary">No cards available. <Link className="font-medium text-foreground underline underline-offset-4" href="/cards">Add a private Card label in My Cards</Link>, or use Cash.</p> : null}</div> : <p className="text-sm text-text-secondary">The existing private Card association will be preserved opaquely.</p>
             ) : null}
             {original?.expense.payment.method === "card" && draft.paymentMethod === "cash" ? <label className="flex min-h-11 items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft p-3"><input className="mt-1" type="checkbox" checked={confirmCardToCash} onChange={(event) => setConfirmCardToCash(event.target.checked)} /><span>Confirm changing the current Payment Method from Card to Cash.</span></label> : null}
           </Surface>

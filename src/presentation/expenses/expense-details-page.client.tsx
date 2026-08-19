@@ -20,6 +20,7 @@ import { formatBdt } from "@/presentation/finance/format-bdt";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
+import { getCardPaletteOption } from "@/presentation/cards/card-palette";
 import { formatBasisPoints, formatExpenseDate } from "./expense-ui";
 
 interface ReceiptPreview {
@@ -99,6 +100,9 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
   const splitLabel = expense.splitMethod === "percentage" && view.percentageSourceStatus === "legacy-percentage-input-unavailable"
     ? "Percentage · original inputs unavailable"
     : expense.splitMethod;
+  const privateCardPalette = view.privateCardSnapshot
+    ? getCardPaletteOption(view.privateCardSnapshot.colorId)
+    : undefined;
 
   return (
     <PageContainer className="space-y-6">
@@ -116,7 +120,7 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
         <div className="space-y-6">
           <Surface className="space-y-5">
             <div className="flex items-end justify-between gap-4 border-b pb-5"><div><p className="text-label text-text-secondary">Expense amount</p><p className="mt-1 text-[2rem] font-semibold tabular-nums">{formatBdt(expense.amount)}</p></div><span className="rounded-full bg-accent-soft px-3 py-1 text-sm capitalize">{expense.payment.method}</span></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div className="flex gap-3"><CalendarDays className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Expense Date</p><p>{formatExpenseDate(expense.expenseDate)}</p></div></div><div className="flex gap-3"><UserRound className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Paid By</p><p>{expense.payerId === runtime.session.userId ? "You" : payer?.displayName ?? "Unknown member"}{payer?.status === "former" ? " (Former member)" : ""}</p></div></div><div className="flex gap-3"><CreditCard className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Payment Method</p><p className="capitalize">{expense.payment.method}</p>{view.privateCardSnapshot ? <p className="text-sm text-text-secondary">{view.privateCardSnapshot.cardName} · {view.privateCardSnapshot.cardType} · {view.privateCardSnapshot.color}</p> : null}</div></div><div><p className="text-label text-text-secondary">Split Method</p><p className="capitalize">{splitLabel}</p></div></div>
+            <div className="grid gap-4 sm:grid-cols-2"><div className="flex gap-3"><CalendarDays className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Expense Date</p><p>{formatExpenseDate(expense.expenseDate)}</p></div></div><div className="flex gap-3"><UserRound className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Paid By</p><p>{expense.payerId === runtime.session.userId ? "You" : payer?.displayName ?? "Unknown member"}{payer?.status === "former" ? " (Former member)" : ""}</p></div></div><div className="flex gap-3"><CreditCard className="mt-0.5 size-5 text-text-muted" /><div><p className="text-label text-text-secondary">Payment Method</p><p className="capitalize">{expense.payment.method}</p>{view.privateCardSnapshot && privateCardPalette ? <p className="flex items-center gap-2 text-sm text-text-secondary"><span aria-hidden="true" className="size-3 rounded-full border border-black/10" style={{ backgroundColor: privateCardPalette.hex }} />{view.privateCardSnapshot.cardName} · {view.privateCardSnapshot.cardType} · {privateCardPalette.label}</p> : null}</div></div><div><p className="text-label text-text-secondary">Split Method</p><p className="capitalize">{splitLabel}</p></div></div>
           </Surface>
 
           <Surface className="space-y-4"><h2 className="text-h3">Participants and shares</h2><ul className="divide-y">{expense.allocations.map((allocation) => { const member = memberById.get(allocation.participantId); const source = expense.percentageEntries?.find((entry) => entry.participantId === allocation.participantId); return <li key={allocation.participantId} className="flex min-h-14 items-center justify-between gap-4 py-3"><div><p className="font-medium">{allocation.participantId === runtime.session.userId ? "You" : member?.displayName ?? "Unknown member"}</p><p className="text-caption text-text-secondary">{member?.status === "former" ? "Former member" : "Household member"}{source ? ` · ${formatBasisPoints(source.basisPoints)}%` : ""}</p></div><span className="font-semibold tabular-nums">{formatBdt(allocation.share)}</span></li>; })}</ul></Surface>

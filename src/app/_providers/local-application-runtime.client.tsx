@@ -6,6 +6,7 @@ import { LocalDevelopmentRuntime as LocalRuntime } from "@/infrastructure/local-
 import {
   ApplicationRuntimeProvider,
   type ApplicationRuntimeState,
+  type CardApplicationActions,
   type CurrentSessionView,
   type ExpenseApplicationActions,
   type HouseholdApplicationActions,
@@ -136,6 +137,7 @@ export function LocalApplicationRuntime({
     let actions: HouseholdApplicationActions;
     let expenseActions: ExpenseApplicationActions;
     let settlementActions: SettlementApplicationActions;
+    let cardActions: CardApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -149,6 +151,7 @@ export function LocalApplicationRuntime({
             householdActions: actions,
             expenseActions,
             settlementActions,
+            cardActions,
           });
         }
       } catch {
@@ -195,7 +198,7 @@ export function LocalApplicationRuntime({
           listMembers: (householdId) =>
             runtime.application.expenses.listHouseholdMembers(householdId),
           listSelectableCards: () =>
-            runtime.application.cards.listCurrentUsersCards(),
+            runtime.application.cards.listMySelectableCards(),
           getExpense: (expenseId) =>
             runtime.application.expenses.getExpense(expenseId),
           createExpense: (command) =>
@@ -235,6 +238,14 @@ export function LocalApplicationRuntime({
             mutateAndReconstruct(() =>
               runtime.application.settlements.cancelSettlement(settlementId),
             ),
+        });
+        cardActions = Object.freeze<CardApplicationActions>({
+          getMyCards: () => runtime.application.cards.getMyCards(),
+          createMyCard: (input) => runtime.application.cards.createMyCard(input),
+          updateMyCard: (cardId, input) => runtime.application.cards.updateMyCard(cardId, input),
+          getRemovalPreview: (cardId) => runtime.application.cards.getMyCardRemovalPreview(cardId),
+          deleteOrArchive: (cardId, expectedAction) =>
+            runtime.application.cards.deleteOrArchiveMyCard(cardId, expectedAction),
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);

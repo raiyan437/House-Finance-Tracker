@@ -8,6 +8,8 @@ import type {
 export type ExpenseReceiptContent = ReceiptContent;
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
+import type { CardColorId } from "@/domain/cards/card-color";
+import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-lifecycle";
 import { assertFormerMemberChangeAllowed, assertLegacyPercentageChangeAllowed, expenseInvolvesFormerMember, type ExpenseFinancialFingerprint } from "@/domain/expenses/expense-financial-fingerprint";
 import { expensePercentageSourceStatus, type ExpensePercentageSourceStatus } from "@/domain/expenses/expense-percentage-source";
 import { DomainError } from "@/domain/shared/domain-error";
@@ -42,6 +44,13 @@ import type { SettlementRecommendation, SettlementStatus } from "@/domain/settle
 import type { PercentageSplitEntry, SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { PositivePoisha } from "@/domain/money/poisha";
+import {
+  buildCardRemovalPreview,
+  projectMyCard,
+  type CardPageView,
+  type CardRemovalPreview,
+  type MyCardSummaryView,
+} from "@/application/cards/card-page";
 import {
   buildPendingSettlementActionPreview,
   buildSettlementPageView,
@@ -496,11 +505,11 @@ export class ExpenseApplicationService {
     const memberships = await this.deps.repositories.memberships.listByHousehold(command.householdId);
     const id = expenseId(this.deps.values.nextId("expense"));
     const now = this.deps.values.now();
-    let snapshot: ExpenseCardPrivateSnapshot | undefined;
+    let selectedCardId: CardId | undefined;
     if (command.payment.method === "card") {
       const card = await this.deps.repositories.cards.getOwned(command.payment.cardId, actor);
       if (!card || card.archivedAt) throw new ApplicationError("NOT_FOUND", "Selectable card not found.");
-      snapshot = { expenseId: id, ownerId: actor, cardId: card.cardId, cardName: card.name, cardType: card.type, color: card.color };
+      selectedCardId = card.cardId;
     }
     if (command.splitMethod === "percentage" && command.percentageEntries === undefined) {
       throw new DomainError(
@@ -518,7 +527,11 @@ export class ExpenseApplicationService {
     assertExpense(expense);
     assertExpenseParticipantsBelongToHousehold(expense, memberships, true);
     const receipts = (command.receipts ?? []).map((item) => { const metadata: ReceiptMetadata = { receiptId: receiptId(this.deps.values.nextId("receipt")), householdId: command.householdId, expenseId: id, createdByUserId: actor, mimeType: item.content.mimeType, ...(item.originalFilename ? { originalFilename: item.originalFilename.trim() } : {}), sizeBytes: item.content.bytes.byteLength, createdAt: now }; assertReceiptMetadata(metadata); return { metadata, content: item.content }; });
-    await this.deps.atomic.createExpense({ expense, ...(snapshot ? { privateCardSnapshot: snapshot } : {}), receipts, auditEvent: event(this.deps.values, command.householdId, actor, "expense", id, "created", ["name", "amount", "expenseDate", "allocations", "payment", ...(receipts.length ? ["receipts"] : [])]) });
+    await this.deps.atomic.createExpense({ expense, ...(selectedCardId ? { selectedCardId } : {}), receipts, auditEvent: event(this.deps.values, command.householdId, actor, "expense", id, "created", ["name", "amount", "expenseDate", "allocations", "payment", ...(receipts.length ? ["receipts"] : [])]) });
+    const snapshot = selectedCardId
+      ? await this.deps.repositories.expenses.getPrivateCardSnapshot(id, actor)
+      : undefined;
+    if (selectedCardId && !snapshot) throw new ApplicationError("PERSISTENCE_FAILURE", "Card expense history could not be read after creation.");
     return this.view(expense, actor, memberships, snapshot);
   }
 
@@ -553,22 +566,26 @@ export class ExpenseApplicationService {
         "Only percentage expenses may include percentage source entries.",
       );
     }
-    let snapshot = actor === original.creatorId
+    const existingSnapshot = actor === original.creatorId
       ? await this.deps.repositories.expenses.getPrivateCardSnapshot(original.expenseId, actor)
       : undefined;
+    let selectedCardId: CardId | undefined;
     let paymentRequest: PaymentEditRequest;
     if (command.payment.kind === "preserve") paymentRequest = { kind: "preserve" };
     else if (command.payment.kind === "cash") paymentRequest = { kind: "change-to-cash", confirmedPrivateReferenceDetachment: command.payment.confirmedPrivateReferenceDetachment };
     else {
       const card = await this.deps.repositories.cards.getOwned(command.payment.cardId, actor);
       if (!card || card.archivedAt) throw new ApplicationError("NOT_FOUND", "Selectable card not found.");
-      snapshot = { expenseId: original.expenseId, ownerId: actor, cardId: card.cardId, cardName: card.name, cardType: card.type, color: card.color };
-      paymentRequest = { kind: "select-card", cardReference: expensePrivateReference(original.expenseId) };
+      if (original.payment.method === "card" && existingSnapshot?.cardId === card.cardId) {
+        paymentRequest = { kind: "preserve" };
+      } else {
+        selectedCardId = card.cardId;
+        paymentRequest = { kind: "select-card", cardReference: expensePrivateReference(original.expenseId) };
+      }
     }
     const payment = applyExpensePaymentEdit(original.householdId, actor, original.creatorId, memberships, original.payment, paymentRequest);
-    if (payment.method === "cash") snapshot = undefined;
     const preserveOpaquePrivateSnapshot = actor !== original.creatorId && payment.method === "card";
-    if (payment.method === "card" && !snapshot && !preserveOpaquePrivateSnapshot) throw new ApplicationError("CONFLICT", "Card expense history requires a private snapshot.");
+    if (payment.method === "card" && !selectedCardId && !existingSnapshot && !preserveOpaquePrivateSnapshot) throw new ApplicationError("CONFLICT", "Card expense history requires a private snapshot.");
     const percentageEntries = command.splitMethod === "percentage"
       ? command.percentageEntries ?? (original.splitMethod === "percentage" ? original.percentageEntries : undefined)
       : undefined;
@@ -624,8 +641,14 @@ export class ExpenseApplicationService {
       ...receiptAdditions.map((item) => event(this.deps.values, original.householdId, actor, "receipt", item.metadata.receiptId, "created", ["mimeType", "sizeBytes"])),
       ...receiptRemovals.map((item) => event(this.deps.values, original.householdId, actor, "receipt", item.receiptId, "deleted", ["deletedAt"])),
     ];
-    await this.deps.atomic.editExpense({ expense: updated, expectedUpdatedAt: original.updatedAt, ...(snapshot ? { privateCardSnapshot: snapshot } : {}), receiptAdditions, receiptRemovals, auditEvents });
-    return this.view(updated, actor, memberships, actor === original.creatorId ? snapshot : undefined);
+    await this.deps.atomic.editExpense({ expense: updated, expectedUpdatedAt: original.updatedAt, ...(selectedCardId ? { selectedCardId } : {}), receiptAdditions, receiptRemovals, auditEvents });
+    const committedSnapshot = actor === original.creatorId && payment.method === "card"
+      ? await this.deps.repositories.expenses.getPrivateCardSnapshot(original.expenseId, actor)
+      : undefined;
+    if (actor === original.creatorId && payment.method === "card" && !committedSnapshot) {
+      throw new ApplicationError("PERSISTENCE_FAILURE", "Card expense history could not be read after editing.");
+    }
+    return this.view(updated, actor, memberships, committedSnapshot);
   }
 
   async deleteExpense(id: ExpenseId): Promise<void> {
@@ -799,10 +822,80 @@ export class SettlementApplicationService {
 
 export class CardApplicationService {
   constructor(private readonly deps: Dependencies) {}
-  async listCurrentUsersCards(includeArchived = false): Promise<readonly Card[]> { const actor = await this.deps.session.getCurrentUserId(); return this.deps.repositories.cards.listOwned(actor, includeArchived); }
-  async createCard(input: Readonly<{ name: string; type: Card["type"]; color: string }>): Promise<Card> { const actor = await this.deps.session.getCurrentUserId(); const membership = await this.deps.repositories.memberships.findActiveByUser(actor); if (!membership) throw new ApplicationError("CONFLICT", "A card requires an active household member."); const now = this.deps.values.now(); const card: Card = { cardId: cardId(this.deps.values.nextId("card")), ownerId: actor, name: input.name.trim(), type: input.type, color: input.color.trim(), createdAt: now, updatedAt: now }; assertCard(card); await this.deps.atomic.createCard({ card, auditEvent: event(this.deps.values, membership.householdId, actor, "card", card.cardId, "created", ["name", "type", "color"]) }); return card; }
-  async updateCard(id: CardId, input: Readonly<{ name: string; type: Card["type"]; color: string }>): Promise<Card> { const actor = await this.deps.session.getCurrentUserId(); const card = await this.deps.repositories.cards.getOwned(id, actor); if (!card || card.archivedAt) throw new ApplicationError("NOT_FOUND", "Card not found."); const membership = await this.deps.repositories.memberships.findActiveByUser(actor); if (!membership) throw new ApplicationError("NOT_FOUND", "Card not found."); const updated: Card = { ...card, name: input.name.trim(), type: input.type, color: input.color.trim(), updatedAt: this.deps.values.now() }; assertCard(updated); await this.deps.atomic.updateCard({ card: updated, auditEvent: event(this.deps.values, membership.householdId, actor, "card", id, "edited", ["name", "type", "color"]) }); return updated; }
-  async deleteCard(id: CardId): Promise<"archived" | "deleted"> { const actor = await this.deps.session.getCurrentUserId(); const card = await this.deps.repositories.cards.getOwned(id, actor); if (!card) throw new ApplicationError("NOT_FOUND", "Card not found."); const membership = await this.deps.repositories.memberships.findActiveByUser(actor); if (!membership) throw new ApplicationError("CONFLICT", "Card owner is not an active member."); if (await this.deps.repositories.expenses.hasCardReference(id)) { const archived = { ...card, updatedAt: this.deps.values.now(), archivedAt: this.deps.values.now() }; await this.deps.atomic.archiveCard({ card: archived, auditEvent: event(this.deps.values, membership.householdId, actor, "card", id, "archived", ["archivedAt"]) }); return "archived"; } await this.deps.atomic.deleteCard({ cardId: id, ownerId: actor, auditEvent: event(this.deps.values, membership.householdId, actor, "card", id, "deleted", []) }); return "deleted"; }
+
+  async getMyCards(): Promise<CardPageView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const cards = await this.deps.repositories.cards.listOwned(actor);
+    return Object.freeze({ cards: Object.freeze(cards.map(projectMyCard)) });
+  }
+
+  async listMySelectableCards(): Promise<readonly MyCardSummaryView[]> {
+    return (await this.getMyCards()).cards;
+  }
+
+  async createMyCard(input: Readonly<{
+    name: string;
+    type: Card["type"];
+    colorId: CardColorId;
+  }>): Promise<MyCardSummaryView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const now = this.deps.values.now();
+    const card: Card = {
+      cardId: cardId(this.deps.values.nextId("card")),
+      ownerId: actor,
+      name: input.name.trim(),
+      type: input.type,
+      colorId: input.colorId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    assertCard(card);
+    await this.deps.atomic.createCard({ card });
+    return projectMyCard(card);
+  }
+
+  async updateMyCard(id: CardId, input: Readonly<{
+    name: string;
+    type: Card["type"];
+    colorId: CardColorId;
+  }>): Promise<MyCardSummaryView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const current = await this.deps.repositories.cards.getOwned(id, actor);
+    if (!current || current.archivedAt) throw new ApplicationError("NOT_FOUND", "Card not found.");
+    const updated: Card = {
+      ...current,
+      name: input.name.trim(),
+      type: input.type,
+      colorId: input.colorId,
+      updatedAt: this.deps.values.now(),
+    };
+    assertCard(updated);
+    await this.deps.atomic.updateCard({ card: updated, expectedUpdatedAt: current.updatedAt });
+    return projectMyCard(updated);
+  }
+
+  async getMyCardRemovalPreview(id: CardId): Promise<CardRemovalPreview> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const [card, action] = await Promise.all([
+      this.deps.repositories.cards.getOwned(id, actor),
+      this.deps.repositories.cards.getOwnedRemovalAction(id, actor),
+    ]);
+    if (!card || card.archivedAt || !action) throw new ApplicationError("NOT_FOUND", "Card not found.");
+    return buildCardRemovalPreview(card, action);
+  }
+
+  async deleteOrArchiveMyCard(
+    id: CardId,
+    expectedAction: CardRemovalAction,
+  ): Promise<CardRemovalResult> {
+    const actor = await this.deps.session.getCurrentUserId();
+    return this.deps.atomic.removeCard({
+      cardId: id,
+      ownerId: actor,
+      expectedAction,
+      occurredAt: this.deps.values.now(),
+    });
+  }
 }
 
 export class ReceiptApplicationService {

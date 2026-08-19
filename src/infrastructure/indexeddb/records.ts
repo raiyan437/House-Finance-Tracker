@@ -90,6 +90,16 @@ export interface ExpenseCardPrivateRecordV1 {
   colorSnapshot: string;
 }
 
+export interface ExpenseCardPrivateRecordV2 {
+  recordVersion: 2;
+  expenseId: string;
+  ownerId: string;
+  cardId: string;
+  cardNameSnapshot: string;
+  cardTypeSnapshot: "debit" | "credit";
+  colorIdSnapshot: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal";
+}
+
 export interface SettlementRecordV1 {
   recordVersion: 1;
   id: string;
@@ -114,6 +124,18 @@ export interface CardRecordV1 {
   name: string;
   type: "debit" | "credit";
   color: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface CardRecordV2 {
+  recordVersion: 2;
+  id: string;
+  ownerId: string;
+  name: string;
+  type: "debit" | "credit";
+  colorId: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal";
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;
@@ -168,9 +190,9 @@ export interface HouseFinanceDatabase extends DBSchema {
   memberships: { key: string; value: MembershipRecordV1; indexes: { householdId: string; activeMembershipUserKey: string } };
   joinRequests: { key: string; value: JoinRequestRecordV1; indexes: { householdId: string; pendingJoinUserKey: string } };
   expenses: { key: string; value: ExpenseRecordV2; indexes: { householdId: string; creatorId: string; payerId: string } };
-  expenseCardPrivateDetails: { key: string; value: ExpenseCardPrivateRecordV1; indexes: { ownerId: string; cardId: string } };
+  expenseCardPrivateDetails: { key: string; value: ExpenseCardPrivateRecordV2; indexes: { ownerId: string; cardId: string } };
   settlements: { key: string; value: SettlementRecordV1; indexes: { householdId: string; pendingSettlementPairKey: string } };
-  cards: { key: string; value: CardRecordV1; indexes: { ownerId: string } };
+  cards: { key: string; value: CardRecordV2; indexes: { ownerId: string } };
   receiptMetadata: { key: string; value: ReceiptMetadataRecordV1; indexes: { expenseId: string; householdId: string } };
   receiptBlobs: { key: string; value: ReceiptBlobRecordV1 };
   auditEvents: { key: string; value: AuditEventRecordV1; indexes: { householdId: string } };
