@@ -8,6 +8,7 @@ export type ApplicationErrorCode =
   | "DATABASE_RESET_BLOCKED"
   | "SESSION_UNAVAILABLE"
   | "HOUSEHOLD_CODE_GENERATION_EXHAUSTED"
+  | "HOUSEHOLD_STATE_CHANGED"
   | "RECEIPT_CONTENT_MISMATCH";
 
 export class ApplicationError extends Error {

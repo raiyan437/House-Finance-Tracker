@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { householdId, joinRequestId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
+import type { ActiveHouseholdPageView } from "@/application/household/household-page";
 import {
   ApplicationRuntimeProvider,
   type ApplicationRuntimeState,
@@ -31,6 +32,10 @@ function actions(overrides: Partial<HouseholdApplicationActions> = {}): Househol
     cancelJoinRequest: vi.fn().mockResolvedValue(undefined),
     acceptJoinRequest: vi.fn().mockResolvedValue(undefined),
     rejectJoinRequest: vi.fn().mockResolvedValue(undefined),
+    leaveHousehold: vi.fn().mockResolvedValue(undefined),
+    removeMember: vi.fn().mockResolvedValue(undefined),
+    transferLeadership: vi.fn().mockResolvedValue(undefined),
+    deleteHousehold: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -92,6 +97,64 @@ function readyState(
 
 function renderRuntime(ui: React.ReactNode, state: ApplicationRuntimeState) {
   return render(<ApplicationRuntimeProvider value={state}>{ui}</ApplicationRuntimeProvider>);
+}
+
+function activePage(
+  role: "leader" | "member",
+  code = "012345678",
+  house = householdId("household-main"),
+): ActiveHouseholdPageView {
+  const alex = userId("user-alex");
+  const leader = role === "leader" ? alex : userId("user-leader");
+  const leaderView = {
+    memberId: leader,
+    displayName: role === "leader" ? "Alex" : "Raiyan",
+    role: "leader" as const,
+    roleLabel: "Leader" as const,
+    isCurrentUser: role === "leader",
+  };
+  const members = role === "leader"
+    ? [
+        leaderView,
+        { memberId: userId("member-a"), displayName: "A duplicate member name that wraps safely across narrow screens", role: "member" as const, roleLabel: "Member" as const, isCurrentUser: false, remove: { eligible: true, blockers: [] } },
+        { memberId: userId("member-b"), displayName: "A duplicate member name that wraps safely across narrow screens", role: "member" as const, roleLabel: "Member" as const, isCurrentUser: false, remove: { eligible: false, blockers: [{ code: "TARGET_OWES_BALANCE" as const }] } },
+      ]
+    : [
+        leaderView,
+        { memberId: alex, displayName: "Alex", role: "member" as const, roleLabel: "Member" as const, isCurrentUser: true },
+      ];
+  const base = {
+    household: { householdId: house, name: "Raiyan House", code },
+    viewer: { memberId: alex, role },
+    leader: leaderView,
+    members,
+    leave: role === "leader"
+      ? { eligible: false, blockers: [{ code: "LEADERSHIP_TRANSFER_REQUIRED" as const }] }
+      : { eligible: true, blockers: [] },
+  };
+  return role === "leader"
+    ? { ...base, viewerRole: "leader", deleteHousehold: { eligible: true, blockers: [] } }
+    : { ...base, viewerRole: "member" };
+}
+
+function activeState(
+  role: "leader" | "member",
+  householdActions = actions(),
+  code = "012345678",
+  house = householdId("household-main"),
+) {
+  const page = activePage(role, code, house);
+  return readyState(
+    role === "leader"
+      ? {
+          status: "active-leader",
+          household: page.household,
+          page,
+          joinRequests: [{ joinRequestId: joinRequestId("pending-ui"), requesterName: "Sam", createdAt: isoInstant("2026-08-19T00:00:00.000Z") }],
+        }
+      : { status: "active-member", household: page.household, page },
+    householdActions,
+  );
 }
 
 describe("Phase 6 household presentation", () => {
@@ -170,5 +233,93 @@ describe("Phase 6 household presentation", () => {
     await user.click(screen.getByRole("button", { name: "Send Join Request" }));
     await waitFor(() => expect(request).toHaveBeenCalledWith(householdId("household-main")));
     expect(replace).toHaveBeenCalledWith("/household");
+  });
+
+  it("masks the exact House Code by default and supports Show, Hide, and leading-zero Copy", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    renderRuntime(<HouseholdPageClient />, activeState("member"));
+
+    expect(screen.getByLabelText("House Code hidden")).toHaveTextContent("•••••••••");
+    expect(screen.queryByText("012345678")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show House Code" }));
+    expect(screen.getByLabelText("House Code 012345678")).toHaveTextContent("012345678");
+    await user.click(screen.getByRole("button", { name: "Copy exact House Code" }));
+    expect(writeText).toHaveBeenCalledWith("012345678");
+    await user.click(screen.getByRole("button", { name: "Hide House Code" }));
+    expect(screen.getByLabelText("House Code hidden")).toBeInTheDocument();
+  });
+
+  it("resets revealed code state when the Household or viewer identity changes", async () => {
+    const user = userEvent.setup();
+    const rendered = renderRuntime(<HouseholdPageClient />, activeState("member"));
+    await user.click(screen.getByRole("button", { name: "Show House Code" }));
+    expect(screen.getByLabelText("House Code 012345678")).toBeInTheDocument();
+
+    rendered.rerender(
+      <ApplicationRuntimeProvider value={activeState("member", actions(), "000000009", householdId("household-next"))}>
+        <HouseholdPageClient />
+      </ApplicationRuntimeProvider>,
+    );
+    expect(screen.getByLabelText("House Code hidden")).toHaveTextContent("•••••••••");
+
+    await user.click(screen.getByRole("button", { name: "Show House Code" }));
+    const identityChanged = activeState("member", actions(), "000000009", householdId("household-next"));
+    const changedReady = identityChanged.status === "ready"
+      ? { ...identityChanged, session: { ...identityChanged.session, userId: userId("different-viewer") } }
+      : identityChanged;
+    rendered.rerender(
+      <ApplicationRuntimeProvider value={changedReady}>
+        <HouseholdPageClient />
+      </ApplicationRuntimeProvider>,
+    );
+    expect(screen.getByLabelText("House Code hidden")).toBeInTheDocument();
+  });
+
+  it("keeps Leader-only requests, member controls, and the danger zone absent for Members", () => {
+    renderRuntime(<HouseholdPageClient />, activeState("member"));
+    expect(screen.getByText("House Leader")).toBeInTheDocument();
+    expect(screen.queryByText("Join requests")).not.toBeInTheDocument();
+    expect(screen.queryByText("Danger zone")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /manage/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the active-only Leader view, deterministic duplicate labels, and accessible management dialogs", async () => {
+    const user = userEvent.setup();
+    const transferLeadership = vi.fn().mockResolvedValue(undefined);
+    renderRuntime(
+      <HouseholdPageClient />,
+      activeState("leader", actions({ transferLeadership })),
+    );
+
+    expect(screen.getByText("Join requests")).toBeInTheDocument();
+    expect(screen.getByText("Sam")).toBeInTheDocument();
+    expect(screen.getByText("Danger zone")).toBeInTheDocument();
+    const activeList = screen.getByRole("list", { name: "Active household members" });
+    expect(within(activeList).getAllByText("A duplicate member name that wraps safely across narrow screens", { exact: true })).toHaveLength(2);
+    const duplicateTriggers = screen.getAllByRole("button", { name: /manage a duplicate member name/i });
+    expect(duplicateTriggers[0]).toHaveAccessibleName(/member 2 of 3/i);
+    expect(duplicateTriggers[1]).toHaveAccessibleName(/member 3 of 3/i);
+    const trigger = duplicateTriggers[0]!;
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("menuitem", { name: "Transfer Leadership" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText(/you will remain a normal household member/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("uses one deletion confirmation that promises preservation rather than erasure", async () => {
+    const user = userEvent.setup();
+    const deleteHousehold = vi.fn().mockResolvedValue(undefined);
+    renderRuntime(<HouseholdPageClient />, activeState("leader", actions({ deleteHousehold })));
+    await user.click(screen.getByRole("button", { name: "Delete Household" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Delete Raiyan House?" });
+    expect(within(dialog).getByText(/historical financial records will be preserved/i)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/erased|deleted permanently/i)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Delete Household" }));
+    await waitFor(() => expect(deleteHousehold).toHaveBeenCalledTimes(1));
   });
 });

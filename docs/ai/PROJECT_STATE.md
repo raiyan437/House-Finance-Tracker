@@ -3,12 +3,12 @@
 ## Snapshot
 
 - Project: House Finance Tracker
-- Stage: Phase 8 settlement workflows accepted and committed; Phase 9 private Cards management implemented and verified, awaiting review uncommitted
-- Application implementation: foundation, pure domain engines, application services/ports, IndexedDB v3 persistence/migration, responsive application shell/design system, household onboarding, complete local Expense/receipt and Settlement workflows, and complete owner-private Cards management
-- Local MVP: local session, household onboarding, expense workflows, exact split allocation, private Card management/selection/history, receipt evidence, current balances/recommendations, external-payment claims, receiver confirmation/rejection, sender cancellation, stale warnings, and settlement history are usable; Phase 10+ product features remain unimplemented
+- Stage: Phase 10 Household management implemented and verified; uncommitted for review
+- Application implementation: foundation, pure domain engines, application services/ports, IndexedDB v3 persistence/migration, responsive application shell/design system, household onboarding and management, complete local Expense/receipt and Settlement workflows, and complete owner-private Cards management
+- Local MVP: local session, household onboarding, active-member identity, protected House Code, Join Request review, Leave/Remove/Transfer/Delete workflows, exact financial gates, expense workflows, private Card management/selection/history, receipt evidence, current balances/recommendations, external-payment claims, receiver confirmation/rejection, sender cancellation, stale warnings, and settlement history are usable; Phase 11+ product features remain unimplemented
 - Appwrite integration: intentionally deferred
 - Requirements/design status: approved frozen context received and reconciled
-- Active implementation plan: Phases 1-8 completed and committed; Phase 9 is complete and verified but intentionally uncommitted for review
+- Active implementation plan: Phases 1-9 completed and committed; Phase 10 is implemented and verified under `PHASE_10_PLAN.md` and awaits review
 
 ## Confirmed direction
 
@@ -16,8 +16,8 @@ The product is a shared household expense tracker with a local/mock MVP, exact i
 
 ## Current gate
 
-Hold the verified Phase 9 work uncommitted for user review. Do not begin Phase 10.
+Stop at the Phase 10 review gate. Do not begin Phase 11.
 
 ## Next safe action
 
-User review and acceptance of the uncommitted Phase 9 result. Phase 10 and Appwrite remain unauthorized.
+Review the uncommitted Phase 10 implementation and verification evidence. Phase 11+ and Appwrite remain unauthorized.

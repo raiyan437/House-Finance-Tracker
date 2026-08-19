@@ -48,7 +48,7 @@ import type {
   ExpenseCardPrivateRecordV2,
   ExpenseRecordV2,
   HouseholdRecordV1,
-  JoinRequestRecordV1,
+  JoinRequestRecordV2,
   MembershipRecordV1,
   ReceiptMetadataRecordV1,
   SettlementRecordV1,
@@ -66,7 +66,32 @@ const safeInteger = z.number().int().safe();
 const profileSchema = z.object({ recordVersion, id: idText, displayName: trimmed, displayEmail: trimmed, emailKey: trimmed, createdAt: instantText, updatedAt: instantText }).strict();
 const householdSchema = z.object({ recordVersion, id: idText, name: trimmed, code: z.string(), createdAt: instantText, updatedAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
 const membershipSchema = z.object({ recordVersion, key: trimmed, householdId: idText, userId: idText, status: z.enum(["active", "former"]), role: z.enum(["leader", "member"]), activeMembershipUserKey: trimmed.optional() }).strict();
-const joinRequestSchema = z.object({ recordVersion, id: idText, householdId: idText, userId: idText, status: z.enum(["pending", "accepted", "rejected", "cancelled"]), createdAt: instantText, resolvedAt: instantText.optional(), resolvedByUserId: idText.optional(), pendingJoinUserKey: trimmed.optional() }).strict();
+const joinRequestFields = {
+  id: idText,
+  householdId: idText,
+  userId: idText,
+  createdAt: instantText,
+  resolvedAt: instantText.optional(),
+  resolvedByUserId: idText.optional(),
+  pendingJoinUserKey: trimmed.optional(),
+} as const;
+const joinRequestSchemaV1 = z.object({
+  recordVersion,
+  ...joinRequestFields,
+  status: z.enum(["pending", "accepted", "rejected", "cancelled"]),
+}).strict();
+const joinRequestSchemaV2 = z.object({
+  recordVersion: z.literal(2),
+  ...joinRequestFields,
+  status: z.enum([
+    "pending",
+    "accepted",
+    "rejected",
+    "cancelled",
+    "household-closed",
+  ]),
+}).strict();
+const joinRequestSchema = z.union([joinRequestSchemaV1, joinRequestSchemaV2]);
 const allocationSchema = z.object({ participantId: idText, sharePoisha: safeInteger }).strict();
 const percentageEntrySchema = z.object({ participantId: idText, basisPoints: safeInteger }).strict();
 const expenseRecordFields = {
@@ -163,9 +188,9 @@ export const fromMembershipRecord = (raw: unknown, key?: string): MembershipSnap
   });
 };
 
-export const toJoinRequestRecord = (value: JoinRequest): JoinRequestRecordV1 => {
+export const toJoinRequestRecord = (value: JoinRequest): JoinRequestRecordV2 => {
   assertJoinRequest(value);
-  return { recordVersion: 1, id: value.joinRequestId, householdId: value.householdId, userId: value.userId, status: value.status, createdAt: value.createdAt, ...(value.resolvedAt ? { resolvedAt: value.resolvedAt, resolvedByUserId: value.resolvedByUserId } : {}), ...(value.status === "pending" ? { pendingJoinUserKey: pendingJoinUserKey(value.userId) } : {}) };
+  return { recordVersion: 2, id: value.joinRequestId, householdId: value.householdId, userId: value.userId, status: value.status, createdAt: value.createdAt, ...(value.resolvedAt ? { resolvedAt: value.resolvedAt, resolvedByUserId: value.resolvedByUserId } : {}), ...(value.status === "pending" ? { pendingJoinUserKey: pendingJoinUserKey(value.userId) } : {}) };
 };
 export const fromJoinRequestRecord = (raw: unknown, key?: string): JoinRequest => {
   const value = parsed(joinRequestSchema, raw, "joinRequests", key);

@@ -1,23 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, House, UserPlus } from "lucide-react";
+import { useRef, useState, type RefObject } from "react";
+import { ArrowRight, Crown, House, LogOut, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
+import type {
+  ActiveHouseholdPageView,
+  HouseholdMemberView,
+} from "@/application/household/household-page";
+import type { LeaderJoinRequestView } from "@/application/services/application-services";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/presentation/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/presentation/components/async-state";
+import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { StatusBadge } from "@/presentation/components/status-badge";
 import { Surface } from "@/presentation/components/surface";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
-import type { LeaderJoinRequestView } from "@/application/services/application-services";
+import { HouseCodeControls } from "./house-code-controls";
+import { HouseholdActionExplanations } from "./household-action-copy";
+import { HouseholdManagementDialog, type HouseholdDialogAction } from "./household-management-dialog";
+import { HouseholdMemberList } from "./household-member-list";
+import type { MemberManagementAction } from "./household-member-actions";
 
 function HouseholdIdentity({ name, code }: Readonly<{ name: string; code: string }>) {
   return (
     <div className="min-w-0">
       <p className="break-words text-h3">{name}</p>
-      <p className="mt-1 font-mono text-body tabular-nums text-text-secondary">House code {code}</p>
+      <HouseCodeControls code={code} />
     </div>
   );
 }
@@ -75,6 +86,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
         <ConfirmDialog
           confirmLabel="Accept request"
           description="They will gain access to the household after acceptance."
+          errorMessage="The request, requester eligibility, or Household leadership changed. Review the current status before confirming again."
           onConfirm={accept}
           title={`Accept ${request.requesterName} into ${householdName}?`}
           trigger={<Button size="sm">Accept</Button>}
@@ -83,12 +95,160 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
           confirmLabel="Reject request"
           description="The request will be closed and retained in household history."
           destructive
+          errorMessage="The request or Household leadership changed. Review the current status before confirming again."
           onConfirm={reject}
           title={`Reject ${request.requesterName}'s join request?`}
           trigger={<Button size="sm" variant="outline">Reject</Button>}
         />
       </div>
     </li>
+  );
+}
+
+interface DialogState {
+  readonly action: HouseholdDialogAction;
+  readonly memberId?: HouseholdMemberView["memberId"];
+  readonly restoreFocusRef?: RefObject<HTMLElement | null>;
+}
+
+function ActiveHouseholdView({
+  page,
+  joinRequests,
+}: Readonly<{
+  page: ActiveHouseholdPageView;
+  joinRequests: readonly LeaderJoinRequestView[];
+}>) {
+  const runtime = useApplicationRuntime();
+  const actions = runtime.status === "ready" ? runtime.householdActions : undefined;
+  const leaveRef = useRef<HTMLButtonElement>(null);
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const [dialog, setDialog] = useState<DialogState>();
+  const selectedMember = dialog?.memberId
+    ? page.members.find((member) => member.memberId === dialog.memberId)
+    : undefined;
+
+  function openMemberAction(
+    action: MemberManagementAction,
+    memberId: HouseholdMemberView["memberId"],
+    triggerRef: RefObject<HTMLButtonElement | null>,
+  ) {
+    setDialog({ action, memberId, restoreFocusRef: triggerRef });
+  }
+
+  async function confirmAction() {
+    if (!actions || !dialog) return;
+    if (dialog.action === "leave") {
+      await actions.leaveHousehold();
+      toast.success("You left the household. Your financial history was preserved.");
+    } else if (dialog.action === "remove" && selectedMember) {
+      await actions.removeMember(selectedMember.memberId);
+      toast.success(`${selectedMember.displayName} was removed from the household.`);
+    } else if (dialog.action === "transfer" && selectedMember) {
+      await actions.transferLeadership(selectedMember.memberId);
+      toast.success(`${selectedMember.displayName} is now the House Leader.`);
+    } else if (dialog.action === "delete") {
+      await actions.deleteHousehold();
+      toast.success("The household was closed. Historical financial records were preserved.");
+    }
+  }
+
+  return (
+    <div className="grid max-w-4xl gap-6">
+      <Surface padding="large">
+        <HouseholdIdentity name={page.household.name} code={page.household.code} />
+      </Surface>
+
+      <Surface padding="large">
+        <div className="flex items-center gap-2">
+          <Crown aria-hidden="true" className="size-5" />
+          <h2 className="text-h2">House Leader</h2>
+        </div>
+        <div className="mt-5 flex items-center gap-3 rounded-xl bg-secondary/45 p-4">
+          <MemberAvatar className="size-11" displayName={page.leader.displayName} />
+          <div className="min-w-0">
+            <p className="break-words font-medium">{page.leader.displayName}</p>
+            <p className="text-caption text-text-secondary">Leader</p>
+          </div>
+        </div>
+      </Surface>
+
+      <Surface padding="large">
+        <div className="flex items-center gap-2">
+          <Users aria-hidden="true" className="size-5" />
+          <h2 className="text-h2">Members</h2>
+        </div>
+        <p className="mt-2 text-body text-text-secondary">Current active household members.</p>
+        <HouseholdMemberList
+          members={page.members}
+          onAction={openMemberAction}
+          viewerRole={page.viewerRole}
+        />
+      </Surface>
+
+      {page.viewerRole === "leader" ? (
+        <Surface padding="large">
+          <h2 className="text-h2">Join requests</h2>
+          <p className="mt-2 text-body text-text-secondary">Review people waiting to join this household.</p>
+          {joinRequests.length ? (
+            <ul className="mt-4" aria-label="Pending join requests">
+              {joinRequests.map((request) => (
+                <LeaderRequestRow
+                  householdName={page.household.name}
+                  key={request.joinRequestId}
+                  request={request}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-6 rounded-lg bg-secondary p-4 text-body text-text-secondary">No Pending join requests.</p>
+          )}
+        </Surface>
+      ) : null}
+
+      <Surface padding="large">
+        <h2 className="text-h2">Household management</h2>
+        <p className="mt-2 text-body text-text-secondary">Leave only after your exact balance and Pending settlements are clear.</p>
+        <Button
+          className="mt-5 w-full sm:w-fit"
+          disabled={!page.leave.eligible}
+          onClick={() => setDialog({ action: "leave", restoreFocusRef: leaveRef })}
+          ref={leaveRef}
+          variant="outline"
+        >
+          <LogOut aria-hidden="true" /> Leave Household
+        </Button>
+        <HouseholdActionExplanations preview={page.leave} />
+      </Surface>
+
+      {page.viewerRole === "leader" ? (
+        <Surface className="border-danger/25" padding="large">
+          <h2 className="text-h2 text-danger">Danger zone</h2>
+          <p className="mt-2 text-body text-text-secondary">Close this household for every active member while preserving historical financial records.</p>
+          <Button
+            className="mt-5 w-full sm:w-fit"
+            disabled={!page.deleteHousehold.eligible}
+            onClick={() => setDialog({ action: "delete", restoreFocusRef: deleteRef })}
+            ref={deleteRef}
+            variant="destructive"
+          >
+            <Trash2 aria-hidden="true" /> Delete Household
+          </Button>
+          <HouseholdActionExplanations preview={page.deleteHousehold} />
+        </Surface>
+      ) : null}
+
+      {dialog && (dialog.action === "leave" || dialog.action === "delete" || selectedMember) ? (
+        <HouseholdManagementDialog
+          action={dialog.action}
+          householdName={page.household.name}
+          memberName={selectedMember?.displayName}
+          onConfirm={confirmAction}
+          onOpenChange={(open) => { if (!open) setDialog(undefined); }}
+          open
+          restoreFocusRef={dialog.restoreFocusRef}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -123,7 +283,10 @@ export function HouseholdPageClient() {
       {household.status === "pending-request" ? (
         <Surface className="max-w-2xl" padding="large">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <HouseholdIdentity name={household.request.household.name} code={household.request.household.code} />
+            <div>
+              <p className="break-words text-h3">{household.request.household.name}</p>
+              <p className="mt-1 font-mono text-body tabular-nums text-text-secondary">House code {household.request.household.code}</p>
+            </div>
             <StatusBadge tone="warning">Pending</StatusBadge>
           </div>
           <p className="mt-6 max-w-xl text-body text-text-secondary">
@@ -143,28 +306,11 @@ export function HouseholdPageClient() {
       ) : null}
 
       {household.status === "active-member" || household.status === "active-leader" ? (
-        <Surface className="max-w-3xl" padding="large">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <HouseholdIdentity name={household.household.name} code={household.household.code} />
-            <StatusBadge tone="success">{household.status === "active-leader" ? "Leader" : "Member"}</StatusBadge>
-          </div>
-        </Surface>
-      ) : null}
-
-      {household.status === "active-leader" ? (
-        <Surface className="max-w-3xl" padding="large">
-          <div>
-            <h2 className="text-h2">Join requests</h2>
-            <p className="mt-2 text-body text-text-secondary">Review people waiting to join this household.</p>
-          </div>
-          {household.joinRequests.length ? (
-            <ul className="mt-4" aria-label="Pending join requests">
-              {household.joinRequests.map((request) => <LeaderRequestRow householdName={household.household.name} key={request.joinRequestId} request={request} />)}
-            </ul>
-          ) : (
-            <p className="mt-6 rounded-lg bg-secondary p-4 text-body text-text-secondary">No Pending join requests.</p>
-          )}
-        </Surface>
+        <ActiveHouseholdView
+          joinRequests={household.status === "active-leader" ? household.joinRequests : []}
+          key={`${runtime.session.userId}:${household.household.householdId}`}
+          page={household.page}
+        />
       ) : null}
     </PageContainer>
   );

@@ -66,4 +66,23 @@ describe("leadership policy", () => {
       }),
     );
   });
+
+  it("does not authorize a former membership whose historical role is Leader", () => {
+    const historicalLeader = userId("historical-leader");
+    expect(() =>
+      transferLeadership(house, historicalLeader, target, [
+        ...memberships,
+        {
+          householdId: house,
+          userId: historicalLeader,
+          status: "former",
+          role: "leader",
+        },
+      ]),
+    ).toThrowError(
+      expect.objectContaining<Partial<DomainError>>({
+        code: "LEADERSHIP_TRANSFER_FORBIDDEN",
+      }),
+    );
+  });
 });

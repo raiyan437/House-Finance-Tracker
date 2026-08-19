@@ -43,6 +43,23 @@ export interface JoinRequestRecordV1 {
   pendingJoinUserKey?: string;
 }
 
+export interface JoinRequestRecordV2 {
+  recordVersion: 2;
+  id: string;
+  householdId: string;
+  userId: string;
+  status:
+    | "pending"
+    | "accepted"
+    | "rejected"
+    | "cancelled"
+    | "household-closed";
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedByUserId?: string;
+  pendingJoinUserKey?: string;
+}
+
 export interface ExpenseRecordV1 {
   recordVersion: 1;
   id: string;
@@ -188,7 +205,7 @@ export interface HouseFinanceDatabase extends DBSchema {
   userProfiles: { key: string; value: UserProfileRecordV1; indexes: { emailKey: string } };
   households: { key: string; value: HouseholdRecordV1; indexes: { code: string } };
   memberships: { key: string; value: MembershipRecordV1; indexes: { householdId: string; activeMembershipUserKey: string } };
-  joinRequests: { key: string; value: JoinRequestRecordV1; indexes: { householdId: string; pendingJoinUserKey: string } };
+  joinRequests: { key: string; value: JoinRequestRecordV1 | JoinRequestRecordV2; indexes: { householdId: string; pendingJoinUserKey: string } };
   expenses: { key: string; value: ExpenseRecordV2; indexes: { householdId: string; creatorId: string; payerId: string } };
   expenseCardPrivateDetails: { key: string; value: ExpenseCardPrivateRecordV2; indexes: { ownerId: string; cardId: string } };
   settlements: { key: string; value: SettlementRecordV1; indexes: { householdId: string; pendingSettlementPairKey: string } };

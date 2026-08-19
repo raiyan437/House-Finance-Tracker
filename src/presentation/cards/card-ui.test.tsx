@@ -40,7 +40,8 @@ function runtimeFor(
     householdActions: {
       generateCode: vi.fn(), createHousehold: vi.fn(), findHousehold: vi.fn(),
       requestToJoin: vi.fn(), cancelJoinRequest: vi.fn(), acceptJoinRequest: vi.fn(),
-      rejectJoinRequest: vi.fn(), refresh: vi.fn(),
+      rejectJoinRequest: vi.fn(), leaveHousehold: vi.fn(), removeMember: vi.fn(),
+      transferLeadership: vi.fn(), deleteHousehold: vi.fn(), refresh: vi.fn(),
     },
     expenseActions: {
       listExpenses: vi.fn(), listMembers: vi.fn(), listSelectableCards: vi.fn(),

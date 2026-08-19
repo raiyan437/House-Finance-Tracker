@@ -51,7 +51,12 @@ export interface Household {
   readonly deletedByUserId?: UserId;
 }
 
-export type JoinRequestStatus = "pending" | "accepted" | "rejected" | "cancelled";
+export type JoinRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "household-closed";
 
 export interface JoinRequest {
   readonly joinRequestId: JoinRequestId;
@@ -185,7 +190,15 @@ export function assertJoinRequest(value: JoinRequest): void {
   householdId(value.householdId);
   userId(value.userId);
   isoInstant(value.createdAt);
-  if (!["pending", "accepted", "rejected", "cancelled"].includes(value.status)) {
+  if (
+    ![
+      "pending",
+      "accepted",
+      "rejected",
+      "cancelled",
+      "household-closed",
+    ].includes(value.status)
+  ) {
     throw new DomainError("INVALID_JOIN_REQUEST", "Unsupported join request status.");
   }
   if (value.status === "pending") {

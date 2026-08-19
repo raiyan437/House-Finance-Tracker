@@ -51,6 +51,10 @@ export interface HouseholdApplicationActions {
   readonly cancelJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
   readonly acceptJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
   readonly rejectJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
+  readonly leaveHousehold: () => Promise<void>;
+  readonly removeMember: (memberId: UserId) => Promise<void>;
+  readonly transferLeadership: (memberId: UserId) => Promise<void>;
+  readonly deleteHousehold: () => Promise<void>;
   readonly refresh: () => Promise<void>;
 }
 

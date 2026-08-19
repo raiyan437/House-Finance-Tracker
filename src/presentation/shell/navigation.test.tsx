@@ -32,6 +32,19 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
             name: "Raiyan House",
             code: "012345678",
           },
+          page: {
+            household: {
+              householdId: householdId("household-main"),
+              name: "Raiyan House",
+              code: "012345678",
+            },
+            viewer: { memberId: userId("user-raiyan"), role: "leader" },
+            leader: { memberId: userId("user-raiyan"), displayName: "Raiyan Uddin", role: "leader", roleLabel: "Leader", isCurrentUser: true },
+            members: [{ memberId: userId("user-raiyan"), displayName: "Raiyan Uddin", role: "leader", roleLabel: "Leader", isCurrentUser: true }],
+            leave: { eligible: false, blockers: [{ code: "HOUSEHOLD_DELETE_REQUIRED" }] },
+            viewerRole: "leader",
+            deleteHousehold: { eligible: true, blockers: [] },
+          },
           joinRequests: [],
         },
         householdActions: {
@@ -42,6 +55,10 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
           cancelJoinRequest: vi.fn(),
           acceptJoinRequest: vi.fn(),
           rejectJoinRequest: vi.fn(),
+          leaveHousehold: vi.fn(),
+          removeMember: vi.fn(),
+          transferLeadership: vi.fn(),
+          deleteHousehold: vi.fn(),
           refresh: vi.fn(),
         },
         expenseActions: {

@@ -73,7 +73,7 @@ describe("Phase 6 household onboarding application flows", () => {
     });
 
     await session.switchIdentity(SEEDED_USER_IDS.john);
-    expect(await application.households.getCurrentAccessState()).toEqual({
+    expect(await application.households.getCurrentAccessState()).toMatchObject({
       status: "active-member",
       household: { householdId: SEEDED_HOUSEHOLD_ID, name: "Raiyan House", code: "012345678" },
     });
@@ -162,7 +162,7 @@ describe("Phase 6 household onboarding application flows", () => {
 
   it("lets only the correct leader reject and preserves terminal history", async () => {
     await session.switchIdentity(SEEDED_USER_IDS.john);
-    await expect(application.households.rejectJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.households.rejectJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
 
     const outsiderId = userId("user-other-leader");
     const now = isoInstant("2026-08-13T14:00:00.000Z");
@@ -172,7 +172,7 @@ describe("Phase 6 household onboarding application flows", () => {
     await repositories.households.create(otherHouse);
     await repositories.memberships.create({ householdId: otherHouse.householdId, userId: outsiderId, status: "active", role: "leader" });
     await session.switchIdentity(outsiderId);
-    await expect(application.households.rejectJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.households.rejectJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
 
     await session.switchIdentity(SEEDED_USER_IDS.raiyan);
     await application.households.rejectJoinRequest(joinRequestId("join-alex-main"));
@@ -195,7 +195,7 @@ describe("Phase 6 household onboarding application flows", () => {
     await repositories.households.create({ householdId: otherHouse, name: "Race House", code: "000000005", createdAt: now, updatedAt: now });
     await repositories.memberships.create({ householdId: otherHouse, userId: SEEDED_USER_IDS.alex, status: "active", role: "member" });
 
-    await expect(application.households.acceptJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(application.households.acceptJoinRequest(joinRequestId("join-alex-main"))).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
     expect(await repositories.joinRequests.getById(joinRequestId("join-alex-main"))).toMatchObject({ status: "pending" });
     expect(await repositories.memberships.get(SEEDED_HOUSEHOLD_ID, SEEDED_USER_IDS.alex)).toBeUndefined();
     expect((await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((entry) => entry.aggregateId === "join-alex-main" && entry.action === "accepted")).toHaveLength(0);
@@ -203,12 +203,6 @@ describe("Phase 6 household onboarding application flows", () => {
 
   it("rolls back request, membership, and audit writes when atomic acceptance fails", async () => {
     const pending = (await repositories.joinRequests.getById(joinRequestId("join-alex-main")))!;
-    const accepted = {
-      ...pending,
-      status: "accepted" as const,
-      resolvedAt: isoInstant("2026-08-13T14:00:00.000Z"),
-      resolvedByUserId: SEEDED_USER_IDS.raiyan,
-    };
     const duplicateAudit = {
       auditEventId: auditEventId("audit-seed-household"),
       householdId: SEEDED_HOUSEHOLD_ID,
@@ -221,8 +215,9 @@ describe("Phase 6 household onboarding application flows", () => {
     };
 
     await expect(atomic.acceptJoinRequest({
-      request: accepted,
-      membership: { householdId: SEEDED_HOUSEHOLD_ID, userId: SEEDED_USER_IDS.alex, status: "active", role: "member" },
+      joinRequestId: pending.joinRequestId,
+      actorId: SEEDED_USER_IDS.raiyan,
+      resolvedAt: isoInstant("2026-08-13T14:00:00.000Z"),
       auditEvent: duplicateAudit,
     })).rejects.toMatchObject({ code: "CONFLICT" });
 

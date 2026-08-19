@@ -134,7 +134,7 @@ test("leader accepts atomically and the requester reconstructs active membership
   await expect(page.getByText("No Pending join requests.")).toBeVisible();
 
   await switchIdentity(page, "alex");
-  await expect(page.locator("main").getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator("aside").getByText("Member", { exact: true })).toBeVisible();
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.locator("aside").getByText("Alex", { exact: true })).toBeVisible();

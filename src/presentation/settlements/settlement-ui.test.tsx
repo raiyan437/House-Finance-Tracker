@@ -91,11 +91,23 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
     household: {
       status: "active-member",
       household: { householdId: household, name: "Test House", code: "123456789" },
+      page: {
+        household: { householdId: household, name: "Test House", code: "123456789" },
+        viewer: { memberId: alice, role: "member" },
+        leader: { memberId: bob, displayName: "Bob", role: "leader", roleLabel: "Leader", isCurrentUser: false },
+        members: [
+          { memberId: bob, displayName: "Bob", role: "leader", roleLabel: "Leader", isCurrentUser: false },
+          { memberId: alice, displayName: "Alice", role: "member", roleLabel: "Member", isCurrentUser: true },
+        ],
+        leave: { eligible: false, blockers: [{ code: "IS_OWED_BALANCE", amount: poisha(125000) }] },
+        viewerRole: "member",
+      },
     },
     householdActions: {
       generateCode: vi.fn(), createHousehold: vi.fn(), findHousehold: vi.fn(),
       requestToJoin: vi.fn(), cancelJoinRequest: vi.fn(), acceptJoinRequest: vi.fn(),
-      rejectJoinRequest: vi.fn(), refresh: vi.fn(),
+      rejectJoinRequest: vi.fn(), leaveHousehold: vi.fn(), removeMember: vi.fn(),
+      transferLeadership: vi.fn(), deleteHousehold: vi.fn(), refresh: vi.fn(),
     },
     expenseActions: {
       listExpenses: vi.fn(), listMembers: vi.fn(), listSelectableCards: vi.fn(),

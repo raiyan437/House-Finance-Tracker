@@ -23,11 +23,11 @@ export function MemberAvatar({
 
   return (
     <Avatar
-      aria-label={displayName}
+      aria-hidden="true"
       className={cn("bg-brand-soft", className)}
       {...props}
     >
-      <AvatarFallback aria-hidden="true">{initials}</AvatarFallback>
+      <AvatarFallback>{initials}</AvatarFallback>
     </Avatar>
   );
 }

@@ -18,8 +18,9 @@ describe("shared presentation components", () => {
     expect(initialsFromDisplayName("Sarah Ahmed Khan")).toBe("SK");
     expect(initialsFromDisplayName("   ")).toBe("?");
 
-    render(<MemberAvatar displayName="Raiyan Uddin" />);
-    expect(screen.getByLabelText("Raiyan Uddin")).toHaveTextContent("RU");
+    const { container } = render(<MemberAvatar displayName="Raiyan Uddin" />);
+    expect(container.querySelector('[data-slot="avatar"]')).toHaveTextContent("RU");
+    expect(container.querySelector('[data-slot="avatar"]')).toHaveAttribute("aria-hidden", "true");
   });
 
   it("links form labels, descriptions, and errors to the control", () => {

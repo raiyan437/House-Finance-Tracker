@@ -698,7 +698,12 @@ describe("Phase 4 IndexedDB local persistence", () => {
     const household: Household = { householdId: householdId("deleting-house"), name: "Deleting House", code: "000000099", createdAt: now, updatedAt: now };
     await repositories.households.create(household);
     await repositories.memberships.create({ householdId: household.householdId, userId: user, status: "active", role: "leader" });
-    await atomic.deleteHousehold({ household: { ...household, deletedAt: now, deletedByUserId: user }, formerMemberships: [{ householdId: household.householdId, userId: user, status: "former", role: "leader" }], auditEvent: { ...audit("household-delete", "household", household.householdId), householdId: household.householdId, actorId: user } });
+    await atomic.deleteHousehold({
+      householdId: household.householdId,
+      actorId: user,
+      auditEvent: { ...audit("household-delete", "household", household.householdId), householdId: household.householdId, actorId: user },
+      joinRequestAuditIdBase: auditEventId("audit-household-delete-joins"),
+    });
     expect(await repositories.memberships.findActiveByUser(user)).toBeUndefined();
     expect(await repositories.memberships.get(household.householdId, user)).toMatchObject({ status: "former", role: "leader" });
     expect(await repositories.households.getById(household.householdId)).toMatchObject({ deletedAt: now });

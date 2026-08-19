@@ -171,9 +171,14 @@ export function LocalApplicationRuntime({
         if (disposed) return;
         runtimeRef.current = runtime;
         const mutateAndReconstruct = async <T,>(mutation: () => Promise<T>): Promise<T> => {
-          const result = await mutation();
-          await reconstructState(runtime);
-          return result;
+          try {
+            const result = await mutation();
+            await reconstructState(runtime);
+            return result;
+          } catch (error) {
+            await reconstructState(runtime);
+            throw error;
+          }
         };
         actions = Object.freeze<HouseholdApplicationActions>({
           generateCode: () => runtime.application.households.generateUniqueHouseholdCode(),
@@ -187,6 +192,10 @@ export function LocalApplicationRuntime({
           cancelJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.cancelJoinRequest(joinRequestId)),
           acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
           rejectJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.rejectJoinRequest(joinRequestId)),
+          leaveHousehold: () => mutateAndReconstruct(() => runtime.application.households.leaveCurrentHousehold()),
+          removeMember: (memberId) => mutateAndReconstruct(() => runtime.application.households.removeMember(memberId)),
+          transferLeadership: (memberId) => mutateAndReconstruct(() => runtime.application.households.transferLeadership(memberId)),
+          deleteHousehold: () => mutateAndReconstruct(() => runtime.application.households.deleteCurrentHousehold()),
           refresh: () => reconstructState(runtime, true),
         });
         expenseActions = Object.freeze<ExpenseApplicationActions>({

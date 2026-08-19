@@ -21,6 +21,7 @@ interface ConfirmDialogProps {
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
   readonly destructive?: boolean;
+  readonly errorMessage?: string;
   readonly onConfirm: () => void | Promise<void>;
 }
 
@@ -31,6 +32,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Cancel",
   destructive = false,
+  errorMessage = "The action could not be completed. Try again.",
   onConfirm,
 }: ConfirmDialogProps) {
   const [open, setOpen] = useState(false);
@@ -46,7 +48,7 @@ export function ConfirmDialog({
       await onConfirm();
       setOpen(false);
     } catch {
-      setError("The action could not be completed. Try again.");
+      setError(errorMessage);
     } finally {
       setPending(false);
     }

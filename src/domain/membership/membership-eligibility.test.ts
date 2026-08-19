@@ -250,4 +250,39 @@ describe("membership eligibility", () => {
       "MEMBER_HAS_PENDING_SETTLEMENT",
     ]);
   });
+
+  it("never authorizes a former Leader from historical role metadata", () => {
+    const formerLeader = userId("former-leader");
+    const withFormerLeader: readonly MembershipSnapshot[] = [
+      ...memberships,
+      { householdId: house, userId: formerLeader, status: "former", role: "leader" },
+    ];
+    const withFormerSheet: HouseholdBalanceSheet = {
+      ...balanceSheet(),
+      balances: [
+        ...balanceSheet().balances,
+        { householdId: house, memberId: formerLeader, balance: poisha(0) },
+      ],
+    };
+
+    expect(
+      evaluateRemovalEligibility(
+        house,
+        formerLeader,
+        member,
+        withFormerLeader,
+        withFormerSheet,
+        [],
+      ).reasons,
+    ).toEqual(["MEMBER_REMOVAL_FORBIDDEN"]);
+    expect(
+      evaluateHouseholdDeletionEligibility(
+        house,
+        formerLeader,
+        withFormerLeader,
+        withFormerSheet,
+        [],
+      ).reasons,
+    ).toContain("HOUSEHOLD_DELETE_FORBIDDEN");
+  });
 });

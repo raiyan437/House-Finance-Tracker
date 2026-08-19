@@ -17,6 +17,7 @@ import type {
   ExpenseId,
   HouseholdId,
   JoinRequestId,
+  AuditEventId,
   ReceiptId,
   SettlementId,
   UserId,
@@ -52,7 +53,9 @@ export interface JoinRequestRepository {
   findPendingByUser(userId: UserId): Promise<JoinRequest | undefined>;
   listByHousehold(householdId: HouseholdId): Promise<readonly JoinRequest[]>;
   create(request: JoinRequest): Promise<void>;
-  transition(request: JoinRequest): Promise<void>;
+  transition(
+    request: JoinRequest & Readonly<{ status: "rejected" | "cancelled" }>,
+  ): Promise<void>;
 }
 
 export interface ExpenseRepository {
@@ -115,11 +118,42 @@ export interface AtomicApplicationPersistence {
   createHousehold(input: Readonly<{ household: Household; leaderMembership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
   updateHousehold(input: Readonly<{ household: Household; auditEvent: AuditEvent }>): Promise<void>;
   createJoinRequest(input: Readonly<{ request: JoinRequest; auditEvent: AuditEvent }>): Promise<void>;
-  acceptJoinRequest(input: Readonly<{ request: JoinRequest; membership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
-  transitionJoinRequest(input: Readonly<{ request: JoinRequest; auditEvent: AuditEvent }>): Promise<void>;
-  transferLeadership(input: Readonly<{ formerLeader: MembershipSnapshot; newLeader: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
-  endMembership(input: Readonly<{ membership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
-  deleteHousehold(input: Readonly<{ household: Household; formerMemberships: readonly MembershipSnapshot[]; auditEvent: AuditEvent }>): Promise<void>;
+  acceptJoinRequest(input: Readonly<{
+    joinRequestId: JoinRequestId;
+    actorId: UserId;
+    resolvedAt: IsoInstant;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
+  transitionJoinRequest(input: Readonly<{
+    joinRequestId: JoinRequestId;
+    actorId: UserId;
+    status: "rejected" | "cancelled";
+    resolvedAt: IsoInstant;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
+  transferLeadership(input: Readonly<{
+    householdId: HouseholdId;
+    actorId: UserId;
+    targetId: UserId;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
+  leaveHousehold(input: Readonly<{
+    householdId: HouseholdId;
+    actorId: UserId;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
+  removeHouseholdMember(input: Readonly<{
+    householdId: HouseholdId;
+    actorId: UserId;
+    targetId: UserId;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
+  deleteHousehold(input: Readonly<{
+    householdId: HouseholdId;
+    actorId: UserId;
+    auditEvent: AuditEvent;
+    joinRequestAuditIdBase: AuditEventId;
+  }>): Promise<void>;
   createExpense(input: Readonly<{ expense: Expense; selectedCardId?: CardId; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }>): Promise<void>;
   editExpense(input: Readonly<{
     expense: Expense;

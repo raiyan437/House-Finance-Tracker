@@ -4,16 +4,24 @@ import { calculateHouseholdBalances } from "@/domain/balances/calculate-househol
 import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
 import { DomainError } from "@/domain/shared/domain-error";
 import {
+  evaluateHouseholdDeletionEligibility,
+  leaveHousehold,
+  removeHouseholdMember,
+} from "@/domain/membership/membership-eligibility";
+import { transferLeadership } from "@/domain/membership/leadership-policy";
+import {
   assertFormerMemberChangeAllowed,
   assertLegacyPercentageChangeAllowed,
   type ExpenseFinancialFingerprint,
 } from "@/domain/expenses/expense-financial-fingerprint";
 import {
   toBalanceExpense,
+  type AuditEvent,
   type Card,
   type Expense,
   type ExpenseCardPrivateSnapshot,
 } from "@/domain/records/domain-records";
+import { auditEventId } from "@/domain/shared/identifiers";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from "idb";
 import {
@@ -24,6 +32,7 @@ import {
 import {
   fromCardRecord,
   fromExpenseRecord,
+  fromHouseholdRecord,
   fromJoinRequestRecord,
   fromMembershipRecord,
   fromPrivateCardRecord,
@@ -83,6 +92,23 @@ function cardSnapshot(expense: Expense, card: Card): ExpenseCardPrivateSnapshot 
   };
 }
 
+function householdStateChanged(message: string): ApplicationError {
+  return new ApplicationError("HOUSEHOLD_STATE_CHANGED", message);
+}
+
+function assertAuditMatches(
+  audit: AuditEvent,
+  householdId: string,
+  actorId: string,
+): void {
+  if (audit.householdId !== householdId || audit.actorId !== actorId) {
+    throw new ApplicationError(
+      "CONFLICT",
+      "The household audit does not match the requested action.",
+    );
+  }
+}
+
 export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationPersistence {
   constructor(private readonly source: DatabaseSource) {}
 
@@ -124,12 +150,21 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJoinRequest"]>[0]): Promise<void> {
     const request = toJoinRequestRecord(input.request);
     if (input.request.status !== "pending") throw new ApplicationError("CONFLICT", "New join requests must be Pending.");
-    const tx = (await this.db()).transaction(["memberships", "joinRequests", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "auditEvents"], "readwrite");
     try {
-      const [activeMembership, pendingRequest] = await Promise.all([
+      const [householdRaw, activeMembership, pendingRequest] = await Promise.all([
+        tx.objectStore("households").get(input.request.householdId),
         tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId)),
         tx.objectStore("joinRequests").index("pendingJoinUserKey").getKey(pendingJoinUserKey(input.request.userId)),
       ]);
+      if (
+        !householdRaw ||
+        fromHouseholdRecord(householdRaw, input.request.householdId).deletedAt
+      ) {
+        throw householdStateChanged(
+          "The household is no longer active.",
+        );
+      }
       if (activeMembership) throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
       if (pendingRequest) throw new ApplicationError("CONFLICT", "The current user already has a Pending join request.");
       await tx.objectStore("joinRequests").add(request);
@@ -140,65 +175,177 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   }
 
   async acceptJoinRequest(input: Parameters<AtomicApplicationPersistence["acceptJoinRequest"]>[0]): Promise<void> {
-    const request = toJoinRequestRecord(input.request);
-    const membership = toMembershipRecord(input.membership);
-    if (input.request.status !== "accepted" || input.membership.status !== "active" || input.request.userId !== input.membership.userId || input.request.householdId !== input.membership.householdId) throw new ApplicationError("CONFLICT", "Accepted request and membership must describe the same active member.");
-    const tx = (await this.db()).transaction(["joinRequests", "memberships", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "joinRequests", "memberships", "auditEvents"], "readwrite");
     try {
-      const existingRaw = await tx.objectStore("joinRequests").get(input.request.joinRequestId);
-      if (!existingRaw || fromJoinRequestRecord(existingRaw, input.request.joinRequestId).status !== "pending") throw new ApplicationError("CONFLICT", "Only a persisted Pending request may be accepted.");
-      const activeMembership = await tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId));
-      if (activeMembership) throw new ApplicationError("CONFLICT", "Requester already belongs to a household.");
-      await tx.objectStore("joinRequests").put(request);
-      await tx.objectStore("memberships").add(membership);
+      const existingRaw = await tx.objectStore("joinRequests").get(input.joinRequestId);
+      if (!existingRaw) throw householdStateChanged("The join request is no longer available.");
+      const current = fromJoinRequestRecord(existingRaw, input.joinRequestId);
+      if (current.status !== "pending") throw householdStateChanged("The join request is no longer Pending.");
+      const householdRaw = await tx.objectStore("households").get(current.householdId);
+      if (!householdRaw || fromHouseholdRecord(householdRaw, current.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
+      const actorKey = membershipKey(current.householdId, input.actorId);
+      const actorRaw = await tx.objectStore("memberships").get(actorKey);
+      const actor = actorRaw ? fromMembershipRecord(actorRaw, actorKey) : undefined;
+      if (!actor || actor.status !== "active" || actor.role !== "leader") throw householdStateChanged("Household leadership changed before the request was resolved.");
+      const activeMembership = await tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(current.userId));
+      if (activeMembership) throw householdStateChanged("The requester already belongs to a household.");
+      assertAuditMatches(input.auditEvent, current.householdId, input.actorId);
+      await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...current, status: "accepted", resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId }));
+      await tx.objectStore("memberships").add(toMembershipRecord({ householdId: current.householdId, userId: current.userId, status: "active", role: "member" }));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async transitionJoinRequest(input: Parameters<AtomicApplicationPersistence["transitionJoinRequest"]>[0]): Promise<void> {
-    if (input.request.status === "pending" || input.request.status === "accepted") throw new ApplicationError("CONFLICT", "This operation supports only rejection or cancellation.");
-    const tx = (await this.db()).transaction(["joinRequests", "auditEvents"], "readwrite");
-    try { const raw = await tx.objectStore("joinRequests").get(input.request.joinRequestId); if (!raw || fromJoinRequestRecord(raw, input.request.joinRequestId).status !== "pending") throw new ApplicationError("CONFLICT", "Only a Pending join request may transition."); await tx.objectStore("joinRequests").put(toJoinRequestRecord(input.request)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
-  }
-
-  async transferLeadership(input: Parameters<AtomicApplicationPersistence["transferLeadership"]>[0]): Promise<void> {
-    if (input.formerLeader.householdId !== input.newLeader.householdId || input.formerLeader.role !== "member" || input.newLeader.role !== "leader" || input.formerLeader.status !== "active" || input.newLeader.status !== "active") throw new ApplicationError("CONFLICT", "Leadership transfer must atomically swap two active member roles.");
-    const tx = (await this.db()).transaction(["memberships", "auditEvents"], "readwrite");
+    if (input.status !== "rejected" && input.status !== "cancelled") {
+      throw new ApplicationError(
+        "CONFLICT",
+        "Ordinary join-request actions cannot produce that terminal status.",
+      );
+    }
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "auditEvents"], "readwrite");
     try {
-      const formerKey = membershipKey(input.formerLeader.householdId, input.formerLeader.userId);
-      const newKey = membershipKey(input.newLeader.householdId, input.newLeader.userId);
-      const [formerRaw, newRaw] = await Promise.all([tx.objectStore("memberships").get(formerKey), tx.objectStore("memberships").get(newKey)]);
-      if (!formerRaw || !newRaw || fromMembershipRecord(formerRaw, formerKey).role !== "leader" || fromMembershipRecord(newRaw, newKey).role !== "member") throw new ApplicationError("CONFLICT", "Persisted leadership no longer matches the requested transfer.");
-      await tx.objectStore("memberships").put(toMembershipRecord(input.formerLeader));
-      await tx.objectStore("memberships").put(toMembershipRecord(input.newLeader));
+      const raw = await tx.objectStore("joinRequests").get(input.joinRequestId);
+      if (!raw) throw householdStateChanged("The join request is no longer available.");
+      const current = fromJoinRequestRecord(raw, input.joinRequestId);
+      if (current.status !== "pending") throw householdStateChanged("The join request is no longer Pending.");
+      const householdRaw = await tx.objectStore("households").get(current.householdId);
+      if (!householdRaw || fromHouseholdRecord(householdRaw, current.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
+      if (input.status === "cancelled") {
+        if (current.userId !== input.actorId) throw householdStateChanged("Only the requester may cancel this request.");
+      } else {
+        const actorKey = membershipKey(current.householdId, input.actorId);
+        const actorRaw = await tx.objectStore("memberships").get(actorKey);
+        const actor = actorRaw ? fromMembershipRecord(actorRaw, actorKey) : undefined;
+        if (!actor || actor.status !== "active" || actor.role !== "leader") throw householdStateChanged("Household leadership changed before the request was resolved.");
+      }
+      assertAuditMatches(input.auditEvent, current.householdId, input.actorId);
+      await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...current, status: input.status, resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId }));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
-  async endMembership(input: Parameters<AtomicApplicationPersistence["endMembership"]>[0]): Promise<void> {
-    if (input.membership.status !== "former" || input.membership.role !== "member") throw new ApplicationError("CONFLICT", "Ended membership must retain a former-member record.");
-    const tx = (await this.db()).transaction(["memberships", "auditEvents"], "readwrite");
-    try { const key = membershipKey(input.membership.householdId, input.membership.userId); const raw = await tx.objectStore("memberships").get(key); if (!raw || fromMembershipRecord(raw, key).status !== "active") throw new ApplicationError("CONFLICT", "Only an active membership may end."); await tx.objectStore("memberships").put(toMembershipRecord(input.membership)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
+  async transferLeadership(input: Parameters<AtomicApplicationPersistence["transferLeadership"]>[0]): Promise<void> {
+    assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
+    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    try {
+      const householdRaw = await tx.objectStore("households").get(input.householdId);
+      if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
+      const rawMemberships = await tx.objectStore("memberships").index("householdId").getAll(input.householdId);
+      const memberships = rawMemberships.map((raw) => fromMembershipRecord(raw, raw.key));
+      let result;
+      try {
+        result = transferLeadership(input.householdId, input.actorId, input.targetId, memberships);
+      } catch (error) {
+        if (error instanceof DomainError) throw householdStateChanged("Household leadership or membership changed before confirmation.");
+        throw error;
+      }
+      await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.actorId)!));
+      await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.targetId)!));
+      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async leaveHousehold(input: Parameters<AtomicApplicationPersistence["leaveHousehold"]>[0]): Promise<void> {
+    assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "auditEvents"], "readwrite");
+    try {
+      const householdRaw = await tx.objectStore("households").get(input.householdId);
+      if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
+      const [membershipRecords, expenseRecords, settlementRecords] = await Promise.all([
+        tx.objectStore("memberships").index("householdId").getAll(input.householdId),
+        tx.objectStore("expenses").index("householdId").getAll(input.householdId),
+        tx.objectStore("settlements").index("householdId").getAll(input.householdId),
+      ]);
+      const memberships = membershipRecords.map((raw) => fromMembershipRecord(raw, raw.key));
+      const expenses = expenseRecords.map((raw) => fromExpenseRecord(raw, raw.id));
+      const settlements = settlementRecords.map((raw) => fromSettlementRecord(raw, raw.id));
+      const sheet = calculateHouseholdBalances(input.householdId, memberships, expenses.map(toBalanceExpense), settlements);
+      let result;
+      try {
+        result = leaveHousehold(input.householdId, input.actorId, memberships, sheet, settlements);
+      } catch (error) {
+        if (error instanceof DomainError) throw householdStateChanged("Leave eligibility changed before confirmation.");
+        throw error;
+      }
+      await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.actorId)!));
+      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async removeHouseholdMember(input: Parameters<AtomicApplicationPersistence["removeHouseholdMember"]>[0]): Promise<void> {
+    assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "auditEvents"], "readwrite");
+    try {
+      const householdRaw = await tx.objectStore("households").get(input.householdId);
+      if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
+      const [membershipRecords, expenseRecords, settlementRecords] = await Promise.all([
+        tx.objectStore("memberships").index("householdId").getAll(input.householdId),
+        tx.objectStore("expenses").index("householdId").getAll(input.householdId),
+        tx.objectStore("settlements").index("householdId").getAll(input.householdId),
+      ]);
+      const memberships = membershipRecords.map((raw) => fromMembershipRecord(raw, raw.key));
+      const expenses = expenseRecords.map((raw) => fromExpenseRecord(raw, raw.id));
+      const settlements = settlementRecords.map((raw) => fromSettlementRecord(raw, raw.id));
+      const sheet = calculateHouseholdBalances(input.householdId, memberships, expenses.map(toBalanceExpense), settlements);
+      let result;
+      try {
+        result = removeHouseholdMember(input.householdId, input.actorId, input.targetId, memberships, sheet, settlements);
+      } catch (error) {
+        if (error instanceof DomainError) throw householdStateChanged("Member removal eligibility changed before confirmation.");
+        throw error;
+      }
+      await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.targetId)!));
+      await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async deleteHousehold(input: Parameters<AtomicApplicationPersistence["deleteHousehold"]>[0]): Promise<void> {
-    if (!input.household.deletedAt) throw new ApplicationError("CONFLICT", "Household deletion requires a tombstone.");
-    if (input.formerMemberships.some((membership) => membership.householdId !== input.household.householdId || membership.status !== "former")) throw new ApplicationError("CONFLICT", "Household deletion must retain every membership as former history.");
-    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "expenses", "settlements", "auditEvents"], "readwrite");
     try {
-      if (!(await tx.objectStore("households").getKey(input.household.householdId))) throw new ApplicationError("NOT_FOUND", "Household not found.");
-      const existing = await tx.objectStore("memberships").index("householdId").getAll(input.household.householdId);
-      if (existing.length !== input.formerMemberships.length) throw new ApplicationError("CONFLICT", "Household membership history changed before deletion.");
-      await tx.objectStore("households").put(toHouseholdRecord(input.household));
-      for (const membership of input.formerMemberships) await tx.objectStore("memberships").put(toMembershipRecord(membership));
+      const householdRaw = await tx.objectStore("households").get(input.householdId);
+      if (!householdRaw) throw householdStateChanged("The household is no longer available.");
+      const household = fromHouseholdRecord(householdRaw, input.householdId);
+      if (household.deletedAt) throw householdStateChanged("The household is already closed.");
+      const [membershipRecords, joinRequestRecords, expenseRecords, settlementRecords] = await Promise.all([
+        tx.objectStore("memberships").index("householdId").getAll(input.householdId),
+        tx.objectStore("joinRequests").index("householdId").getAll(input.householdId),
+        tx.objectStore("expenses").index("householdId").getAll(input.householdId),
+        tx.objectStore("settlements").index("householdId").getAll(input.householdId),
+      ]);
+      const memberships = membershipRecords.map((raw) => fromMembershipRecord(raw, raw.key));
+      const requests = joinRequestRecords.map((raw) => fromJoinRequestRecord(raw, raw.id));
+      const expenses = expenseRecords.map((raw) => fromExpenseRecord(raw, raw.id));
+      const settlements = settlementRecords.map((raw) => fromSettlementRecord(raw, raw.id));
+      const sheet = calculateHouseholdBalances(input.householdId, memberships, expenses.map(toBalanceExpense), settlements);
+      const eligibility = evaluateHouseholdDeletionEligibility(input.householdId, input.actorId, memberships, sheet, settlements);
+      if (!eligibility.eligible) throw householdStateChanged("Household deletion eligibility changed before confirmation.");
+      await tx.objectStore("households").put(toHouseholdRecord({ ...household, updatedAt: input.auditEvent.occurredAt, deletedAt: input.auditEvent.occurredAt, deletedByUserId: input.actorId }));
+      for (const membership of memberships) {
+        await tx.objectStore("memberships").put(toMembershipRecord({ ...membership, status: "former" }));
+      }
+      for (const request of requests.filter((item) => item.status === "pending")) {
+        await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...request, status: "household-closed", resolvedAt: input.auditEvent.occurredAt, resolvedByUserId: input.actorId }));
+        await tx.objectStore("auditEvents").add(toAuditRecord({
+          auditEventId: auditEventId(`${input.joinRequestAuditIdBase}:${request.joinRequestId}`),
+          householdId: input.householdId,
+          actorId: input.actorId,
+          aggregateType: "join-request",
+          aggregateId: request.joinRequestId,
+          action: "household-closed",
+          occurredAt: input.auditEvent.occurredAt,
+          changedFields: ["status"],
+        }));
+      }
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.done;
-    }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async createExpense(input: Parameters<AtomicApplicationPersistence["createExpense"]>[0]): Promise<void> {

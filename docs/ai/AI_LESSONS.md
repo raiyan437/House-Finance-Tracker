@@ -83,3 +83,11 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Informed destructive consent is part of the transaction contract: pass the previewed Delete/Archive consequence, recompute reference status at commit, and reject drift so a physical Delete can never silently become Archive.
 - IndexedDB versionchange migrations can safely reject unsupported private data when the first typed, sanitized failure is retained and the whole transaction is explicitly aborted; tests must reopen the old version to prove that even earlier cursor writes rolled back.
 - Owner-keying the private feature subtree is a robust identity-switch boundary: it discards form, dialog, request, and Card-list state immediately instead of relying on an effect to clear prior-user data after render.
+
+## 2026-08-19 - Phase 10 Household management
+
+- Historical role and current authority must be separate predicates: preserving `role = leader` on a former membership is safe only when every authorization path also requires `status = active`.
+- Conditional IndexedDB uniqueness keys are lifecycle resources. Leave, Remove, deletion, and Pending-request closure must omit their active/Pending derived keys in the same transaction that retains the historical record, or future Create/Join actions remain incorrectly blocked.
+- Type unions are not runtime authorization. A deletion-only terminal state needs an explicit allowlist on every ordinary transition boundary so malformed JavaScript cannot manufacture it by bypassing TypeScript.
+- A destructive transaction's store list is a privacy and preservation contract: Household deletion can prove Cards, private snapshots, receipts, and terminal financial history are untouched when those stores are absent from the write transaction and raw before/after records are compared.
+- Initial avatars next to visible identity text should be decorative. Adding `aria-label` to a roleless avatar span duplicates the name and violates current Axe ARIA rules; hide the avatar from assistive technology and keep the adjacent text authoritative.

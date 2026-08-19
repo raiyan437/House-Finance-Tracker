@@ -13,8 +13,6 @@ import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-l
 import { assertFormerMemberChangeAllowed, assertLegacyPercentageChangeAllowed, expenseInvolvesFormerMember, type ExpenseFinancialFingerprint } from "@/domain/expenses/expense-financial-fingerprint";
 import { expensePercentageSourceStatus, type ExpensePercentageSourceStatus } from "@/domain/expenses/expense-percentage-source";
 import { DomainError } from "@/domain/shared/domain-error";
-import { leaveHousehold, removeHouseholdMember, evaluateHouseholdDeletionEligibility, assertEligible } from "@/domain/membership/membership-eligibility";
-import { transferLeadership } from "@/domain/membership/leadership-policy";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { assertCanDeleteExpense, assertCanEditExpense, assertCanViewExpense, getExpensePermissions } from "@/domain/permissions/expense-permissions";
 import { applyExpensePaymentEdit, projectExpensePayment, type PaymentEditRequest } from "@/domain/permissions/card-payment-privacy";
@@ -57,6 +55,10 @@ import {
   type PendingSettlementView,
   type SettlementPageView,
 } from "@/application/settlements/settlement-page";
+import {
+  buildActiveHouseholdPageView,
+  type ActiveHouseholdPageView,
+} from "@/application/household/household-page";
 import type {
   AuditEventRepository,
   CardRepository,
@@ -100,10 +102,12 @@ export type HouseholdAccessState =
   | Readonly<{
       status: "active-member";
       household: JoinableHouseholdView;
+      page: ActiveHouseholdPageView;
     }>
   | Readonly<{
       status: "active-leader";
       household: JoinableHouseholdView;
+      page: ActiveHouseholdPageView;
       joinRequests: readonly LeaderJoinRequestView[];
     }>;
 
@@ -186,14 +190,27 @@ export class HouseholdApplicationService {
     }
 
     const householdView = this.projectJoinableHousehold(household);
+    const context = await financialContext(this.deps.repositories, household.householdId);
+    const activeIds = context.memberships
+      .filter((item) => item.status === "active")
+      .map((item) => item.userId);
+    const profiles = await this.deps.repositories.profiles.getByIds(activeIds);
+    const page = buildActiveHouseholdPageView({
+      household,
+      actorId: actor,
+      memberships: context.memberships,
+      profiles,
+      sheet: context.sheet,
+      settlements: context.settlements,
+    });
     if (membership.role === "member") {
-      return Object.freeze({ status: "active-member", household: householdView });
+      return Object.freeze({ status: "active-member", household: householdView, page });
     }
 
     const requests = (await this.deps.repositories.joinRequests.listByHousehold(household.householdId))
       .filter((request) => request.status === "pending");
-    const profiles = await this.deps.repositories.profiles.getByIds(requests.map((request) => request.userId));
-    const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    const requesterProfiles = await this.deps.repositories.profiles.getByIds(requests.map((request) => request.userId));
+    const names = new Map(requesterProfiles.map((profile) => [profile.userId, profile.displayName]));
     const joinRequests = requests
       .map((request): LeaderJoinRequestView => Object.freeze({
         joinRequestId: request.joinRequestId,
@@ -205,6 +222,7 @@ export class HouseholdApplicationService {
     return Object.freeze({
       status: "active-leader",
       household: householdView,
+      page,
       joinRequests: Object.freeze(joinRequests),
     });
   }
@@ -309,13 +327,9 @@ export class HouseholdApplicationService {
   async acceptJoinRequest(id: JoinRequestId): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
     const request = await this.deps.repositories.joinRequests.getById(id);
-    if (!request || request.status !== "pending") throw new ApplicationError("NOT_FOUND", "Pending join request not found.");
-    const membership = await requireActiveMembership(this.deps.repositories, request.householdId, actor);
-    if (membership.role !== "leader") throw new ApplicationError("NOT_FOUND", "Pending join request not found.");
-    if (await this.deps.repositories.memberships.findActiveByUser(request.userId)) throw new ApplicationError("CONFLICT", "Requester already belongs to a household.");
-    const accepted: JoinRequest = { ...request, status: "accepted", resolvedAt: this.deps.values.now(), resolvedByUserId: actor };
-    const added: MembershipSnapshot = { householdId: request.householdId, userId: request.userId, status: "active", role: "member" };
-    await this.deps.atomic.acceptJoinRequest({ request: accepted, membership: added, auditEvent: event(this.deps.values, request.householdId, actor, "join-request", request.joinRequestId, "accepted", ["status", "membership"]) });
+    if (!request || request.status !== "pending") throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "The join request is no longer Pending.");
+    const resolvedAt = this.deps.values.now();
+    await this.deps.atomic.acceptJoinRequest({ joinRequestId: id, actorId: actor, resolvedAt, auditEvent: event(this.deps.values, request.householdId, actor, "join-request", request.joinRequestId, "accepted", ["status", "membership"]) });
   }
 
   async rejectJoinRequest(id: JoinRequestId): Promise<void> { await this.resolveJoinRequest(id, "rejected"); }
@@ -324,47 +338,44 @@ export class HouseholdApplicationService {
   private async resolveJoinRequest(id: JoinRequestId, status: "rejected" | "cancelled"): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
     const request = await this.deps.repositories.joinRequests.getById(id);
-    if (!request || request.status !== "pending") throw new ApplicationError("NOT_FOUND", "Pending join request not found.");
-    if (status === "cancelled") { if (request.userId !== actor) throw new ApplicationError("NOT_FOUND", "Pending join request not found."); }
-    else { const membership = await requireActiveMembership(this.deps.repositories, request.householdId, actor); if (membership.role !== "leader") throw new ApplicationError("NOT_FOUND", "Pending join request not found."); }
-    const resolved: JoinRequest = { ...request, status, resolvedAt: this.deps.values.now(), resolvedByUserId: actor };
-    await this.deps.atomic.transitionJoinRequest({ request: resolved, auditEvent: event(this.deps.values, request.householdId, actor, "join-request", request.joinRequestId, status, ["status"]) });
+    if (!request || request.status !== "pending") throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "The join request is no longer Pending.");
+    if (status === "cancelled") { if (request.userId !== actor) throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "Only the requester may cancel this request."); }
+    // Leader authority is deliberately re-read by the authoritative transaction.
+    const resolvedAt = this.deps.values.now();
+    await this.deps.atomic.transitionJoinRequest({ joinRequestId: id, actorId: actor, status, resolvedAt, auditEvent: event(this.deps.values, request.householdId, actor, "join-request", request.joinRequestId, status, ["status"]) });
   }
 
-  async transferLeadership(household: HouseholdId, targetId: UserId): Promise<void> {
-    const actor = await this.deps.session.getCurrentUserId();
-    const memberships = await this.deps.repositories.memberships.listByHousehold(household);
-    const result = transferLeadership(household, actor, targetId, memberships);
-    const formerLeader = result.find((item) => item.userId === actor)!;
-    const newLeader = result.find((item) => item.userId === targetId)!;
-    await this.deps.atomic.transferLeadership({ formerLeader, newLeader, auditEvent: event(this.deps.values, household, actor, "membership", targetId, "leadership-transferred", ["role"]) });
+  private async currentActiveHousehold(actor: UserId): Promise<MembershipSnapshot> {
+    const membership = await this.deps.repositories.memberships.findActiveByUser(actor);
+    if (!membership) throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "You are no longer an active household member.");
+    const household = await this.deps.repositories.households.getById(membership.householdId);
+    if (!household || household.deletedAt) throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "The household is no longer active.");
+    return membership;
   }
 
-  async leaveHousehold(household: HouseholdId): Promise<void> {
+  async transferLeadership(targetId: UserId): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
-    const context = await financialContext(this.deps.repositories, household);
-    const result = leaveHousehold(household, actor, context.memberships, context.sheet, context.settlements);
-    const ended = result.find((item) => item.userId === actor)!;
-    await this.deps.atomic.endMembership({ membership: ended, auditEvent: event(this.deps.values, household, actor, "membership", actor, "left", ["status"]) });
+    const membership = await this.currentActiveHousehold(actor);
+    await this.deps.atomic.transferLeadership({ householdId: membership.householdId, actorId: actor, targetId, auditEvent: event(this.deps.values, membership.householdId, actor, "membership", targetId, "leadership-transferred", ["role"]) });
   }
 
-  async removeMember(household: HouseholdId, targetId: UserId): Promise<void> {
+  async leaveCurrentHousehold(): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
-    const context = await financialContext(this.deps.repositories, household);
-    const result = removeHouseholdMember(household, actor, targetId, context.memberships, context.sheet, context.settlements);
-    const ended = result.find((item) => item.userId === targetId)!;
-    await this.deps.atomic.endMembership({ membership: ended, auditEvent: event(this.deps.values, household, actor, "membership", targetId, "removed", ["status"]) });
+    const membership = await this.currentActiveHousehold(actor);
+    await this.deps.atomic.leaveHousehold({ householdId: membership.householdId, actorId: actor, auditEvent: event(this.deps.values, membership.householdId, actor, "membership", actor, "left", ["status"]) });
   }
 
-  async deleteHousehold(householdIdValue: HouseholdId): Promise<void> {
+  async removeMember(targetId: UserId): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
-    const [household, context] = await Promise.all([this.deps.repositories.households.getById(householdIdValue), financialContext(this.deps.repositories, householdIdValue)]);
-    if (!household || household.deletedAt) throw new ApplicationError("NOT_FOUND", "Household not found.");
-    assertEligible(evaluateHouseholdDeletionEligibility(householdIdValue, actor, context.memberships, context.sheet, context.settlements));
-    const deletedAt = this.deps.values.now();
-    const deleted: Household = { ...household, updatedAt: deletedAt, deletedAt, deletedByUserId: actor };
-    const formerMemberships = context.memberships.map((membership) => ({ ...membership, status: "former" as const }));
-    await this.deps.atomic.deleteHousehold({ household: deleted, formerMemberships, auditEvent: event(this.deps.values, householdIdValue, actor, "household", householdIdValue, "deleted", ["deletedAt", "memberships"]) });
+    const membership = await this.currentActiveHousehold(actor);
+    await this.deps.atomic.removeHouseholdMember({ householdId: membership.householdId, actorId: actor, targetId, auditEvent: event(this.deps.values, membership.householdId, actor, "membership", targetId, "removed", ["status"]) });
+  }
+
+  async deleteCurrentHousehold(): Promise<void> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const membership = await this.currentActiveHousehold(actor);
+    const audit = event(this.deps.values, membership.householdId, actor, "household", membership.householdId, "deleted", ["deletedAt", "memberships", "joinRequests"]);
+    await this.deps.atomic.deleteHousehold({ householdId: membership.householdId, actorId: actor, auditEvent: audit, joinRequestAuditIdBase: auditEventId(this.deps.values.nextId("audit")) });
   }
 }
 

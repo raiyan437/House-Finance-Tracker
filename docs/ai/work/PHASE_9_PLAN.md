@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-Phase 8 is accepted and committed as `c75d18b`. Phase 9 implementation was explicitly approved on 2026-08-18 with the clarifications recorded below. Phase 9 is now implemented and verified, and remains intentionally uncommitted for review. Phase 10 and later phases remain unauthorized.
+Phase 8 is accepted and committed as `c75d18b`. Phase 9 implementation was explicitly approved on 2026-08-18 with the clarifications recorded below, then accepted and committed as `d96451e` on 2026-08-19. Phase 10 and later implementations remain unauthorized.
 
 ## Objective and exit outcome
 
