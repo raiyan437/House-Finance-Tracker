@@ -84,7 +84,7 @@
   --surface-secondary: #f9fafb;
   --foreground: #171717;
   --text-secondary: #525866;
-  --text-muted: #8a8f98;
+  --text-muted: #68707c;
   --text-disabled: #b6bac2;
   --border-default: #e7e9ee;
   --border-strong: #d9dce3;
@@ -95,9 +95,9 @@
   --action-primary-foreground: #ffffff;
   --success-foreground: #15803d;
   --success-background: #dcfce7;
-  --danger-foreground: #dc2626;
+  --danger-foreground: #b91c1c;
   --danger-background: #fee2e2;
-  --warning-foreground: #b7791f;
+  --warning-foreground: #854d0e;
   --warning-background: #fef3c7;
   --info-foreground: #2563eb;
   --info-background: #dbeafe;
@@ -127,8 +127,8 @@
   --motion-slow: 300ms;
   --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --content-max: 90rem;
-  --sidebar-laptop: 14rem;
-  --sidebar-desktop: 15rem;
+  --sidebar-laptop: 14.5rem;
+  --sidebar-desktop: 14.5rem;
   --mobile-navigation-height: 4.5rem;
 }
 
@@ -166,6 +166,51 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Dense finance screens use semantic roles instead of shrinking the generic
+   type scale shared by dialogs, onboarding, and feature workflows. */
+.page-title {
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+  letter-spacing: -0.02em;
+}
+
+.panel-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.375rem;
+}
+
+.dashboard-panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.metric-label,
+.table-body {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.metric-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.metric-value {
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+  letter-spacing: -0.015em;
+}
+
+.table-label,
+.compact-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
 .skip-link {
   position: fixed;
   inset-block-start: var(--space-3);
@@ -185,6 +230,74 @@
   transform: translateY(0);
   outline: 3px solid var(--brand-primary);
   outline-offset: 2px;
+}
+
+@media (min-width: 1400px) {
+  .dashboard-summary-grid {
+    grid-template-columns: 260px 536px 316px;
+  }
+
+  .dashboard-analytics-grid {
+    grid-template-columns: 710px 418px;
+  }
+
+  .dashboard-bottom-grid {
+    grid-template-columns: 550px 578px;
+  }
+
+  .expense-filter-grid {
+    grid-template-columns: 280px 174px 150px 150px 190px 120px;
+    gap: 16px;
+  }
+
+  .expense-form-grid {
+    grid-template-columns: 744px 376px;
+  }
+
+  .expense-details-panel {
+    height: 300px;
+  }
+
+  .expense-details-fields {
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+  }
+
+  .expense-details-fields .expense-name-field {
+    grid-column: auto;
+  }
+
+  .receipts-panel {
+    height: 132px;
+  }
+
+  .split-expense-panel {
+    height: 340px;
+  }
+
+  .expense-details-grid {
+    grid-template-columns: 744px 376px;
+  }
+
+  .expense-overview-panel,
+  .expense-detail-summary-panel {
+    height: 260px;
+  }
+
+  .private-payment-panel {
+    height: 128px;
+  }
+
+  .expense-split-details-panel {
+    height: 286px;
+  }
+
+  .expense-receipts-panel {
+    height: 230px;
+  }
+
+  .expense-activity-panel {
+    height: 184px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

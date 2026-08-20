@@ -1,6 +1,8 @@
 import { ApplicationError } from "../errors/application-error";
+import { HouseholdAnalyticsApplicationService } from "../analytics/analytics-service";
 import type {
   AtomicApplicationPersistence,
+  ApplicationRepositories,
   CurrentSession,
   ReceiptContent,
 } from "../repositories";
@@ -59,18 +61,6 @@ import {
   buildActiveHouseholdPageView,
   type ActiveHouseholdPageView,
 } from "@/application/household/household-page";
-import type {
-  AuditEventRepository,
-  CardRepository,
-  ExpenseRepository,
-  HouseholdRepository,
-  JoinRequestRepository,
-  MembershipRepository,
-  ReceiptRepository,
-  SettlementRepository,
-  UserProfileRepository,
-} from "../repositories";
-
 export type GeneratedIdKind = "user" | "household" | "join-request" | "expense" | "settlement" | "card" | "receipt" | "audit";
 export interface ApplicationValues {
   now(): IsoInstant;
@@ -110,18 +100,6 @@ export type HouseholdAccessState =
       page: ActiveHouseholdPageView;
       joinRequests: readonly LeaderJoinRequestView[];
     }>;
-
-export interface ApplicationRepositories {
-  readonly profiles: UserProfileRepository;
-  readonly households: HouseholdRepository;
-  readonly memberships: MembershipRepository;
-  readonly joinRequests: JoinRequestRepository;
-  readonly expenses: ExpenseRepository;
-  readonly settlements: SettlementRepository;
-  readonly cards: CardRepository;
-  readonly receipts: ReceiptRepository;
-  readonly auditEvents: AuditEventRepository;
-}
 
 interface Dependencies {
   readonly repositories: ApplicationRepositories;
@@ -918,11 +896,12 @@ export class ReceiptApplicationService {
 }
 
 export class HouseFinanceApplication {
+  readonly analytics: HouseholdAnalyticsApplicationService;
   readonly profiles: ProfileApplicationService;
   readonly households: HouseholdApplicationService;
   readonly expenses: ExpenseApplicationService;
   readonly settlements: SettlementApplicationService;
   readonly cards: CardApplicationService;
   readonly receipts: ReceiptApplicationService;
-  constructor(deps: Dependencies) { this.profiles = new ProfileApplicationService(deps); this.households = new HouseholdApplicationService(deps); this.expenses = new ExpenseApplicationService(deps); this.settlements = new SettlementApplicationService(deps); this.cards = new CardApplicationService(deps); this.receipts = new ReceiptApplicationService(deps); }
+  constructor(deps: Dependencies) { this.analytics = new HouseholdAnalyticsApplicationService(deps.repositories, deps.session); this.profiles = new ProfileApplicationService(deps); this.households = new HouseholdApplicationService(deps); this.expenses = new ExpenseApplicationService(deps); this.settlements = new SettlementApplicationService(deps); this.cards = new CardApplicationService(deps); this.receipts = new ReceiptApplicationService(deps); }
 }

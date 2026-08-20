@@ -10,6 +10,7 @@ interface ChartCardProps extends Omit<React.ComponentProps<typeof Surface>, "tit
   readonly action?: React.ReactNode;
   readonly state?: ChartCardState;
   readonly summary: string;
+  readonly summaryVisuallyHidden?: boolean;
   readonly emptyMessage?: string;
   readonly errorMessage?: string;
   readonly onRetry?: () => void;
@@ -21,6 +22,7 @@ export function ChartCard({
   action,
   state = "ready",
   summary,
+  summaryVisuallyHidden = false,
   emptyMessage = "There is no chart data to show yet.",
   errorMessage = "The chart could not be loaded.",
   onRetry,
@@ -32,9 +34,9 @@ export function ChartCard({
     <Surface className={cn("grid gap-5", className)} {...props}>
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-h3">{title}</h2>
+          <h2 className="dashboard-panel-title">{title}</h2>
           {description ? (
-            <p className="mt-1 text-body text-text-secondary">{description}</p>
+            <p className="mt-1 text-xs text-text-muted">{description}</p>
           ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -51,7 +53,13 @@ export function ChartCard({
         />
       ) : null}
       {state === "ready" ? <div data-slot="chart-content">{children}</div> : null}
-      <p className="border-t pt-4 text-caption text-text-secondary" data-slot="chart-summary">
+      <p
+        className={cn(
+          "border-t pt-4 text-caption text-text-secondary",
+          summaryVisuallyHidden && "sr-only",
+        )}
+        data-slot="chart-summary"
+      >
         <span className="font-medium text-foreground">Summary: </span>
         {summary}
       </p>

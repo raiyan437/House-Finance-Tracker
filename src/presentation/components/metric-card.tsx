@@ -24,7 +24,7 @@ export function MetricCard({
       </div>
       <div className="text-h2 font-semibold">{value}</div>
       {supportingText ? (
-        <p className="text-caption text-text-muted">{supportingText}</p>
+        <p className="text-caption text-text-secondary">{supportingText}</p>
       ) : null}
     </Surface>
   );

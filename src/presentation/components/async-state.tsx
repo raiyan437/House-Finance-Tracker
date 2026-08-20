@@ -32,8 +32,8 @@ function StateFrame({
       <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-secondary text-text-secondary">
         <Icon aria-hidden="true" className="size-5" />
       </span>
-      <h2 className="text-h3">{title}</h2>
-      <p className="mt-2 max-w-md text-body text-text-secondary">{description}</p>
+      <h2 className="panel-title">{title}</h2>
+      <p className="mt-2 max-w-md text-sm text-text-secondary">{description}</p>
       {action ? <div className="mt-6">{action}</div> : null}
     </Surface>
   );

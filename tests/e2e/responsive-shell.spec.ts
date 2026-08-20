@@ -48,7 +48,7 @@ test.describe("responsive shell", () => {
       expect(measurements.horizontalOverflow).toBeLessThanOrEqual(1);
 
       for (const label of ["Dashboard", "Expenses", "Add", "Settlements"]) {
-        const box = await page.getByRole("link", { name: label }).boundingBox();
+        const box = await mobileNavigation.getByRole("link", { name: label }).boundingBox();
         expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
       }
       const moreBox = await page.getByRole("button", { name: "More" }).boundingBox();

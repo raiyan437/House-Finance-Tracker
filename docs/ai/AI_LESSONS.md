@@ -91,3 +91,19 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Type unions are not runtime authorization. A deletion-only terminal state needs an explicit allowlist on every ordinary transition boundary so malformed JavaScript cannot manufacture it by bypassing TypeScript.
 - A destructive transaction's store list is a privacy and preservation contract: Household deletion can prove Cards, private snapshots, receipts, and terminal financial history are untouched when those stores are absent from the write transaction and raw before/after records are compared.
 - Initial avatars next to visible identity text should be decorative. Adding `aria-label` to a roleless avatar span duplicates the name and violates current Axe ARIA rules; hide the avatar from assistive technology and keep the adjacent text authoritative.
+
+## 2026-08-19 - Phase 11 derived analytics
+
+- Expense month analytics and Settlement activity require deliberately separate calendars: group canonical Expense Date text directly by `YYYY-MM`, while bucketing Settlement instants with the viewer's local `Date` fields at the client application boundary.
+- A Pending Settlement has no balance effect, so current recommendations may retain the same pair. Factual health counts must suppress recommendation edges for unordered pairs with active Pending claims instead of double-counting one unresolved relationship.
+- Display percentages can exceed JavaScript's safe-integer range even when every poisha total is safe. Keep signed month-change basis points as BigInt through calculation and formatting; bounded Payment Mix basis points may remain safe integers.
+- Recharts is safest as a narrow client rendering boundary over already-derived immutable datasets. Exact textual summaries, Cash/Card rows, status words, and disabled chart animation make the financial meaning independent of SVG geometry, color, or motion.
+- Native month inputs expose browser-specific picker glyphs. When the canonical control supplies its own Calendar and Chevron, hide only the native glyph and invoke `showPicker()` from the user gesture so keyboard/native picker behavior remains available without duplicated visuals.
+
+## 2026-08-20 - Canonical UI parity
+
+- Treat Figma dimensions as breakpoint targets rather than universal fixed sizes: explicit desktop grid tracks can reproduce the 1440px frame, while bounded flexible tracks and deliberate stack breakpoints prevent the same geometry from overflowing at 1280px and below.
+- Presentation pagination belongs after the application-owned filter/sort result. Clamp or reset the visual page whenever that source result changes so pagination cannot manufacture an empty data state.
+- Canonical custom controls must retain native semantics in their interactive hit area. Visually transparent radio/checkbox inputs can cover the styled tile or segment, preserving keyboard behavior, focus indication, and reliable label activation without decorative div semantics.
+- Receipt preview failure is a presentation state, not data corruption. Keep the stored Blob untouched and replace only the failed image rendering with a controlled, dimensionally stable fallback tile.
+- Visual parity needs measured browser geometry and direct screenshots in addition to green tests; canonical, intermediate, and narrow widths expose different failures, particularly implicit grid minimums and action-row overflow.

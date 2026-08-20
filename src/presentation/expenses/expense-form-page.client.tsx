@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Paperclip, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Banknote, Check, CreditCard, Paperclip, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 
 import {
@@ -30,6 +30,7 @@ import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import { expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { Surface } from "@/presentation/components/surface";
+import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
@@ -370,28 +371,25 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     : "Complete the expense details";
 
   return (
-    <PageContainer className="space-y-6">
-      <Button asChild variant="ghost" className="-ml-3"><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}><ArrowLeft /> Back to expenses</Link></Button>
-      <PageHeader title={mode === "create" ? "Add Expense" : "Edit Expense"} description={mode === "create" ? "Record what you paid and allocate every poisha exactly." : "Payer and creator remain fixed; permitted changes recalculate from source history."} />
-      {financialLocked ? <div className="rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status">Financial fields are read-only because {original?.financialEditState === "former-member-frozen" ? "this expense includes a former member" : "the original percentage inputs are unavailable"}. Name and receipts may still be updated.</div> : null}
+    <PageContainer>
+      <Button asChild variant="ghost" className="-ml-3 h-9 rounded-xl"><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}><ArrowLeft /> Back to expenses</Link></Button>
+      <PageHeader className="mt-[14px]" title={mode === "create" ? "Add Expense" : "Edit Expense"} description={mode === "create" ? "Record what you paid and allocate every poisha exactly." : "Payer and creator remain fixed; permitted changes recalculate from source history."} />
+      {financialLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status">Financial fields are read-only because {original?.financialEditState === "former-member-frozen" ? "this expense includes a former member" : "the original percentage inputs are unavailable"}. Name and receipts may still be updated.</div> : null}
 
-      <form className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" onSubmit={form.handleSubmit(onSubmit, () => form.setFocus("name"))} noValidate>
-        <div className="space-y-6">
-          <Surface className="space-y-5">
-            <h2 className="text-h3">Expense details</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(form.formState.errors.name || preview.issues.name)} aria-describedby="expense-name-error" {...form.register("name")} /><p id="expense-name-error" className="text-caption text-danger">{form.formState.errors.name?.message ?? preview.issues.name}</p></div>
-              <div className="space-y-2"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(preview.issues.amountText)} aria-describedby="expense-amount-error" {...form.register("amountText")} /><p id="expense-amount-error" className="text-caption text-danger">{preview.issues.amountText}</p></div>
-              <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><Input id="expense-date" type="date" disabled={financialLocked} aria-invalid={Boolean(preview.issues.expenseDateText)} aria-describedby="expense-date-error" {...form.register("expenseDateText")} /><p id="expense-date-error" className="text-caption text-danger">{preview.issues.expenseDateText}</p></div>
-              <div className="space-y-2"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>
+      <form className="expense-form-grid mt-7 grid gap-6" onSubmit={form.handleSubmit(onSubmit, () => form.setFocus("name"))} noValidate>
+        <div className="grid content-start gap-[18px]">
+          <Surface className="expense-details-panel order-1 space-y-3" padding="canonical">
+            <h2 className="panel-title">Expense Details</h2>
+            <div className="expense-details-fields grid gap-3 sm:grid-cols-2">
+              <div className="expense-name-field space-y-1 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(form.formState.errors.name || preview.issues.name)} aria-describedby="expense-name-error" {...form.register("name")} /><p id="expense-name-error" className="text-caption text-danger">{form.formState.errors.name?.message ?? preview.issues.name}</p></div>
+              <div className="space-y-1"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(preview.issues.amountText)} aria-describedby="expense-amount-error" {...form.register("amountText")} /><p id="expense-amount-error" className="text-caption text-danger">{preview.issues.amountText}</p></div>
+              <div className="space-y-1"><Label htmlFor="expense-date">Expense Date</Label><Input id="expense-date" type="date" disabled={financialLocked} aria-invalid={Boolean(preview.issues.expenseDateText)} aria-describedby="expense-date-error" {...form.register("expenseDateText")} /><p id="expense-date-error" className="text-caption text-danger">{preview.issues.expenseDateText}</p></div>
+              <div className="space-y-1"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>
             </div>
-          </Surface>
-
-          <Surface className="space-y-4">
             <fieldset disabled={financialLocked || (Boolean(original) && !ownerEditing && original?.expense.payment.method === "cash")}>
-              <legend className="text-h3">Payment Method</legend>
-              <div className="mt-4 flex gap-3">
-                {(["cash", "card"] as const).map((method) => <label key={method} className="flex min-h-11 flex-1 items-center gap-2 rounded-xl border p-3"><input type="radio" value={method} {...form.register("paymentMethod")} /> <span className="capitalize">{method}</span></label>)}
+              <legend className="text-label font-medium">Payment Method</legend>
+              <div className="mt-2 grid grid-cols-2 rounded-xl bg-secondary p-1">
+                {(["cash", "card"] as const).map((method) => <label key={method} className={`relative flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[9px] text-sm font-medium focus-within:ring-3 focus-within:ring-ring/30 ${draft.paymentMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("paymentMethod")} />{method === "cash" ? <Banknote aria-hidden="true" className="size-4" /> : <CreditCard aria-hidden="true" className="size-4" />}<span className="capitalize">{method}</span></label>)}
               </div>
             </fieldset>
             {draft.paymentMethod === "card" ? (
@@ -400,51 +398,50 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             {original?.expense.payment.method === "card" && draft.paymentMethod === "cash" ? <label className="flex min-h-11 items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft p-3"><input className="mt-1" type="checkbox" checked={confirmCardToCash} onChange={(event) => setConfirmCardToCash(event.target.checked)} /><span>Confirm changing the current Payment Method from Card to Cash.</span></label> : null}
           </Surface>
 
-          <Surface className="space-y-4">
+          <Surface className="split-expense-panel order-3 space-y-3" padding="canonical">
+            <h2 className="panel-title">Split Expense</h2>
             <fieldset disabled={financialLocked}>
-              <legend className="text-h3">Participants</legend>
+              <legend className="text-label font-medium">Participants</legend>
               <p className="mt-1 text-sm text-text-secondary">Select at least one household member. You may exclude yourself.</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {members.filter((member) => member.status === "active" || draft.participantIds.includes(member.userId)).map((member) => <label key={member.userId} className="flex min-h-11 items-center gap-3 rounded-xl border p-3"><input type="checkbox" checked={draft.participantIds.includes(member.userId)} onChange={(event) => toggleParticipant(member.userId, event.target.checked)} /><span>{member.userId === currentUserId ? "You" : member.displayName}{member.status === "former" ? " (Former member)" : ""}</span></label>)}
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {members.filter((member) => member.status === "active" || draft.participantIds.includes(member.userId)).map((member) => { const selected = draft.participantIds.includes(member.userId); return <label key={member.userId} className={`relative flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-secondary" : "bg-card"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="checkbox" checked={selected} onChange={(event) => toggleParticipant(member.userId, event.target.checked)} /><MemberAvatar className="size-7 [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={member.displayName} /><span className="min-w-0 flex-1 truncate text-xs font-medium">{member.userId === currentUserId ? "You" : member.displayName}{member.status === "former" ? " (Former member)" : ""}</span>{selected ? <Check aria-hidden="true" className="size-4" /> : null}</label>; })}
               </div>
               {preview.issues.participants ? <p className="mt-2 text-sm text-danger" role="alert">{preview.issues.participants}</p> : null}
             </fieldset>
-          </Surface>
-
-          <Surface className="space-y-4">
             <fieldset disabled={financialLocked}>
-              <legend className="text-h3">Split Method</legend>
-              <div className="mt-4 grid grid-cols-3 gap-2">{(["equal", "amount", "percentage"] as const).map((method) => <label key={method} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border p-2 text-sm capitalize"><input type="radio" value={method} {...form.register("splitMethod")} /> {method}</label>)}</div>
+              <legend className="sr-only">Split Method</legend>
+              <div className="grid grid-cols-3 rounded-xl bg-secondary p-1">{(["equal", "amount", "percentage"] as const).map((method) => <label key={method} className={`relative flex h-9 cursor-pointer items-center justify-center rounded-[9px] text-xs font-medium capitalize focus-within:ring-3 focus-within:ring-ring/30 ${draft.splitMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("splitMethod")} /> {method}</label>)}</div>
             </fieldset>
             {original?.percentageSourceStatus === "legacy-percentage-input-unavailable" ? <p className="rounded-lg bg-warning-soft p-3 text-sm" role="status">Original percentage inputs are unavailable. No percentages have been inferred from the saved poisha shares.</p> : null}
-            <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-3">
               {draft.participantIds.map((id) => {
                 const member = memberById.get(id);
                 const allocation = preview.allocations.find((item) => item.participantId === id);
-                return <div key={id} className="grid items-center gap-2 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_160px_130px]"><span className="font-medium">{id === currentUserId ? "You" : member?.displayName ?? "Member"}</span>{draft.splitMethod === "amount" ? <Input disabled={financialLocked} inputMode="decimal" aria-label={`Amount share for ${member?.displayName ?? id}`} value={draft.amountTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`amountTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} /> : draft.splitMethod === "percentage" ? <div className="relative"><Input disabled={financialLocked} inputMode="decimal" aria-label={`Percentage share for ${member?.displayName ?? id}`} className="pr-8" value={draft.percentageTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`percentageTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} /><span className="absolute right-3 top-2.5 text-text-muted">%</span></div> : <span className="text-sm text-text-secondary">Calculated equally</span>}<span className="text-right font-medium tabular-nums">{allocation ? formatBdt(allocation.share) : "—"}{preview.provisional && draft.splitMethod === "percentage" ? <small className="block text-warning">Provisional</small> : null}</span><p className="text-caption text-danger sm:col-start-2">{preview.issues[`${draft.splitMethod}:${id}`]}</p></div>;
+                return <div key={id} className="grid items-center gap-1 rounded-xl border p-3"><span className="truncate text-xs font-medium">{id === currentUserId ? "You" : member?.displayName ?? "Member"}</span>{draft.splitMethod === "amount" ? <Input className="h-9" disabled={financialLocked} inputMode="decimal" aria-label={`Amount share for ${member?.displayName ?? id}`} value={draft.amountTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`amountTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} /> : draft.splitMethod === "percentage" ? <div className="relative"><Input disabled={financialLocked} inputMode="decimal" aria-label={`Percentage share for ${member?.displayName ?? id}`} className="h-9 pr-8" value={draft.percentageTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`percentageTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} /><span className="absolute right-3 top-2 text-text-muted">%</span></div> : <span className="text-[11px] text-text-muted">Calculated equally</span>}<span className="financial-numerals text-xs font-semibold">{allocation ? formatBdt(allocation.share) : "—"}{preview.provisional && draft.splitMethod === "percentage" ? <small className="block text-warning">Provisional</small> : null}</span><p className="text-caption text-danger">{preview.issues[`${draft.splitMethod}:${id}`]}</p></div>;
               })}
             </div>
             {preview.issues.split ? <p className="text-sm text-danger" role="status">{preview.issues.split}</p> : null}
           </Surface>
 
-          <Surface className="space-y-4">
-            <div><h2 className="text-h3">Receipts</h2><p className="text-sm text-text-secondary">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p></div>
-            <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4"><Upload /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label>
+          <Surface className="receipts-panel order-2 space-y-3" padding="canonical">
+            <div><h2 className="panel-title">Receipts</h2><p className="compact-caption mt-0.5 text-text-muted">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p></div>
+            <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label>
             {receiptError ? <p className="text-sm text-danger" role="alert">{receiptError}</p> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {existingReceipts.filter(({ metadata }) => !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error }) => <div key={metadata.receiptId} className="rounded-xl border p-3">{url ? <Image className="h-28 w-full rounded-lg object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} width={240} height={112} unoptimized /> : <div className="flex h-28 items-center justify-center rounded-lg bg-secondary"><Paperclip /><span className="sr-only">{error ? "Receipt preview unavailable" : "Loading receipt preview"}</span></div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><Button type="button" variant="ghost" size="sm" onClick={() => setRemovedReceiptIds((current) => [...current, metadata.receiptId])}><Trash2 /> Remove</Button></div>)}
-              {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><Image className="h-28 w-full rounded-lg object-cover" src={receipt.url} alt={receipt.file.name} width={240} height={112} unoptimized /><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
+              {existingReceipts.filter(({ metadata }) => !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error }) => <div key={metadata.receiptId} className="rounded-xl border p-3">{url ? <span className="block h-28 overflow-hidden rounded-lg"><Image className="min-h-full object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} width={240} height={112} style={{ width: "100%", height: "auto" }} unoptimized /></span> : <div className="flex h-28 items-center justify-center rounded-lg bg-secondary"><Paperclip /><span className="sr-only">{error ? "Receipt preview unavailable" : "Loading receipt preview"}</span></div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><Button type="button" variant="ghost" size="sm" onClick={() => setRemovedReceiptIds((current) => [...current, metadata.receiptId])}><Trash2 /> Remove</Button></div>)}
+              {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><span className="block h-28 overflow-hidden rounded-lg"><Image className="min-h-full object-cover" src={receipt.url} alt={receipt.file.name} width={240} height={112} style={{ width: "100%", height: "auto" }} unoptimized /></span><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
             </div>
           </Surface>
         </div>
 
-        <aside className="self-start xl:sticky xl:top-6">
-          <Surface className="space-y-5" elevation="card">
-            <h2 className="text-h3">Expense summary</h2>
+        <aside className="flex self-stretch flex-col gap-[18px] min-[1400px]:min-h-[808px]">
+          <Surface className="min-h-[450px]" elevation="card" padding="canonical">
+            <h2 className="panel-title">Summary</h2>
             <dl className="space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-text-secondary">Expense Total</dt><dd className="font-semibold tabular-nums">{preview.amount ? formatBdt(preview.amount) : "—"}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Allocated</dt><dd className="tabular-nums">{preview.allocated !== undefined ? formatBdt(preview.allocated) : "—"}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Your Share</dt><dd className="tabular-nums">{formatBdt(preview.yourShare)}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Participants</dt><dd>{preview.participantCount}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Payment Method</dt><dd className="capitalize">{draft.paymentMethod}</dd></div><div className="border-t pt-3"><dt className="text-text-secondary">Allocation Status</dt><dd className={preview.canPersist || financialLocked ? "mt-1 font-medium text-success" : "mt-1 font-medium text-warning"}>{financialLocked ? "Financial history preserved" : allocationStatus}</dd></div></dl>
-            {submitError ? <div className="rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert" tabIndex={-1}>{submitError}</div> : null}
-            <div className="grid gap-2"><Button type="submit" disabled={form.formState.isSubmitting || (!financialLocked && !preview.canPersist)}>{form.formState.isSubmitting ? "Saving…" : mode === "create" ? "Create Expense" : "Save Changes"}</Button><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button></div>
+            {submitError ? <div className="mt-5 rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert" tabIndex={-1}>{submitError}</div> : null}
           </Surface>
+          <Surface className="min-h-[104px]" padding="canonical"><div className="flex gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft"><ShieldCheck aria-hidden="true" className="size-4" /></span><div><h2 className="text-sm font-semibold">Privacy Note</h2><p className="compact-caption mt-1 text-text-muted">Private Card details remain visible only to the Card owner.</p></div></div></Surface>
+          <div className="mt-auto grid grid-cols-[116px_minmax(0,1fr)] gap-3"><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button><Button type="submit" disabled={form.formState.isSubmitting || (!financialLocked && !preview.canPersist)}>{form.formState.isSubmitting ? "Saving…" : mode === "create" ? "Create Expense" : "Save Changes"}</Button></div>
         </aside>
       </form>
     </PageContainer>

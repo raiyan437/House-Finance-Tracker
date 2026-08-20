@@ -92,6 +92,10 @@ function readyState(
       getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
+    analyticsActions: {
+      getDashboard: vi.fn(),
+      getMonthlyReport: vi.fn(),
+    },
   };
 }
 
@@ -164,6 +168,7 @@ describe("Phase 6 household presentation", () => {
 
   it("keeps household access requirements limited to the approved routes", () => {
     expect(routeRequiresHousehold("/dashboard")).toBe(true);
+    expect(routeRequiresHousehold("/reports/monthly")).toBe(true);
     expect(routeRequiresHousehold("/expenses/new")).toBe(true);
     expect(routeRequiresHousehold("/settlements/history")).toBe(true);
     expect(routeRequiresHousehold("/household")).toBe(false);

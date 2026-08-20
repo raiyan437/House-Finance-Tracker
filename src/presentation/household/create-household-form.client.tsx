@@ -71,7 +71,7 @@ export function CreateHouseholdForm() {
   }
 
   return (
-    <PageContainer className="grid gap-8">
+    <PageContainer className="grid gap-6">
       <PageHeader description="Choose a name and a globally unique nine-digit code." title="Create Household" />
       <Surface className="max-w-2xl" padding="large">
         <form className="grid gap-6" noValidate onSubmit={form.handleSubmit(submit)}>

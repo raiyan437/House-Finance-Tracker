@@ -29,4 +29,4 @@ House Finance Tracker is a local-first shared household expense-tracking applica
 
 ## Execution gate
 
-The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-9 are complete and committed; Phase 9 private Cards management is accepted as `d96451e`. Phase 10 Household management is implemented and verified under `docs/ai/work/PHASE_10_PLAN.md`, and remains uncommitted for review. Do not begin Phase 11. Appwrite remains gated until the local MVP is declared stable.
+The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-10 are complete, accepted, and committed; Phase 10 Household management is `c3585fe`. Phase 11 Dashboard, analytics, and Monthly Reports are implemented and verified under `docs/ai/work/PHASE_11_PLAN.md`, intentionally uncommitted for review. Phase 12 and Appwrite remain gated.

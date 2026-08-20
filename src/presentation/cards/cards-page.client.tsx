@@ -64,7 +64,7 @@ function CardTile({
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="break-words text-h3">{card.name}</h2>
+            <h2 className="panel-title break-words">{card.name}</h2>
             <p className={lightForeground ? "mt-1 capitalize text-white/80" : "mt-1 capitalize text-text-secondary"}>
               {card.type}
             </p>
@@ -185,7 +185,7 @@ function OwnedCardsPage({
 
   if (cardsState.status === "loading") {
     return (
-      <PageContainer className="space-y-8">
+      <PageContainer className="space-y-6">
         <PageHeader description="Private card labels are visible only to you." title="My Cards" />
         <LoadingState label="Loading your private Cards" />
       </PageContainer>
@@ -194,7 +194,7 @@ function OwnedCardsPage({
 
   if (cardsState.status === "error") {
     return (
-      <PageContainer className="space-y-8">
+      <PageContainer className="space-y-6">
         <PageHeader description="Private card labels are visible only to you." title="My Cards" />
         <ErrorState description="Your private Cards could not be read." onRetry={() => void reload()} title="Cards unavailable" />
       </PageContainer>
@@ -205,7 +205,7 @@ function OwnedCardsPage({
   const openAdd = (restoreFocusRef: RefObject<HTMLElement | null>) => setFormTarget({ restoreFocusRef });
 
   return (
-    <PageContainer className="space-y-8">
+    <PageContainer className="space-y-6">
       <PageHeader
         action={(
           <Button className="w-full sm:w-auto" onClick={() => openAdd(headerAddRef)} ref={headerAddRef}>
@@ -277,7 +277,7 @@ export function CardsPageClient() {
 
   if (runtime.status !== "ready") {
     return (
-      <PageContainer className="space-y-8">
+      <PageContainer className="space-y-6">
         <PageHeader description="Private card labels are visible only to you." title="My Cards" />
         <LoadingState label="Loading your private Cards" />
       </PageContainer>

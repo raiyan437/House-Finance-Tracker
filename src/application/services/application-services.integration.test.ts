@@ -19,6 +19,7 @@ import { SEEDED_HOUSEHOLD_ID, SEEDED_USER_IDS, seedLocalDatabase } from "@/infra
 import type { IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "@/infrastructure/indexeddb/records";
 import { HouseFinanceApplication, type ApplicationValues, type GeneratedIdKind } from "./application-services";
+import { calendarMonth } from "@/application/analytics/calendar-month";
 
 globalThis.Blob = NodeBlob as unknown as typeof Blob;
 
@@ -61,6 +62,33 @@ describe("Phase 4 application services with IndexedDB", () => {
     await session.switchIdentity(SEEDED_USER_IDS.john);
     const ownerView = await application.expenses.getExpense(expenseId("expense-internet"));
     expect(ownerView.privateCardSnapshot).toMatchObject({ cardName: "John Credit", cardType: "credit", colorId: "powder-blue" });
+  });
+
+  it("derives Dashboard and Monthly Report views without exposing private Card metadata", async () => {
+    const dashboard = await application.analytics.getDashboard(
+      SEEDED_HOUSEHOLD_ID,
+      calendarMonth("2026-08"),
+    );
+    expect(dashboard.spent).toBe(45_000);
+    expect(dashboard.dailySpending).toHaveLength(31);
+    expect(dashboard.paymentMix).toEqual({
+      total: 45_000,
+      cash: { amount: 30_000, basisPoints: 6_667 },
+      card: { amount: 15_000, basisPoints: 3_333 },
+    });
+    expect(dashboard.settlementHealth).toEqual({ outstandingCount: 1, pendingCount: 1 });
+    expect(JSON.stringify(dashboard)).not.toMatch(/John Credit|powder-blue|card-john-credit/);
+
+    const report = await application.analytics.getMonthlyReport(
+      SEEDED_HOUSEHOLD_ID,
+      calendarMonth("2026-08"),
+      (instant) => calendarMonth(instant.slice(0, 7)),
+    );
+    expect(report.expenseCount).toBe(2);
+    expect(report.comparison.kind).toBe("no-previous-spending");
+    expect(report.settlementActivity.claimsCreated.count).toBe(1);
+    expect(report.currentOutstanding).toEqual({ count: 2, total: 20_000 });
+    expect(JSON.stringify(report)).not.toMatch(/John Credit|powder-blue|card-john-credit/);
   });
 
   it("lets a leader preserve an opaque Card expense without loading private metadata", async () => {

@@ -76,7 +76,7 @@ export function JoinHouseholdForm() {
   }
 
   return (
-    <PageContainer className="grid gap-8">
+    <PageContainer className="grid gap-6">
       <PageHeader description="Enter the household's nine-digit code, then confirm where you want to send the request." title="Join Household" />
       <Surface className="max-w-2xl" padding="large">
         <form className="grid gap-6" noValidate onSubmit={form.handleSubmit(findHousehold)}>
@@ -99,7 +99,7 @@ export function JoinHouseholdForm() {
         {matchedHousehold ? (
           <div className="mt-6 rounded-xl border bg-secondary p-5" aria-live="polite">
             <p className="text-caption font-medium uppercase tracking-wide text-text-secondary">Household found</p>
-            <p className="mt-2 break-words text-h3">{matchedHousehold.name}</p>
+            <p className="panel-title mt-2 break-words">{matchedHousehold.name}</p>
             <p className="mt-1 font-mono text-body tabular-nums text-text-secondary">House code {matchedHousehold.code}</p>
             <p className="mt-4 text-body text-text-secondary">Only the household name and code are shown before acceptance.</p>
             {sendError ? <p className="mt-4 text-sm text-danger" role="alert">{sendError}</p> : null}

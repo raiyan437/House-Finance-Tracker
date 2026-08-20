@@ -3,3 +3,7 @@ export * from "./validation/household-onboarding.schema";
 export * from "./errors/application-error";
 export * from "./repositories";
 export * from "./services/application-services";
+export * from "./analytics/calendar-month";
+export * from "./analytics/monthly-analytics";
+export * from "./analytics/analytics-page";
+export * from "./analytics/analytics-service";

@@ -22,7 +22,7 @@ test("redirects to the primary destination and renders the application shell", a
   await expect(
     page.getByRole("heading", { name: "Dashboard", exact: true }),
   ).toHaveClass(/sr-only/);
-  await expect(page.getByText("Dashboard foundation ready")).toBeVisible();
+  await expect(page.getByText("Spending Trend", { exact: true })).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog], .vite-error-overlay")).toHaveCount(0);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

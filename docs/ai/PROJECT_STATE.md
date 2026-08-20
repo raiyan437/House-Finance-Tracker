@@ -3,12 +3,12 @@
 ## Snapshot
 
 - Project: House Finance Tracker
-- Stage: Phase 10 Household management implemented and verified; uncommitted for review
-- Application implementation: foundation, pure domain engines, application services/ports, IndexedDB v3 persistence/migration, responsive application shell/design system, household onboarding and management, complete local Expense/receipt and Settlement workflows, and complete owner-private Cards management
-- Local MVP: local session, household onboarding, active-member identity, protected House Code, Join Request review, Leave/Remove/Transfer/Delete workflows, exact financial gates, expense workflows, private Card management/selection/history, receipt evidence, current balances/recommendations, external-payment claims, receiver confirmation/rejection, sender cancellation, stale warnings, and settlement history are usable; Phase 11+ product features remain unimplemented
+- Stage: Phase 10 accepted and committed; Phase 11 plus the authorized UI Parity Pass are implemented and verified, awaiting uncommitted review
+- Application implementation: foundation, pure domain engines, application services/ports, IndexedDB v3 persistence/migration, responsive application shell/design system, household onboarding and management, complete local Expense/receipt and Settlement workflows, owner-private Cards management, source-derived Dashboard analytics, and Monthly Reports
+- Local MVP: local session, household onboarding, active-member identity, protected House Code, Join Request review, Leave/Remove/Transfer/Delete workflows, exact financial gates, expense workflows, private Card management/selection/history, receipt evidence, current balances/recommendations, settlement workflows/history, current-state Dashboard modules, selected-month spending analytics, and selected-month reports are usable; Phase 12+ work remains unimplemented
 - Appwrite integration: intentionally deferred
-- Requirements/design status: approved frozen context received and reconciled
-- Active implementation plan: Phases 1-9 completed and committed; Phase 10 is implemented and verified under `PHASE_10_PLAN.md` and awaits review
+- Requirements/design status: approved frozen context received and reconciled; the four canonical Figma desktop frames were applied as the UI Parity source of truth
+- Active implementation plan: Phases 1-10 completed and committed; Phase 11 and UI-P1 through UI-P7 are complete and intentionally uncommitted for review
 
 ## Confirmed direction
 
@@ -16,8 +16,8 @@ The product is a shared household expense tracker with a local/mock MVP, exact i
 
 ## Current gate
 
-Stop at the Phase 10 review gate. Do not begin Phase 11.
+Review Phase 11 and the completed presentation-only UI Parity Pass. Phase 12 is not authorized.
 
 ## Next safe action
 
-Review the uncommitted Phase 10 implementation and verification evidence. Phase 11+ and Appwrite remain unauthorized.
+Obtain review/acceptance of Phase 11 plus UI parity while leaving the implementation uncommitted. Do not begin Phase 12 or Appwrite.

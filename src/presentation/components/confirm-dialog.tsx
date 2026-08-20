@@ -15,13 +15,15 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface ConfirmDialogProps {
-  readonly trigger: React.ReactNode;
+  readonly trigger?: React.ReactNode;
   readonly title: string;
   readonly description: string;
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
   readonly destructive?: boolean;
   readonly errorMessage?: string;
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
   readonly onConfirm: () => void | Promise<void>;
 }
 
@@ -33,11 +35,18 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   destructive = false,
   errorMessage = "The action could not be completed. Try again.",
+  open: controlledOpen,
+  onOpenChange,
   onConfirm,
 }: ConfirmDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   async function confirm(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -56,7 +65,7 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!pending) setOpen(nextOpen); }}>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      {trigger ? <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger> : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

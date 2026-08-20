@@ -109,6 +109,18 @@ export interface CurrentSession {
   subscribe(listener: (userId: UserId) => void): () => void;
 }
 
+export interface ApplicationRepositories {
+  readonly profiles: UserProfileRepository;
+  readonly households: HouseholdRepository;
+  readonly memberships: MembershipRepository;
+  readonly joinRequests: JoinRequestRepository;
+  readonly expenses: ExpenseRepository;
+  readonly settlements: SettlementRepository;
+  readonly cards: CardRepository;
+  readonly receipts: ReceiptRepository;
+  readonly auditEvents: AuditEventRepository;
+}
+
 export interface DevelopmentIdentityController {
   listIdentityIds(): Promise<readonly UserId[]>;
   switchIdentity(userId: UserId): Promise<void>;

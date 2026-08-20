@@ -47,13 +47,9 @@ export function DevelopmentTools({
       <SheetTrigger asChild>
         <Button
           aria-label="Open development tools"
-          className="fixed right-4 z-40 gap-2 border-border-strong bg-warning-soft text-foreground shadow-[var(--shadow-card)] hover:bg-warning-soft/80 lg:bottom-4"
+          className="fixed right-4 bottom-[calc(var(--mobile-navigation-height)+env(safe-area-inset-bottom)+var(--space-4))] z-40 gap-1.5 border-border-strong bg-warning-soft text-foreground shadow-[var(--shadow-small)] hover:bg-warning-soft/80 lg:bottom-2 lg:left-[9.5rem] lg:right-auto"
           data-testid="development-tools-trigger"
           size="sm"
-          style={{
-            bottom:
-              "calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-4))",
-          }}
           variant="outline"
         >
           <Wrench aria-hidden="true" />

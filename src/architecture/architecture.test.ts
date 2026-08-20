@@ -185,4 +185,35 @@ describe("source dependency boundaries", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("keeps Recharts out of aggregation and limits it to the approved chart boundary", () => {
+    const imports = sourceFiles(sourceRoot).flatMap((file) =>
+      importedSpecifiers(readFileSync(file, "utf8"))
+        .filter((specifier) => specifier === "recharts")
+        .map(() => relative(sourceRoot, file).replaceAll("\\", "/")),
+    );
+
+    expect(imports).toEqual([
+      "presentation/analytics/analytics-charts.client.tsx",
+    ]);
+  });
+
+  it("does not introduce persisted Dashboard or report aggregates", () => {
+    const persistenceSource = sourceFiles(resolve(sourceRoot, "infrastructure"))
+      .map((file) => readFileSync(file, "utf8"))
+      .join("\n");
+
+    expect(persistenceSource).not.toMatch(
+      /DashboardPageView|MonthlyReportPageView|dailySpending|paymentMix|monthComparison|settlementHealth/,
+    );
+  });
+
+  it("keeps Expense month aggregation free of instant and timezone conversion", () => {
+    const expenseAnalytics = [
+      "application/analytics/monthly-analytics.ts",
+      "application/analytics/analytics-page.ts",
+    ].map((path) => readFileSync(resolve(sourceRoot, path), "utf8")).join("\n");
+
+    expect(expenseAnalytics).not.toMatch(/Date\.UTC|toISOString|new Date\s*\(/);
+  });
 });

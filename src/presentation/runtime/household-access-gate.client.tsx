@@ -10,6 +10,7 @@ export const HOUSEHOLD_REQUIRED_ROUTE_PREFIXES = Object.freeze([
   "/dashboard",
   "/expenses",
   "/settlements",
+  "/reports",
 ]);
 
 export function routeRequiresHousehold(pathname: string): boolean {

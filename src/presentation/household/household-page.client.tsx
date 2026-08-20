@@ -27,7 +27,7 @@ import type { MemberManagementAction } from "./household-member-actions";
 function HouseholdIdentity({ name, code }: Readonly<{ name: string; code: string }>) {
   return (
     <div className="min-w-0">
-      <p className="break-words text-h3">{name}</p>
+      <p className="panel-title break-words">{name}</p>
       <HouseCodeControls code={code} />
     </div>
   );
@@ -40,7 +40,7 @@ function NoHouseholdState() {
         <span className="flex size-11 items-center justify-center rounded-full bg-brand-soft">
           <House aria-hidden="true" className="size-5" />
         </span>
-        <h2 className="mt-6 text-h3">Create a Household</h2>
+        <h2 className="panel-title mt-6">Create a Household</h2>
         <p className="mt-2 flex-1 text-body text-text-secondary">Start a household and become its leader.</p>
         <Button asChild className="mt-6 w-full sm:w-fit">
           <Link href="/household/create">Create a Household <ArrowRight aria-hidden="true" /></Link>
@@ -50,7 +50,7 @@ function NoHouseholdState() {
         <span className="flex size-11 items-center justify-center rounded-full bg-secondary">
           <UserPlus aria-hidden="true" className="size-5" />
         </span>
-        <h2 className="mt-6 text-h3">Join a Household</h2>
+        <h2 className="panel-title mt-6">Join a Household</h2>
         <p className="mt-2 flex-1 text-body text-text-secondary">Use a nine-digit code to request access.</p>
         <Button asChild className="mt-6 w-full sm:w-fit" variant="outline">
           <Link href="/household/join">Join a Household <ArrowRight aria-hidden="true" /></Link>
@@ -161,7 +161,7 @@ function ActiveHouseholdView({
       <Surface padding="large">
         <div className="flex items-center gap-2">
           <Crown aria-hidden="true" className="size-5" />
-          <h2 className="text-h2">House Leader</h2>
+          <h2 className="panel-title">House Leader</h2>
         </div>
         <div className="mt-5 flex items-center gap-3 rounded-xl bg-secondary/45 p-4">
           <MemberAvatar className="size-11" displayName={page.leader.displayName} />
@@ -175,7 +175,7 @@ function ActiveHouseholdView({
       <Surface padding="large">
         <div className="flex items-center gap-2">
           <Users aria-hidden="true" className="size-5" />
-          <h2 className="text-h2">Members</h2>
+          <h2 className="panel-title">Members</h2>
         </div>
         <p className="mt-2 text-body text-text-secondary">Current active household members.</p>
         <HouseholdMemberList
@@ -187,7 +187,7 @@ function ActiveHouseholdView({
 
       {page.viewerRole === "leader" ? (
         <Surface padding="large">
-          <h2 className="text-h2">Join requests</h2>
+          <h2 className="panel-title">Join requests</h2>
           <p className="mt-2 text-body text-text-secondary">Review people waiting to join this household.</p>
           {joinRequests.length ? (
             <ul className="mt-4" aria-label="Pending join requests">
@@ -206,7 +206,7 @@ function ActiveHouseholdView({
       ) : null}
 
       <Surface padding="large">
-        <h2 className="text-h2">Household management</h2>
+        <h2 className="panel-title">Household management</h2>
         <p className="mt-2 text-body text-text-secondary">Leave only after your exact balance and Pending settlements are clear.</p>
         <Button
           className="mt-5 w-full sm:w-fit"
@@ -222,7 +222,7 @@ function ActiveHouseholdView({
 
       {page.viewerRole === "leader" ? (
         <Surface className="border-danger/25" padding="large">
-          <h2 className="text-h2 text-danger">Danger zone</h2>
+          <h2 className="panel-title text-danger">Danger zone</h2>
           <p className="mt-2 text-body text-text-secondary">Close this household for every active member while preserving historical financial records.</p>
           <Button
             className="mt-5 w-full sm:w-fit"
@@ -272,7 +272,7 @@ export function HouseholdPageClient() {
   }
 
   return (
-    <PageContainer className="grid gap-8">
+    <PageContainer className="grid gap-6">
       <PageHeader
         description={household.status === "no-household" ? "You aren't part of a household yet." : undefined}
         title="Household"

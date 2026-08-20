@@ -265,7 +265,7 @@ export function SettlementsPageClient() {
   if (!view || runtime.status !== "ready") return null;
 
   return (
-    <PageContainer className="space-y-8">
+    <PageContainer className="space-y-6">
       <PageHeader title="Settlements" description="Review your current position and record payments made outside House Finance Tracker." />
       <p aria-live="polite" className="sr-only" role="status">{feedback}</p>
 
@@ -278,11 +278,11 @@ export function SettlementsPageClient() {
       </section>
 
       <section aria-labelledby="settle-up-heading" className="space-y-4">
-        <div><h2 className="text-h2" id="settle-up-heading">Settle Up</h2><p className="mt-1 text-text-secondary">Current recommendations are derived from household history.</p></div>
+        <div><h2 className="panel-title" id="settle-up-heading">Settle Up</h2><p className="compact-caption mt-1 text-text-muted">Current recommendations are derived from household history.</p></div>
         {view.recommendations.length === 0 ? (
           <Surface className="py-10 text-center">
             <ReceiptText aria-hidden="true" className="mx-auto size-8 text-success" />
-            <h3 className="mt-3 text-h3">You&apos;re all settled.</h3>
+            <h3 className="panel-title mt-3">You&apos;re all settled.</h3>
             <p className="mt-2 text-text-secondary">Nobody currently owes anything.</p>
           </Surface>
         ) : (
@@ -302,7 +302,7 @@ export function SettlementsPageClient() {
       </section>
 
       <section aria-labelledby="pending-heading" className="space-y-4">
-        <div><h2 className="text-h2" id="pending-heading">Pending</h2><p className="mt-1 text-text-secondary">Payments waiting for confirmation or cancellation.</p></div>
+        <div><h2 className="panel-title" id="pending-heading">Pending</h2><p className="compact-caption mt-1 text-text-muted">Payments waiting for confirmation or cancellation.</p></div>
         {view.pending.length === 0 ? <Surface><p className="text-text-secondary">No Pending payments involve you.</p></Surface> : (
           <ul className="grid gap-4 lg:grid-cols-2">
             {view.pending.map((item) => (
@@ -320,7 +320,7 @@ export function SettlementsPageClient() {
       </section>
 
       <section aria-labelledby="history-heading" className="space-y-4">
-        <div><h2 className="text-h2" id="history-heading">History</h2><p className="mt-1 text-text-secondary">Completed household settlement records.</p></div>
+        <div><h2 className="panel-title" id="history-heading">History</h2><p className="compact-caption mt-1 text-text-muted">Completed household settlement records.</p></div>
         <History items={view.history} />
       </section>
     </PageContainer>

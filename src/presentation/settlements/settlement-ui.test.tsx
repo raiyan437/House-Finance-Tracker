@@ -119,6 +119,10 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
       getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
+    analyticsActions: {
+      getDashboard: vi.fn(),
+      getMonthlyReport: vi.fn(),
+    },
   };
   render(<ApplicationRuntimeProvider value={runtime}><SettlementsPageClient /></ApplicationRuntimeProvider>);
   return settlementActions;

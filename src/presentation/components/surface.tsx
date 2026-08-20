@@ -17,6 +17,8 @@ const surfaceVariants = cva("border bg-card text-card-foreground", {
     padding: {
       none: "p-0",
       small: "p-4",
+      compact: "p-5",
+      canonical: "p-5",
       default: "p-5 md:p-6",
       large: "p-6 md:p-8",
     },

@@ -24,11 +24,11 @@ export function PageHeader({
       {...props}
     >
       <div>
-        <Heading className={headingLevel === "h1" ? "text-display" : "text-h2"}>
+        <Heading className={headingLevel === "h1" ? "page-title" : "text-h2"}>
           {title}
         </Heading>
         {description ? (
-          <p className="mt-2 max-w-2xl text-body-large text-text-secondary">
+          <p className="mt-1 max-w-2xl text-[13px] leading-[18px] text-text-muted">
             {description}
           </p>
         ) : null}

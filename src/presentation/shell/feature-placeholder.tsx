@@ -17,7 +17,7 @@ export function FeaturePlaceholder({
 }: FeaturePlaceholderProps) {
   return (
     <PageContainer className="grid gap-6">
-      <h1 className={hideVisiblePageTitle ? "sr-only" : "text-display"}>{title}</h1>
+      <h1 className={hideVisiblePageTitle ? "sr-only" : "page-title"}>{title}</h1>
       <EmptyState description={description} icon={icon} title={`${title} foundation ready`} />
     </PageContainer>
   );

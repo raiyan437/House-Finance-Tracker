@@ -58,6 +58,10 @@ function runtimeFor(
       deleteOrArchive: vi.fn(),
       ...overrides,
     },
+    analyticsActions: {
+      getDashboard: vi.fn(),
+      getMonthlyReport: vi.fn(),
+    },
   };
 }
 

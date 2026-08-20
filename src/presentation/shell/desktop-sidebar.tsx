@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,11 +20,11 @@ export function DesktopSidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-svh border-r bg-sidebar lg:flex lg:flex-col">
-      <div className="px-5 py-6 xl:px-6">
+      <div className="px-6 pb-10 pt-7">
         <Brand />
       </div>
-      <nav aria-label="Primary navigation" className="flex-1 px-3 xl:px-4">
-        <ul className="grid gap-1">
+      <nav aria-label="Primary navigation" className="flex-1 px-4 pt-2">
+        <ul className="grid gap-2">
           {desktopNavigationItems.map((item) => {
             const active = item.isActive(pathname);
             const Icon = item.icon;
@@ -38,14 +37,18 @@ export function DesktopSidebar() {
                 <Link
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                    "flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium text-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                     active
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      ? "bg-foreground text-white"
                       : "hover:bg-secondary hover:text-foreground",
                   )}
                   href={item.href}
                 >
-                  <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
+                  <Icon
+                    aria-hidden="true"
+                    className={cn("size-4", active && "text-brand")}
+                    strokeWidth={1.8}
+                  />
                   <span>{item.label}</span>
                   {actionCount > 0 ? (
                     <span
@@ -61,17 +64,20 @@ export function DesktopSidebar() {
           })}
         </ul>
       </nav>
-      <div className="border-t p-4 xl:p-5">
+      <div className="border-t px-4 pb-12 pt-5">
+        <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+          Account
+        </p>
         {runtime.status === "ready" ? (
           <Link
             aria-current={pathname.startsWith("/profile") ? "page" : undefined}
-            className="block rounded-md p-2 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="flex h-[74px] items-center rounded-2xl border bg-secondary px-3 transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
             href="/profile"
           >
             <MemberRow
               displayName={runtime.session.displayName}
               secondaryText={runtime.session.roleLabel}
-              className="[&_p:last-child]:text-text-secondary"
+              className="w-full [&_[data-slot=avatar]]:size-[42px] [&_p:first-child]:text-[13px] [&_p:last-child]:text-[11px] [&_p:last-child]:text-text-muted"
             />
           </Link>
         ) : (
@@ -86,18 +92,17 @@ export function DesktopSidebar() {
         <Button
           aria-describedby="logout-unavailable-description"
           aria-disabled="true"
-          className="mt-2 w-full justify-start text-text-secondary"
+          className="mt-4 h-10 w-full justify-center rounded-xl bg-foreground text-[13px] font-semibold text-white hover:bg-foreground/90 aria-disabled:cursor-not-allowed aria-disabled:opacity-100"
           onClick={preventUnavailableAction}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") preventUnavailableAction(event);
           }}
-          variant="ghost"
+          variant="default"
         >
-          <LogOut aria-hidden="true" />
           Log Out
         </Button>
         <p
-          className="mt-1 px-3 text-caption text-text-secondary"
+          className="sr-only"
           id="logout-unavailable-description"
         >
           Authentication is introduced in a later phase.

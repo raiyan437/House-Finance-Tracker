@@ -22,6 +22,11 @@ import type {
   PendingSettlementView,
   SettlementPageView,
 } from "@/application/settlements/settlement-page";
+import type {
+  DashboardPageView,
+  MonthlyReportPageView,
+} from "@/application/analytics/analytics-page";
+import type { CalendarMonth } from "@/application/analytics/calendar-month";
 import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import type { SettlementRecommendation } from "@/domain/settlements/settlement-types";
 import type {
@@ -105,6 +110,17 @@ export interface SettlementApplicationActions {
   readonly cancel: (settlementId: SettlementId) => Promise<void>;
 }
 
+export interface AnalyticsApplicationActions {
+  readonly getDashboard: (
+    householdId: HouseholdId,
+    month: CalendarMonth,
+  ) => Promise<DashboardPageView>;
+  readonly getMonthlyReport: (
+    householdId: HouseholdId,
+    month: CalendarMonth,
+  ) => Promise<MonthlyReportPageView>;
+}
+
 export type ApplicationRuntimeState =
   | Readonly<{ status: "loading" }>
   | Readonly<{
@@ -115,6 +131,7 @@ export type ApplicationRuntimeState =
       expenseActions: ExpenseApplicationActions;
       settlementActions: SettlementApplicationActions;
       cardActions: CardApplicationActions;
+      analyticsActions: AnalyticsApplicationActions;
     }>
   | Readonly<{
       status: "error";

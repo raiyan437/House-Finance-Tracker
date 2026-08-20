@@ -5,6 +5,7 @@ import type { LocalDevelopmentRuntime } from "@/infrastructure/local-runtime.cli
 import { LocalDevelopmentRuntime as LocalRuntime } from "@/infrastructure/local-runtime.client";
 import {
   ApplicationRuntimeProvider,
+  type AnalyticsApplicationActions,
   type ApplicationRuntimeState,
   type CardApplicationActions,
   type CurrentSessionView,
@@ -12,6 +13,7 @@ import {
   type HouseholdApplicationActions,
   type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
+import { localCalendarMonthFromInstant } from "@/application/analytics/calendar-month";
 import {
   DevelopmentTools,
   type DevelopmentIdentityOption,
@@ -138,6 +140,7 @@ export function LocalApplicationRuntime({
     let expenseActions: ExpenseApplicationActions;
     let settlementActions: SettlementApplicationActions;
     let cardActions: CardApplicationActions;
+    let analyticsActions: AnalyticsApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -152,6 +155,7 @@ export function LocalApplicationRuntime({
             expenseActions,
             settlementActions,
             cardActions,
+            analyticsActions,
           });
         }
       } catch {
@@ -255,6 +259,16 @@ export function LocalApplicationRuntime({
           getRemovalPreview: (cardId) => runtime.application.cards.getMyCardRemovalPreview(cardId),
           deleteOrArchive: (cardId, expectedAction) =>
             runtime.application.cards.deleteOrArchiveMyCard(cardId, expectedAction),
+        });
+        analyticsActions = Object.freeze<AnalyticsApplicationActions>({
+          getDashboard: (householdId, month) =>
+            runtime.application.analytics.getDashboard(householdId, month),
+          getMonthlyReport: (householdId, month) =>
+            runtime.application.analytics.getMonthlyReport(
+              householdId,
+              month,
+              localCalendarMonthFromInstant,
+            ),
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);
