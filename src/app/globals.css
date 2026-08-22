@@ -211,6 +211,11 @@
   line-height: 1rem;
 }
 
+.daily-spending-tick {
+  fill: var(--text-muted);
+  font-size: 0.625rem;
+}
+
 .skip-link {
   position: fixed;
   inset-block-start: var(--space-3);
@@ -238,11 +243,15 @@
   }
 
   .dashboard-analytics-grid {
-    grid-template-columns: 710px 418px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-bottom-grid {
-    grid-template-columns: 550px 578px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  }
+
+  .dashboard-payment-mix-card {
+    grid-column: auto;
   }
 
   .expense-filter-grid {
@@ -297,6 +306,53 @@
 
   .expense-activity-panel {
     height: 184px;
+  }
+}
+
+.dashboard-analytics-grid > *,
+.dashboard-bottom-grid > * {
+  min-width: 0;
+}
+
+.dashboard-bottom-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 48rem) {
+  .dashboard-bottom-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .dashboard-payment-mix-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 80rem) {
+  .dashboard-bottom-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  }
+
+  .dashboard-payment-mix-card {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 24.375rem) {
+  [data-slot="daily-spending-chart-canvas"] {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 30rem) {
+  .daily-spending-tick {
+    font-size: 0.5rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  [data-slot="daily-spending-chart"] {
+    overflow-x: hidden;
   }
 }
 

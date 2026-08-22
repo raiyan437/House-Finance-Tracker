@@ -3,12 +3,13 @@ import { deleteDB, openDB, unwrap, type IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "./records";
 import {
   migrateCardRecordV1ToV2,
-  migrateExpenseRecordV1ToV2,
+  migrateExpenseRecordToV3,
   migratePrivateCardRecordV1ToV2,
+  migrateReceiptRecordV1ToV2,
 } from "./mappers";
 
 export const LOCAL_DATABASE_NAME = "house-finance-tracker-local";
-export const LOCAL_DATABASE_VERSION = 3;
+export const LOCAL_DATABASE_VERSION = 5;
 
 function sanitizedMigrationError(error: unknown, store: string): ApplicationError {
   if (error instanceof ApplicationError) {
@@ -23,7 +24,7 @@ function sanitizedMigrationError(error: unknown, store: string): ApplicationErro
 
 function migrateStore(
   transaction: IDBTransaction,
-  store: "expenses" | "cards" | "expenseCardPrivateDetails",
+  store: "expenses" | "cards" | "expenseCardPrivateDetails" | "receiptMetadata",
   transform: (value: unknown) => unknown,
   onError: (error: ApplicationError) => void,
 ): void {
@@ -90,12 +91,18 @@ function createSchemaV1(database: IDBPDatabase<HouseFinanceDatabase>): void {
   const receiptMetadata = database.createObjectStore("receiptMetadata", { keyPath: "id" });
   receiptMetadata.createIndex("expenseId", "expenseId");
   receiptMetadata.createIndex("householdId", "householdId");
+  receiptMetadata.createIndex("contentStatusCreatedAt", ["contentStatus", "createdAt"]);
+  receiptMetadata.createIndex("contentStatus", "contentStatus");
+  receiptMetadata.createIndex("expenseContentStatus", ["expenseId", "contentStatus"]);
+  receiptMetadata.createIndex("uploaderContentStatus", ["createdByUserId", "contentStatus"]);
 
   database.createObjectStore("receiptBlobs", { keyPath: "receiptId" });
 
   const audits = database.createObjectStore("auditEvents", { keyPath: "id" });
   audits.createIndex("householdId", "householdId");
   database.createObjectStore("developmentSession", { keyPath: "key" });
+  const commandOutcomes = database.createObjectStore("commandOutcomes", { keyPath: "key" });
+  commandOutcomes.createIndex("actorId", "actorId");
 }
 
 export async function openLocalDatabase(
@@ -119,11 +126,14 @@ export async function openLocalDatabase(
           // The first migration failure may already have aborted the transaction.
         }
       };
-      if (oldVersion >= 1 && oldVersion < 2) {
+      if (
+        oldVersion >= 1 && oldVersion < 5
+        && database.objectStoreNames.contains("expenses")
+      ) {
         migrateStore(
           nativeTransaction,
           "expenses",
-          (value) => migrateExpenseRecordV1ToV2(value),
+          (value) => migrateExpenseRecordToV3(value),
           failMigration,
         );
       }
@@ -143,6 +153,34 @@ export async function openLocalDatabase(
             migratePrivateCardRecordV1ToV2,
             failMigration,
           );
+        }
+      }
+      if (
+        oldVersion >= 1
+        && oldVersion < 4
+        && database.objectStoreNames.contains("receiptMetadata")
+      ) {
+        const receiptStore = transaction.objectStore("receiptMetadata");
+        if (!receiptStore.indexNames.contains("contentStatusCreatedAt")) {
+          receiptStore.createIndex("contentStatusCreatedAt", ["contentStatus", "createdAt"]);
+        }
+        migrateStore(
+          nativeTransaction,
+          "receiptMetadata",
+          migrateReceiptRecordV1ToV2,
+          failMigration,
+        );
+      }
+      if (oldVersion >= 1 && oldVersion < 5) {
+        if (!database.objectStoreNames.contains("commandOutcomes")) {
+          const outcomes = database.createObjectStore("commandOutcomes", { keyPath: "key" });
+          outcomes.createIndex("actorId", "actorId");
+        }
+        if (database.objectStoreNames.contains("receiptMetadata")) {
+          const receiptStore = transaction.objectStore("receiptMetadata");
+          if (!receiptStore.indexNames.contains("contentStatus")) receiptStore.createIndex("contentStatus", "contentStatus");
+          if (!receiptStore.indexNames.contains("expenseContentStatus")) receiptStore.createIndex("expenseContentStatus", ["expenseId", "contentStatus"]);
+          if (!receiptStore.indexNames.contains("uploaderContentStatus")) receiptStore.createIndex("uploaderContentStatus", ["createdByUserId", "contentStatus"]);
         }
       }
     },

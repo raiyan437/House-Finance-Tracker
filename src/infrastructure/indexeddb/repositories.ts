@@ -1,16 +1,20 @@
 import { ApplicationError } from "@/application/errors/application-error";
+import { assertReceiptContentStructure } from "@/application/receipts/receipt-content-validation";
 import type {
   AuditEventRepository,
   CardRepository,
+  CommandOutcomeRepository,
   ExpenseRepository,
   HouseholdRepository,
   JoinRequestRepository,
   MembershipRepository,
   ReceiptContent,
   ReceiptRepository,
+  ReceiptRetentionRepository,
   SettlementRepository,
   UserProfileRepository,
 } from "@/application/repositories";
+import { markReceiptContentRetentionExpired } from "@/domain/receipts/receipt-content-lifecycle";
 import { DomainError } from "@/domain/shared/domain-error";
 import type {
   CardId,
@@ -26,6 +30,7 @@ import type { IDBPDatabase } from "idb";
 import {
   fromAuditRecord,
   fromCardRecord,
+  fromCommandOutcomeRecord,
   fromExpenseRecord,
   fromHouseholdRecord,
   fromJoinRequestRecord,
@@ -36,7 +41,6 @@ import {
   fromSettlementRecord,
   toAuditRecord,
   toCardRecord,
-  toExpenseRecord,
   toHouseholdRecord,
   toJoinRequestRecord,
   toMembershipRecord,
@@ -138,10 +142,6 @@ export class IndexedDbExpenseRepository implements ExpenseRepository {
   async getById(id: ExpenseId) { const raw = await (await database(this.source)).get("expenses", id); return raw ? fromExpenseRecord(raw, id) : undefined; }
   async listHouseholdHistory(household: HouseholdId) { const raw = await (await database(this.source)).getAllFromIndex("expenses", "householdId", household); return raw.map((item) => fromExpenseRecord(item, item.id)); }
   async listActiveForBalances(household: HouseholdId) { return (await this.listHouseholdHistory(household)).filter((item) => !item.deletedAt); }
-  async create(value: Parameters<ExpenseRepository["create"]>[0]) { try { await (await database(this.source)).add("expenses", toExpenseRecord(value)); } catch (error) { persistenceFailure(error); } }
-  async replace(value: Parameters<ExpenseRepository["replace"]>[0]) { await this.replaceExisting(value, false); }
-  async markDeleted(value: Parameters<ExpenseRepository["markDeleted"]>[0]) { await this.replaceExisting(value, true); }
-  private async replaceExisting(value: Parameters<ExpenseRepository["replace"]>[0], mustBeDeleted: boolean) { try { if (mustBeDeleted !== Boolean(value.deletedAt)) throw new ApplicationError("CONFLICT", "Expense deletion state does not match the operation."); const db = await database(this.source); if (!(await db.getKey("expenses", value.expenseId))) throw new ApplicationError("NOT_FOUND", "Expense not found."); await db.put("expenses", toExpenseRecord(value)); } catch (error) { persistenceFailure(error); } }
   async getPrivateCardSnapshot(id: ExpenseId, owner: UserId) { const raw = await (await database(this.source)).get("expenseCardPrivateDetails", id); if (!raw || raw.ownerId !== owner) return undefined; return fromPrivateCardRecord(raw, id); }
 }
 
@@ -179,13 +179,7 @@ export class IndexedDbCardRepository implements CardRepository {
 }
 
 function receiptBlob(metadata: Parameters<ReceiptRepository["create"]>[0], content: ReceiptContent): ReceiptBlobRecordV1 {
-  const signatureMatches =
-    (content.mimeType === "image/jpeg" && content.bytes.length >= 3 && content.bytes[0] === 0xff && content.bytes[1] === 0xd8 && content.bytes[2] === 0xff) ||
-    (content.mimeType === "image/png" && content.bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((byte, index) => content.bytes[index] === byte)) ||
-    (content.mimeType === "image/webp" && content.bytes.length >= 12 && String.fromCharCode(...content.bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...content.bytes.slice(8, 12)) === "WEBP");
-  if (!signatureMatches) {
-    throw new ApplicationError("RECEIPT_CONTENT_MISMATCH", "Receipt bytes do not match the declared supported image type.");
-  }
+  assertReceiptContentStructure(content);
   const bytes = new Uint8Array(content.bytes.byteLength);
   bytes.set(content.bytes);
   const blob = new Blob([bytes.buffer], { type: content.mimeType });
@@ -195,19 +189,80 @@ function receiptBlob(metadata: Parameters<ReceiptRepository["create"]>[0], conte
   return { recordVersion: 1, receiptId: metadata.receiptId, blob };
 }
 
-export class IndexedDbReceiptRepository implements ReceiptRepository {
+export class IndexedDbReceiptRepository implements ReceiptRepository, ReceiptRetentionRepository {
   constructor(private readonly source: DatabaseSource) {}
   async listForExpense(id: ExpenseId) { const raw = await (await database(this.source)).getAllFromIndex("receiptMetadata", "expenseId", id); return raw.map((item) => fromReceiptRecord(item, item.id)); }
+  async availableBytesByUploader(id: UserId) { const raw = await (await database(this.source)).getAllFromIndex("receiptMetadata", "uploaderContentStatus", [id, "available"]); return raw.reduce((total, item) => total + fromReceiptRecord(item, item.id).sizeBytes, 0); }
   async getMetadata(id: ReceiptId) { const raw = await (await database(this.source)).get("receiptMetadata", id); return raw ? fromReceiptRecord(raw, id) : undefined; }
-  async readContent(id: ReceiptId) { const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readonly"); const metadataRaw = await transaction.objectStore("receiptMetadata").get(id); const blobRaw = await transaction.objectStore("receiptBlobs").get(id); await transaction.done; if (!metadataRaw || !blobRaw) return undefined; const metadata = fromReceiptRecord(metadataRaw, id); if (metadata.deletedAt) return undefined; const blob = blobRaw.blob as Blob; if (blobRaw.recordVersion !== 1 || blobRaw.receiptId !== id || typeof blob?.size !== "number" || typeof blob?.type !== "string" || blob.type !== metadata.mimeType || blob.size !== metadata.sizeBytes) throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Stored receipt content failed validation.", { store: "receiptBlobs", key: id }); return { bytes: await blobBytes(blob), mimeType: metadata.mimeType }; }
-  async create(metadata: Parameters<ReceiptRepository["create"]>[0], content: ReceiptContent) { try { const metadataRecord = toReceiptRecord(metadata); if (metadata.deletedAt) throw new ApplicationError("CONFLICT", "A new receipt cannot be deleted."); const blobRecord = receiptBlob(metadata, content); const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readwrite"); await transaction.objectStore("receiptMetadata").add(metadataRecord); await transaction.objectStore("receiptBlobs").add(blobRecord); await transaction.done; } catch (error) { persistenceFailure(error); } }
-  async deleteContentAndTombstone(metadata: Parameters<ReceiptRepository["deleteContentAndTombstone"]>[0]) { try { if (!metadata.deletedAt) throw new ApplicationError("CONFLICT", "Receipt deletion requires a tombstone."); const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readwrite"); if (!(await transaction.objectStore("receiptMetadata").getKey(metadata.receiptId))) throw new ApplicationError("NOT_FOUND", "Receipt not found."); await transaction.objectStore("receiptMetadata").put(toReceiptRecord(metadata)); await transaction.objectStore("receiptBlobs").delete(metadata.receiptId); await transaction.done; } catch (error) { persistenceFailure(error); } }
+  async readContent(id: ReceiptId) { const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readonly"); const metadataRaw = await transaction.objectStore("receiptMetadata").get(id); const blobRaw = await transaction.objectStore("receiptBlobs").get(id); await transaction.done; if (!metadataRaw) return undefined; const metadata = fromReceiptRecord(metadataRaw, id); if (metadata.contentStatus !== "available") return undefined; if (!blobRaw) throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Available receipt content is missing.", { store: "receiptBlobs", key: id }); const blob = blobRaw.blob as Blob; if (blobRaw.recordVersion !== 1 || blobRaw.receiptId !== id || typeof blob?.size !== "number" || typeof blob?.type !== "string" || blob.type !== metadata.mimeType || blob.size !== metadata.sizeBytes) throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Stored receipt content failed validation.", { store: "receiptBlobs", key: id }); return { bytes: await blobBytes(blob), mimeType: metadata.mimeType }; }
+  async create(metadata: Parameters<ReceiptRepository["create"]>[0], content: ReceiptContent) { try { const metadataRecord = toReceiptRecord(metadata); if (metadata.contentStatus !== "available") throw new ApplicationError("CONFLICT", "New receipt content must be available."); const blobRecord = receiptBlob(metadata, content); const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readwrite"); await transaction.objectStore("receiptMetadata").add(metadataRecord); await transaction.objectStore("receiptBlobs").add(blobRecord); await transaction.done; } catch (error) { persistenceFailure(error); } }
+  async deleteContentAndMarkUserDeleted(metadata: Parameters<ReceiptRepository["deleteContentAndMarkUserDeleted"]>[0]) { try { if (metadata.contentStatus !== "user-deleted") throw new ApplicationError("CONFLICT", "Receipt user deletion requires an explicit terminal state."); const db = await database(this.source); const transaction = db.transaction(["receiptMetadata", "receiptBlobs"], "readwrite"); const currentRaw = await transaction.objectStore("receiptMetadata").get(metadata.receiptId); if (!currentRaw) throw new ApplicationError("NOT_FOUND", "Receipt not found."); if (fromReceiptRecord(currentRaw, metadata.receiptId).contentStatus !== "available") throw new ApplicationError("CONFLICT", "Terminal receipt content cannot be overwritten."); await transaction.objectStore("receiptMetadata").put(toReceiptRecord(metadata)); await transaction.objectStore("receiptBlobs").delete(metadata.receiptId); await transaction.done; } catch (error) { persistenceFailure(error); } }
+  async findEligibleAvailableReceipts(input: Parameters<ReceiptRetentionRepository["findEligibleAvailableReceipts"]>[0]) {
+    try {
+      const db = await database(this.source);
+      const transaction = db.transaction("receiptMetadata", "readonly");
+      const index = transaction.store.index("contentStatusCreatedAt");
+      const range = IDBKeyRange.bound(["available", ""], ["available", input.cutoff], false, true);
+      const matches = [];
+      let cursor = await index.openCursor(range);
+      while (cursor && matches.length < input.limit) {
+        const metadata = fromReceiptRecord(cursor.value, cursor.primaryKey);
+        const after = input.after;
+        if (!after || metadata.createdAt > after.createdAt || (metadata.createdAt === after.createdAt && metadata.receiptId > after.receiptId)) {
+          matches.push(metadata);
+        }
+        cursor = await cursor.continue();
+      }
+      await transaction.done;
+      return matches;
+    } catch (error) { persistenceFailure(error); }
+  }
+  async removeContentIfPresent(id: ReceiptId) {
+    try {
+      const db = await database(this.source);
+      const transaction = db.transaction("receiptBlobs", "readwrite");
+      const existed = Boolean(await transaction.store.getKey(id));
+      if (existed) await transaction.store.delete(id);
+      await transaction.done;
+      return existed ? "removed" as const : "already-missing" as const;
+    } catch (error) { persistenceFailure(error); }
+  }
+  async markRetentionExpiredConditionally(input: Parameters<ReceiptRetentionRepository["markRetentionExpiredConditionally"]>[0]) {
+    try {
+      const db = await database(this.source);
+      const transaction = db.transaction("receiptMetadata", "readwrite");
+      const raw = await transaction.store.get(input.receiptId);
+      if (!raw) throw new ApplicationError("NOT_FOUND", "Receipt not found.");
+      const current = fromReceiptRecord(raw, input.receiptId);
+      if (current.contentStatus !== "available") {
+        await transaction.done;
+        return "terminal" as const;
+      }
+      if (current.createdAt !== input.expectedCreatedAt) {
+        await transaction.done;
+        throw new ApplicationError("CONFLICT", "Receipt creation time changed during retention.");
+      }
+      const expired = markReceiptContentRetentionExpired(current, input.removedAt);
+      await transaction.store.put(toReceiptRecord(expired));
+      await transaction.done;
+      return "transitioned" as const;
+    } catch (error) { persistenceFailure(error); }
+  }
 }
 
 export class IndexedDbAuditEventRepository implements AuditEventRepository {
   constructor(private readonly source: DatabaseSource) {}
   async append(value: Parameters<AuditEventRepository["append"]>[0]) { try { await (await database(this.source)).add("auditEvents", toAuditRecord(value)); } catch (error) { persistenceFailure(error); } }
   async listByHousehold(household: HouseholdId) { const raw = await (await database(this.source)).getAllFromIndex("auditEvents", "householdId", household); return raw.map((item) => fromAuditRecord(item, item.id)).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt)); }
+}
+
+export class IndexedDbCommandOutcomeRepository implements CommandOutcomeRepository {
+  constructor(private readonly source: DatabaseSource) {}
+  async get(descriptor: Parameters<CommandOutcomeRepository["get"]>[0]) {
+    const key = JSON.stringify([descriptor.actorId, descriptor.commandType, descriptor.commandId]);
+    const raw = await (await database(this.source)).get("commandOutcomes", key);
+    return raw ? fromCommandOutcomeRecord(raw, key) : undefined;
+  }
 }
 
 export class IndexedDbRepositories {
@@ -220,6 +275,7 @@ export class IndexedDbRepositories {
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository;
   readonly auditEvents: AuditEventRepository;
+  readonly commandOutcomes: CommandOutcomeRepository;
 
   constructor(source: DatabaseSource) {
     this.profiles = new IndexedDbUserProfileRepository(source);
@@ -231,6 +287,7 @@ export class IndexedDbRepositories {
     this.cards = new IndexedDbCardRepository(source);
     this.receipts = new IndexedDbReceiptRepository(source);
     this.auditEvents = new IndexedDbAuditEventRepository(source);
+    this.commandOutcomes = new IndexedDbCommandOutcomeRepository(source);
   }
 }
 

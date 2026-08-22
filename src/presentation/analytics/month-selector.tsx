@@ -1,34 +1,35 @@
-import { CalendarDays, ChevronDown } from "lucide-react";
-import { tryCalendarMonth, type CalendarMonth } from "@/application/analytics/calendar-month";
+import { CalendarDays } from "lucide-react";
+import { formatCalendarMonth, type CalendarMonth } from "@/application/analytics/calendar-month";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MonthSelectorProps {
+  readonly options: readonly CalendarMonth[];
   readonly value: CalendarMonth;
   readonly onChange: (month: CalendarMonth) => void;
   readonly ariaLabel?: string;
 }
 
 export function MonthSelector({
+  options,
   value,
   onChange,
   ariaLabel = "Select month",
 }: MonthSelectorProps) {
+  const availableOptions = options.includes(value) ? options : [value, ...options];
+
   return (
-    <label className="relative inline-flex h-11 w-[190px] items-center rounded-[14px] border bg-card shadow-[var(--shadow-small)] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
-      <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 z-10 size-4 text-text-secondary" />
-      <input
-        aria-label={ariaLabel}
-        className="absolute -inset-px h-11 w-[190px] cursor-pointer rounded-[14px] border-0 bg-transparent pl-10 pr-8 text-left text-[13px] font-semibold outline-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-        max="9999-12"
-        min="0001-01"
-        type="month"
-        value={value}
-        onClick={(event) => event.currentTarget.showPicker?.()}
-        onChange={(event) => {
-          const month = tryCalendarMonth(event.target.value);
-          if (month) onChange(month);
-        }}
-      />
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 z-10 size-4 text-text-muted" />
-    </label>
+    <Select value={value} onValueChange={(nextValue) => onChange(nextValue as CalendarMonth)}>
+      <SelectTrigger aria-label={ariaLabel} className="w-[190px] rounded-md font-semibold" size="compact">
+        <CalendarDays aria-hidden="true" className="size-4 text-text-secondary" />
+        <SelectValue aria-label={formatCalendarMonth(value)} />
+      </SelectTrigger>
+      <SelectContent align="start">
+        {availableOptions.map((option) => (
+          <SelectItem key={option} value={option}>
+            {formatCalendarMonth(option)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

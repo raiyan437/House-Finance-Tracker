@@ -9,6 +9,8 @@ import { ArrowLeft, CalendarDays, CreditCard, ImageOff, MoreHorizontal, Pencil, 
 import type {
   ExpenseActivityView,
   ExpenseMemberView,
+  PrivateReceiptView,
+  ReceiptView,
   ExpenseView,
 } from "@/application/services/application-services";
 import { Button } from "@/components/ui/button";
@@ -18,36 +20,36 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import { expenseId as parseExpenseId } from "@/domain/shared/identifiers";
+import { DomainError } from "@/domain/shared/domain-error";
 import { ConfirmDialog } from "@/presentation/components/confirm-dialog";
 import { Surface } from "@/presentation/components/surface";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { getCardPaletteOption } from "@/presentation/cards/card-palette";
-import { formatBasisPoints, formatExpenseDate } from "./expense-ui";
+import { formatBasisPoints, formatExpenseDate, formatReceiptCreatedAt, receiptContentStateText, RECEIPT_RETENTION_NOTICE } from "./expense-ui";
+import { createTrackedReceiptPreviewUrl } from "./receipt-preview-url";
 
 interface ReceiptPreview {
-  readonly metadata: ReceiptMetadata;
+  readonly metadata: ReceiptView;
   readonly url?: string;
   readonly error?: boolean;
 }
 
-function receiptBlob(bytes: Uint8Array, type: string): Blob {
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  return new Blob([buffer], { type });
+function ReceiptHistoricalState({ receipt }: Readonly<{ receipt: PrivateReceiptView }>) {
+  const state = receiptContentStateText(receipt.contentStatus);
+  return <div className="flex min-h-16 flex-col items-center justify-center rounded-xl bg-secondary px-3 text-center"><ImageOff aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{state.title}</p>{state.description ? <p className="compact-caption mt-1 text-text-muted">{state.description}</p> : null}</div>;
 }
 
 function ReceiptPreviewImage({ url, alt }: Readonly<{ url: string; alt: string }>) {
   const [failed, setFailed] = useState(false);
 
   if (failed) {
-    return <div className="flex h-24 flex-col items-center justify-center gap-2 rounded-xl bg-secondary text-xs text-text-secondary"><ImageOff aria-hidden="true" className="size-5" /><span>Preview unavailable</span></div>;
+    return <div className="flex h-16 flex-col items-center justify-center gap-1 rounded-xl bg-secondary text-xs text-text-secondary"><ImageOff aria-hidden="true" className="size-5" /><span>Preview unavailable</span></div>;
   }
 
-  return <span className="block h-24 overflow-hidden rounded-xl"><Image className="min-h-full object-cover" src={url} alt={alt} width={260} height={96} style={{ width: "100%", height: "auto" }} unoptimized onError={() => setFailed(true)} /></span>;
+  return <span className="relative block h-16 overflow-hidden rounded-xl"><Image className="object-cover" src={url} alt={alt} fill sizes="260px" unoptimized onError={() => setFailed(true)} /></span>;
 }
 
 export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: string }) {
@@ -60,6 +62,7 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const urlsRef = useRef<string[]>([]);
+  const loadVersionRef = useRef(0);
 
   const household = runtime.status === "ready" &&
     (runtime.household.status === "active-member" || runtime.household.status === "active-leader")
@@ -68,6 +71,8 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
 
   const load = useCallback(async () => {
     if (runtime.status !== "ready" || !household) return;
+    const loadVersion = ++loadVersionRef.current;
+    const isCurrent = () => loadVersionRef.current === loadVersion;
     const id = parseExpenseId(expenseId);
     const [nextView, nextMembers, metadata, nextActivity] = await Promise.all([
       runtime.expenseActions.getExpense(id),
@@ -75,22 +80,34 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
       runtime.expenseActions.listReceipts(id),
       runtime.expenseActions.listActivity(id),
     ]);
+    if (!isCurrent()) return;
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current = [];
-    const nextReceipts: ReceiptPreview[] = [];
-    for (const receipt of metadata) {
-      try {
-        const content = await runtime.expenseActions.readReceipt(receipt.receiptId);
-        const url = URL.createObjectURL(receiptBlob(content.bytes, content.mimeType));
-        urlsRef.current.push(url);
-        nextReceipts.push({ metadata: receipt, url });
-      } catch {
-        nextReceipts.push({ metadata: receipt, error: true });
+    const nextReceipts = await Promise.all(metadata.map(async (receipt): Promise<ReceiptPreview | undefined> => {
+      if (receipt.visibility === "attachment") {
+        return { metadata: receipt };
       }
-    }
+      if (!receipt.canRead || receipt.contentStatus !== "available") {
+        return { metadata: receipt };
+      }
+      try {
+        const url = await createTrackedReceiptPreviewUrl(
+          () => runtime.expenseActions.readReceipt(receipt.receiptId),
+          isCurrent,
+          (nextUrl) => urlsRef.current.push(nextUrl),
+        );
+        return url ? { metadata: receipt, url } : undefined;
+      } catch {
+        return isCurrent() ? { metadata: receipt, error: true } : undefined;
+      }
+    }));
+    const completeReceipts = nextReceipts.filter(
+      (receipt): receipt is ReceiptPreview => receipt !== undefined,
+    );
+    if (!isCurrent() || completeReceipts.length !== nextReceipts.length) return;
     setView(nextView);
     setMembers(nextMembers);
-    setReceipts(nextReceipts);
+    setReceipts(completeReceipts);
     setActivity(nextActivity);
     setStatus("ready");
   }, [expenseId, household, runtime]);
@@ -101,7 +118,11 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [load]);
-  useEffect(() => () => urlsRef.current.forEach((url) => URL.revokeObjectURL(url)), []);
+  useEffect(() => () => {
+    loadVersionRef.current += 1;
+    urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    urlsRef.current = [];
+  }, []);
 
   const memberById = useMemo(() => new Map(members.map((member) => [member.userId, member])), [members]);
 
@@ -119,22 +140,39 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
   const privateCardPalette = view.privateCardSnapshot
     ? getCardPaletteOption(view.privateCardSnapshot.colorId)
     : undefined;
+  const financiallyLocked = view.financialEditability.state === "locked";
+
+  async function deleteExpense() {
+    try {
+      await expenseActions.deleteExpense(expense.expenseId, expense.revision);
+      router.push("/expenses");
+    } catch (error) {
+      if (
+        error instanceof DomainError &&
+        error.code === "EXPENSE_FINANCIAL_HISTORY_LOCKED"
+      ) {
+        await load();
+        return;
+      }
+      throw error;
+    }
+  }
 
   return (
     <PageContainer>
-      <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 sm:flex-nowrap sm:gap-4">
-        <Button asChild variant="ghost" className="-ml-3 h-9 rounded-xl"><Link href="/expenses"><ArrowLeft /> Back to expenses</Link></Button>
-        <div className="flex items-center gap-3">{view.permissions.canEdit ? <Link aria-label="Edit" className="inline-flex h-11 w-40 items-center justify-center gap-2 rounded-xl border border-border-strong bg-card text-sm font-medium shadow-[var(--shadow-small)] transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${expense.expenseId}/edit`}><Pencil aria-hidden="true" className="size-4" /> Edit Expense</Link> : null}{view.permissions.canDelete ? <DropdownMenu><DropdownMenuTrigger asChild><Button aria-label="More expense actions" className="w-[66px] rounded-xl" variant="outline"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-danger focus:bg-danger-soft" onSelect={() => setDeleteDialogOpen(true)}><Trash2 aria-hidden="true" className="size-4" />Delete Expense</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}</div>
-      </div>
-      {view.permissions.canDelete ? <ConfirmDialog destructive open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} title="Delete this expense?" description="The expense will leave normal lists and balances, while its audit history and receipts remain retained." confirmLabel="Delete Expense" onConfirm={async () => { await expenseActions.deleteExpense(expense.expenseId); router.push("/expenses"); }} /> : null}
-      <header className="mt-1.5">
-        <h1 className="page-title">{expense.name}</h1>
-        <p className="financial-numerals mt-1 text-[22px] font-semibold leading-7">{formatBdt(expense.amount)}</p>
-        <p className="compact-caption mt-1 text-text-muted">{formatExpenseDate(expense.expenseDate)} · {expense.deletedAt ? "Deleted historical expense · read-only" : "Household expense"}</p>
+      <Button asChild variant="ghost" className="-ml-3 min-h-11 rounded-xl lg:min-h-9"><Link href="/expenses"><ArrowLeft /> Back to expenses</Link></Button>
+      {view.permissions.canDelete ? <ConfirmDialog destructive open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} title="Delete this expense?" description="The expense will leave normal lists and balances. Financial history and receipt metadata remain, while receipt files continue under the normal retention period." confirmLabel="Delete Expense" onConfirm={deleteExpense} /> : null}
+      <header className="mt-1.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="page-title break-words">{expense.name}</h1>
+          <p className="financial-numerals mt-1 text-[22px] font-semibold leading-7">{formatBdt(expense.amount)}</p>
+          <p className="compact-caption mt-1 text-text-muted">{formatExpenseDate(expense.expenseDate)} · {expense.deletedAt ? "Deleted historical expense · read-only" : "Household expense"}</p>
+          {view.addedAfterSettlement ? <p className="compact-caption mt-1 text-text-muted">Added after settlement</p> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">{view.permissions.canEdit ? <Link aria-label="Edit" className="inline-flex h-11 w-40 items-center justify-center gap-2 rounded-xl border border-border-strong bg-card text-sm font-medium shadow-[var(--shadow-small)] transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${expense.expenseId}/edit`}><Pencil aria-hidden="true" className="size-4" /> Edit Expense</Link> : null}{view.permissions.canDelete ? <DropdownMenu><DropdownMenuTrigger asChild><Button aria-label="More expense actions" className="w-[66px] rounded-xl" variant="outline"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-danger focus:bg-danger-soft" onSelect={() => setDeleteDialogOpen(true)}><Trash2 aria-hidden="true" className="size-4" />Delete Expense</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}</div>
       </header>
       {expense.deletedAt ? <div className="mt-4 rounded-xl border border-danger/20 bg-danger-soft p-4 font-medium text-danger" role="status">Deleted</div> : null}
-      {view.financialEditState === "former-member-frozen" ? <div className="mt-4 rounded-xl bg-warning-soft p-4 text-sm" role="status">Financial history is frozen because this expense involves a former member.</div> : null}
-      {view.financialEditState === "legacy-percentage-input-unavailable" ? <div className="mt-4 rounded-xl bg-warning-soft p-4 text-sm" role="status">Original percentage inputs were not stored. Saved poisha shares remain effective; no percentages are invented.</div> : null}
+      {financiallyLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm" role="status"><p className="font-semibold">{view.financialEditability.title}</p><p className="mt-1">{view.financialEditability.description}</p>{view.financialEditability.deleteDescription ? <p className="mt-1 text-text-secondary">{view.financialEditability.deleteDescription}</p> : null}</div> : null}
 
       <div className="expense-details-grid mt-12 grid gap-6">
         <div className="grid content-start gap-[18px]">
@@ -149,9 +187,9 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
 
         </div>
 
-        <aside className="grid content-start gap-[18px]">
-          <Surface className="expense-detail-summary-panel" elevation="card" padding="canonical"><h2 className="panel-title">Summary</h2><dl className="mt-5 space-y-4 text-sm"><div className="flex justify-between"><dt className="text-text-secondary">Total</dt><dd className="financial-numerals text-lg font-semibold">{formatBdt(expense.amount)}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Participants</dt><dd>{expense.allocations.length}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Payment</dt><dd className="capitalize">{expense.payment.method}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Split</dt><dd className="capitalize">{expense.splitMethod}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Status</dt><dd>{expense.deletedAt ? "Deleted" : "Active"}</dd></div></dl></Surface>
-          <Surface className="expense-receipts-panel overflow-y-auto" padding="canonical"><div className="flex items-center gap-2"><ReceiptText aria-hidden="true" className="size-4" /><h2 className="panel-title">Receipts</h2></div>{receipts.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No receipts attached.</p> : <div className="mt-3 grid gap-3">{receipts.map(({ metadata, url, error }) => <div key={metadata.receiptId} className="rounded-xl border p-3">{url ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${metadata.originalFilename ?? "receipt"}`}><ReceiptPreviewImage url={url} alt={metadata.originalFilename ?? "Expense receipt"} /></a> : <div className="flex h-24 items-center justify-center rounded-xl bg-secondary text-xs text-text-secondary">{error ? "Preview unavailable" : "Loading preview"}</div>}<div className="mt-2 flex items-center justify-between gap-2"><p className="min-w-0 truncate text-xs">{metadata.originalFilename ?? "Receipt image"}</p>{view.permissions.canEdit ? <ConfirmDialog destructive title="Remove this receipt?" description="Its metadata tombstone will remain for audit, while the local image Blob is removed." confirmLabel="Remove Receipt" trigger={<Button aria-label={`Remove ${metadata.originalFilename ?? "receipt"}`} size="icon-xs" variant="ghost"><Trash2 /></Button>} onConfirm={async () => { await expenseActions.deleteReceipt(metadata.receiptId); await load(); }} /> : null}</div></div>)}</div>}</Surface>
+        <aside aria-label="Expense supporting information" className="grid content-start gap-[18px]">
+          <Surface className="expense-detail-summary-panel" elevation="card" padding="canonical"><h2 className="panel-title">Summary</h2><dl className="mt-5 space-y-4 text-sm"><div className="flex justify-between"><dt className="text-text-secondary">Total</dt><dd className="financial-numerals text-lg font-semibold">{formatBdt(expense.amount)}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Participants</dt><dd>{expense.allocations.length}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Payment</dt><dd className="capitalize">{expense.payment.method}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Split</dt><dd className="capitalize">{expense.splitMethod}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Status</dt><dd>{expense.deletedAt ? "Deleted" : financiallyLocked ? "Financially locked" : "Active"}</dd></div></dl></Surface>
+          <Surface className="expense-receipts-panel overflow-y-auto" padding="canonical"><div className="flex items-center gap-2"><ReceiptText aria-hidden="true" className="size-4" /><h2 className="panel-title">Receipts</h2></div><p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p>{receipts.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No receipts attached.</p> : <div className="mt-3 grid gap-3">{receipts.map(({ metadata, url, error }, index) => metadata.visibility === "attachment" ? <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Receipt details are private to its creator and historical uploader.</p></div> : <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <ReceiptHistoricalState receipt={metadata} /> : url ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${metadata.originalFilename ?? "receipt"}`}><ReceiptPreviewImage url={url} alt={metadata.originalFilename ?? "Expense receipt"} /></a> : <div className="flex h-16 items-center justify-center rounded-xl bg-secondary text-xs text-text-secondary">{error ? "Preview unavailable" : "Loading preview"}</div>}<div className="mt-2 flex items-center justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p></div>{metadata.canRemove ? <ConfirmDialog destructive title="Remove this receipt?" description="The receipt file will be removed immediately. Its metadata remains as user-deleted history." confirmLabel="Remove Receipt" trigger={<Button aria-label={`Remove ${metadata.originalFilename ?? "receipt"}`} className="size-11" size="icon" variant="ghost"><Trash2 /></Button>} onConfirm={async () => { await expenseActions.deleteReceipt(metadata.receiptId); await load(); }} /> : null}</div></div>)}</div>}</Surface>
           <Surface className="expense-activity-panel overflow-y-auto" padding="canonical"><h2 className="panel-title">Activity</h2>{activity.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No supported activity information.</p> : <ol className="mt-3 space-y-2">{activity.map((item, index) => <li key={`${item.occurredAt}-${index}`} className="rounded-xl bg-secondary p-3"><p className="text-xs font-medium capitalize">{item.action.replaceAll("-", " ")}</p><p className="compact-caption mt-1 text-text-secondary">{item.actorName} · {new Date(item.occurredAt).toLocaleString()}</p><p className="compact-caption text-text-secondary">Changed: {item.changedFields.join(", ")}</p></li>)}</ol>}</Surface>
         </aside>
       </div>

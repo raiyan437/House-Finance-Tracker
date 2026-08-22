@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 async function switchIdentity(
   page: Page,
@@ -126,7 +126,7 @@ test("cross-identity transfer, Leave, and Remove reconstruct authority and route
   await page.getByRole("menuitem", { name: "Transfer Leadership" }).click();
   await page.getByRole("button", { name: "Transfer Leadership" }).click();
   await expect(page.getByText("Danger zone")).toHaveCount(0);
-  await expect(page.locator("aside").getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Leave Household" }).click();
   await page.getByRole("button", { name: "Leave Household" }).click();
@@ -149,7 +149,8 @@ test("cross-identity transfer, Leave, and Remove reconstruct authority and route
   await page.goto("/expenses");
   await expect(page).toHaveURL(/\/household$/);
   await page.goto("/profile");
-  await expect(page.getByRole("heading", { name: "Profile foundation ready" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No household" })).toBeVisible();
 });
 
 test("Household deletion closes Pending requests, preserves private history, and persists across reopen", async ({
@@ -210,6 +211,12 @@ for (const viewport of [
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
       ),
     ).toBe(false);
+    if (viewport.name === "mobile") {
+      for (const name of ["Show House Code", "Copy exact House Code", "Accept", "Reject"]) {
+        const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+    }
     const results = await new AxeBuilder({ page }).analyze();
     expect(
       results.violations.filter((violation) =>

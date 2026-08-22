@@ -19,12 +19,14 @@ import { ErrorState, LoadingState } from "@/presentation/components/async-state"
 import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 
 export function JoinHouseholdForm() {
   const router = useRouter();
   const runtime = useApplicationRuntime();
+  const command = useIdempotentCommand();
   const [household, setHousehold] = useState<JoinableHouseholdView>();
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string>();
@@ -65,7 +67,8 @@ export function JoinHouseholdForm() {
     setSending(true);
     setSendError(undefined);
     try {
-      await actions.requestToJoin(matchedHousehold.householdId);
+      await actions.requestToJoin(matchedHousehold.householdId, command.forIntent(matchedHousehold.householdId));
+      command.complete();
       toast.success("Join request sent.");
       router.replace("/household");
     } catch (error) {

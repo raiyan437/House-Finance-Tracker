@@ -89,7 +89,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
           errorMessage="The request, requester eligibility, or Household leadership changed. Review the current status before confirming again."
           onConfirm={accept}
           title={`Accept ${request.requesterName} into ${householdName}?`}
-          trigger={<Button size="sm">Accept</Button>}
+          trigger={<Button className="min-h-11 min-w-20" size="sm">Accept</Button>}
         />
         <ConfirmDialog
           confirmLabel="Reject request"
@@ -98,7 +98,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
           errorMessage="The request or Household leadership changed. Review the current status before confirming again."
           onConfirm={reject}
           title={`Reject ${request.requesterName}'s join request?`}
-          trigger={<Button size="sm" variant="outline">Reject</Button>}
+          trigger={<Button className="min-h-11 min-w-20" size="sm" variant="outline">Reject</Button>}
         />
       </div>
     </li>

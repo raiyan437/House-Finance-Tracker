@@ -52,7 +52,7 @@ export function ChartCard({
           title="Chart unavailable"
         />
       ) : null}
-      {state === "ready" ? <div data-slot="chart-content">{children}</div> : null}
+      {state === "ready" ? <div className="min-w-0" data-slot="chart-content">{children}</div> : null}
       <p
         className={cn(
           "border-t pt-4 text-caption text-text-secondary",

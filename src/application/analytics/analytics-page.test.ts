@@ -24,7 +24,7 @@ function source(): AnalyticsSourceSnapshot {
     expenseId: expenseId("groceries"), householdId: house, creatorId: alex, payerId: alex,
     name: "Groceries", amount: positivePoisha(4_000), expenseDate: expenseDate("2026-08-10"), splitMethod: "amount",
     allocations: [{ participantId: alex, share: poisha(1_500) }, { participantId: raiyan, share: poisha(2_500) }],
-    payment: { method: "card", cardReference: "private-card-secret" }, createdAt: instant, updatedAt: instant,
+    payment: { method: "card", cardReference: "private-card-secret" }, revision: 1, createdAt: instant, updatedAt: instant,
   };
   const pending: SettlementRecord = {
     settlementId: settlementId("pending"), householdId: house, senderId: john, receiverId: raiyan,

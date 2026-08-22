@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("shell has keyboard access, reduced motion, and no serious Axe findings", async ({
   page,

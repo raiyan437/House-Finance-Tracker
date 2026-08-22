@@ -3,6 +3,8 @@ export * from "./balances/balance-invariants";
 export * from "./balances/calculate-household-balances";
 export * from "./balances/settlement-recommendations";
 export * from "./dates/expense-date";
+export * from "./dates/business-calendar";
+export * from "./expenses/backdated-expense-policy";
 export * from "./expenses/balance-expense";
 export * from "./expenses/expense-financial-input";
 export * from "./expenses/expense-financial-fingerprint";

@@ -13,6 +13,7 @@ import type {
   ExpenseReceiptContent,
   HouseholdAccessState,
   ExpenseMemberView,
+  ReceiptView,
   ExpenseView,
   JoinableHouseholdView,
 } from "@/application/services/application-services";
@@ -27,11 +28,12 @@ import type {
   MonthlyReportPageView,
 } from "@/application/analytics/analytics-page";
 import type { CalendarMonth } from "@/application/analytics/calendar-month";
-import type { ReceiptMetadata } from "@/domain/records/domain-records";
 import type { SettlementRecommendation } from "@/domain/settlements/settlement-types";
+import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type {
   ExpenseId,
   CardId,
+  CommandId,
   HouseholdId,
   JoinRequestId,
   ReceiptId,
@@ -50,9 +52,9 @@ export interface CurrentSessionView {
 
 export interface HouseholdApplicationActions {
   readonly generateCode: () => Promise<string>;
-  readonly createHousehold: (name: string, code: string) => Promise<void>;
+  readonly createHousehold: (name: string, code: string, commandId: CommandId) => Promise<void>;
   readonly findHousehold: (code: string) => Promise<JoinableHouseholdView>;
-  readonly requestToJoin: (householdId: HouseholdId) => Promise<void>;
+  readonly requestToJoin: (householdId: HouseholdId, commandId: CommandId) => Promise<void>;
   readonly cancelJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
   readonly acceptJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
   readonly rejectJoinRequest: (joinRequestId: JoinRequestId) => Promise<void>;
@@ -64,6 +66,8 @@ export interface HouseholdApplicationActions {
 }
 
 export interface ExpenseApplicationActions {
+  readonly getCurrentBusinessDate: () => Promise<ExpenseDate>;
+  readonly getMyAvailableReceiptBytes: () => Promise<number>;
   readonly listExpenses: (
     householdId: HouseholdId,
     includeDeleted?: boolean,
@@ -75,10 +79,10 @@ export interface ExpenseApplicationActions {
   readonly getExpense: (expenseId: ExpenseId) => Promise<ExpenseView>;
   readonly createExpense: (command: CreateExpenseCommand) => Promise<ExpenseView>;
   readonly editExpense: (command: EditExpenseCommand) => Promise<ExpenseView>;
-  readonly deleteExpense: (expenseId: ExpenseId) => Promise<void>;
+  readonly deleteExpense: (expenseId: ExpenseId, expectedRevision: number) => Promise<void>;
   readonly listReceipts: (
     expenseId: ExpenseId,
-  ) => Promise<readonly ReceiptMetadata[]>;
+  ) => Promise<readonly ReceiptView[]>;
   readonly readReceipt: (receiptId: ReceiptId) => Promise<ExpenseReceiptContent>;
   readonly deleteReceipt: (receiptId: ReceiptId) => Promise<void>;
   readonly listActivity: (
@@ -88,7 +92,7 @@ export interface ExpenseApplicationActions {
 
 export interface CardApplicationActions {
   readonly getMyCards: () => Promise<CardPageView>;
-  readonly createMyCard: (input: CardFormValues) => Promise<MyCardSummaryView>;
+  readonly createMyCard: (input: CardFormValues & Readonly<{ commandId: CommandId }>) => Promise<MyCardSummaryView>;
   readonly updateMyCard: (cardId: CardId, input: CardFormValues) => Promise<MyCardSummaryView>;
   readonly getRemovalPreview: (cardId: CardId) => Promise<CardRemovalPreview>;
   readonly deleteOrArchive: (
@@ -104,6 +108,7 @@ export interface SettlementApplicationActions {
   ) => Promise<PendingSettlementView>;
   readonly markRecommendationPaid: (
     recommendation: SettlementRecommendation,
+    commandId: CommandId,
   ) => Promise<void>;
   readonly confirm: (settlementId: SettlementId) => Promise<void>;
   readonly reject: (settlementId: SettlementId) => Promise<void>;

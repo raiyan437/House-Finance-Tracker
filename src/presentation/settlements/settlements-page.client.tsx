@@ -18,6 +18,7 @@ import { Surface } from "@/presentation/components/surface";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { MoneyValue } from "@/presentation/finance/money-value";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { PendingConfirmDialog } from "./pending-confirm-dialog";
@@ -205,6 +206,7 @@ export function SettlementsPageClient() {
   const [view, setView] = useState<SettlementPageView>();
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState("");
+  const pendingCommand = useIdempotentCommand();
 
   const household = runtime.status === "ready" &&
     (runtime.household.status === "active-member" || runtime.household.status === "active-leader")
@@ -292,7 +294,10 @@ export function SettlementsPageClient() {
                 item={item}
                 key={`${item.recommendation.senderId}:${item.recommendation.receiverId}`}
                 markPaid={() => mutate(
-                  () => runtime.settlementActions.markRecommendationPaid(item.recommendation),
+                  async () => {
+                    await runtime.settlementActions.markRecommendationPaid(item.recommendation, pendingCommand.forIntent(JSON.stringify(item.recommendation)));
+                    pendingCommand.complete();
+                  },
                   `Payment to ${item.counterparty.displayName} marked as Pending.`,
                 )}
               />

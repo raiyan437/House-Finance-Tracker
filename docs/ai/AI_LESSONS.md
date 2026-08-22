@@ -106,4 +106,11 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Presentation pagination belongs after the application-owned filter/sort result. Clamp or reset the visual page whenever that source result changes so pagination cannot manufacture an empty data state.
 - Canonical custom controls must retain native semantics in their interactive hit area. Visually transparent radio/checkbox inputs can cover the styled tile or segment, preserving keyboard behavior, focus indication, and reliable label activation without decorative div semantics.
 - Receipt preview failure is a presentation state, not data corruption. Keep the stored Blob untouched and replace only the failed image rendering with a controlled, dimensionally stable fallback tile.
+- Cross-provider binary retention is recoverable when content deletion happens before a conditional metadata transition, missing content is idempotent success only inside the authorized workflow, and terminal states are compare-and-set outcomes that no concurrent actor may overwrite.
 - Visual parity needs measured browser geometry and direct screenshots in addition to green tests; canonical, intermediate, and narrow widths expose different failures, particularly implicit grid minimums and action-row overflow.
+
+## 2026-08-22 - Dashboard analytics hierarchy correction
+
+- A full-width primary chart needs both the outer grid span and explicit `min-width: 0` on grid children; otherwise an inner chart minimum can still create a desktop scrollbar even when the parent appears fluid.
+- Supporting analytics cards need breakpoint-specific composition: two columns with the compact Payment Mix spanning below at tablet/laptop widths, then `1fr 1fr 0.8fr` on wide desktop. A compact legend should stack percentages under amounts when the payment card becomes narrow, preserving readable exact values without changing the analytics result.
+- Visual inspection exposed issues automated geometry alone missed, including clipped Payment Mix percentages and mobile tick collisions. Screenshot review plus bounding-box assertions are both needed for responsive financial cards.

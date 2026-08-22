@@ -73,12 +73,12 @@ describe("Dashboard analytics presentation", () => {
 describe("Month selector", () => {
   it("is keyboard-compatible and emits only a valid calendar month", () => {
     const onChange = vi.fn();
-    render(<MonthSelector onChange={onChange} value={month} />);
-    const input = screen.getByLabelText("Select month");
-    fireEvent.change(input, { target: { value: "2028-02" } });
+    render(<MonthSelector onChange={onChange} options={[month, calendarMonth("2028-02")]} value={month} />);
+    const trigger = screen.getByRole("combobox", { name: "Select month" });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("option", { name: "February 2028" }));
     expect(onChange).toHaveBeenCalledWith("2028-02");
-    fireEvent.change(input, { target: { value: "" } });
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("combobox", { name: "Select month" })).toHaveTextContent("August 2026");
   });
 });
 

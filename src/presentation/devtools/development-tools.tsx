@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { Check, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -19,18 +20,34 @@ export interface DevelopmentIdentityOption {
   readonly displayName: string;
 }
 
-interface DevelopmentToolsProps {
+interface DevelopmentToolsContextValue {
   readonly identities: readonly DevelopmentIdentityOption[];
   readonly currentUserId?: UserId;
   readonly onSwitchIdentity: (userId: UserId) => Promise<void>;
 }
 
-export function DevelopmentTools({
-  identities,
-  currentUserId,
-  onSwitchIdentity,
-}: DevelopmentToolsProps) {
+const DevelopmentToolsContext = createContext<DevelopmentToolsContextValue | undefined>(undefined);
+
+export function DevelopmentToolsProvider({
+  children,
+  value,
+}: Readonly<{
+  children: React.ReactNode;
+  value?: DevelopmentToolsContextValue;
+}>) {
+  return (
+    <DevelopmentToolsContext.Provider value={value}>
+      {children}
+    </DevelopmentToolsContext.Provider>
+  );
+}
+
+export function DevelopmentTools({ compact = false }: { readonly compact?: boolean }) {
+  const context = useContext(DevelopmentToolsContext);
   const [switchingTo, setSwitchingTo] = useState<UserId>();
+
+  if (!context) return null;
+  const { identities, currentUserId, onSwitchIdentity } = context;
 
   async function switchIdentity(userId: UserId) {
     if (userId === currentUserId || switchingTo) return;
@@ -47,13 +64,24 @@ export function DevelopmentTools({
       <SheetTrigger asChild>
         <Button
           aria-label="Open development tools"
-          className="fixed right-4 bottom-[calc(var(--mobile-navigation-height)+env(safe-area-inset-bottom)+var(--space-4))] z-40 gap-1.5 border-border-strong bg-warning-soft text-foreground shadow-[var(--shadow-small)] hover:bg-warning-soft/80 lg:bottom-2 lg:left-[9.5rem] lg:right-auto"
+          className={cn(
+            "min-h-11 w-full justify-center gap-2 border-warning/30 bg-warning-soft text-foreground shadow-none transition-[gap] hover:bg-warning-soft/80",
+            compact && "gap-0 px-0",
+          )}
           data-testid="development-tools-trigger"
-          size="sm"
+          title={compact ? "Open development tools" : undefined}
           variant="outline"
         >
           <Wrench aria-hidden="true" />
-          <span className="font-semibold">DEV</span>
+          <span
+            aria-hidden={compact}
+            className={cn(
+              "overflow-hidden font-semibold transition-[max-width,opacity] duration-300 ease-[var(--motion-ease-out)]",
+              compact ? "max-w-0 opacity-0" : "max-w-10 opacity-100",
+            )}
+          >
+            DEV
+          </span>
         </Button>
       </SheetTrigger>
       <SheetContent aria-describedby="development-tools-description" side="right">
@@ -67,40 +95,88 @@ export function DevelopmentTools({
             This is not login or account switching.
           </SheetDescription>
         </SheetHeader>
-        <div className="grid gap-3 p-6" role="list" aria-label="Development identities">
+        <ul className="grid gap-3 p-6" aria-label="Development identities">
           {identities.map((identity) => {
             const isCurrent = identity.userId === currentUserId;
             const isSwitching = identity.userId === switchingTo;
 
             return (
-              <Button
-                aria-current={isCurrent ? "true" : undefined}
-                className="h-auto min-h-12 justify-between px-4 py-3 text-left"
-                data-testid={`development-identity-${identity.userId}`}
-                key={identity.userId}
-                onClick={() => void switchIdentity(identity.userId)}
-                role="listitem"
-                variant={isCurrent ? "secondary" : "outline"}
-              >
-                <span>
-                  <span className="block text-sm font-medium">{identity.displayName}</span>
-                  <span className="block font-mono text-caption font-normal text-text-muted">
-                    {identity.userId}
+              <li key={identity.userId}>
+                <Button
+                  aria-current={isCurrent ? "true" : undefined}
+                  className="h-auto min-h-12 w-full justify-between px-4 py-3 text-left"
+                  data-testid={`development-identity-${identity.userId}`}
+                  onClick={() => void switchIdentity(identity.userId)}
+                  variant={isCurrent ? "secondary" : "outline"}
+                >
+                  <span>
+                    <span className="block text-sm font-medium">{identity.displayName}</span>
+                    <span className="block font-mono text-caption font-normal text-text-muted">
+                      {identity.userId}
+                    </span>
                   </span>
-                </span>
-                {isCurrent ? (
-                  <span className="inline-flex items-center gap-1 text-caption text-success">
-                    <Check aria-hidden="true" className="size-4" />
-                    Current
-                  </span>
-                ) : isSwitching ? (
-                  <span className="text-caption text-text-muted">Switching…</span>
-                ) : null}
-              </Button>
+                  {isCurrent ? (
+                    <span className="inline-flex items-center gap-1 text-caption text-success">
+                      <Check aria-hidden="true" className="size-4" />
+                      Current
+                    </span>
+                  ) : isSwitching ? (
+                    <span className="text-caption text-text-muted">Switching…</span>
+                  ) : null}
+                </Button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </SheetContent>
     </Sheet>
+  );
+}
+
+export function MobileDevelopmentTools() {
+  const context = useContext(DevelopmentToolsContext);
+  const [switchingTo, setSwitchingTo] = useState<UserId>();
+
+  if (!context) return null;
+  const tools = context;
+
+  async function switchIdentity(userId: UserId) {
+    if (userId === tools.currentUserId || switchingTo) return;
+    setSwitchingTo(userId);
+    try {
+      await tools.onSwitchIdentity(userId);
+    } finally {
+      setSwitchingTo(undefined);
+    }
+  }
+
+  return (
+    <section aria-labelledby="mobile-development-tools-title" className="border-t border-warning/30 bg-warning-soft/55 p-4 pb-8">
+      <div className="mb-3 flex items-center gap-2">
+        <Wrench aria-hidden="true" className="size-4" />
+        <h2 className="text-xs font-semibold uppercase tracking-wide" id="mobile-development-tools-title">DEV · Development tools</h2>
+      </div>
+      <p className="mb-3 text-caption text-text-secondary">Local identity switching only. This is not login or Profile behavior.</p>
+      <ul aria-label="Development identities" className="grid gap-2">
+        {tools.identities.map((identity) => {
+          const isCurrent = identity.userId === tools.currentUserId;
+          return (
+            <li key={identity.userId}>
+              <Button
+                aria-current={isCurrent ? "true" : undefined}
+                className="min-h-12 w-full justify-between px-4"
+                data-testid={`mobile-development-identity-${identity.userId}`}
+                disabled={Boolean(switchingTo)}
+                onClick={() => void switchIdentity(identity.userId)}
+                variant={isCurrent ? "secondary" : "outline"}
+              >
+                <span>{identity.displayName}</span>
+                <span className="text-caption text-text-muted">{isCurrent ? "Current" : switchingTo === identity.userId ? "Switching…" : "Switch"}</span>
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

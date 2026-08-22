@@ -18,12 +18,14 @@ import { ErrorState, LoadingState } from "@/presentation/components/async-state"
 import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 
 export function CreateHouseholdForm() {
   const router = useRouter();
   const runtime = useApplicationRuntime();
+  const command = useIdempotentCommand();
   const [generationError, setGenerationError] = useState<string>();
   const [creating, setCreating] = useState(false);
   const form = useForm<CreateHouseholdInput, unknown, CreateHouseholdValues>({
@@ -59,7 +61,8 @@ export function CreateHouseholdForm() {
     form.clearErrors("root");
     setCreating(true);
     try {
-      await actions.createHousehold(values.name, values.code);
+      await actions.createHousehold(values.name, values.code, command.forIntent(JSON.stringify(values)));
+      command.complete();
       toast.success("Household created.");
       router.replace("/dashboard");
     } catch (error) {

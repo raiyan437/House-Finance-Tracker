@@ -14,6 +14,7 @@ import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-l
 import type { SettlementRecord, SettlementStatus } from "@/domain/settlements/settlement-types";
 import type {
   CardId,
+  CommandId,
   ExpenseId,
   HouseholdId,
   JoinRequestId,
@@ -23,6 +24,7 @@ import type {
   UserId,
 } from "@/domain/shared/identifiers";
 import type { IsoInstant } from "@/domain/shared/instant";
+import type { CommandOutcome, IdempotencyDescriptor } from "@/application/idempotency/command-idempotency";
 
 export interface UserProfileRepository {
   getById(userId: UserId): Promise<UserProfile | undefined>;
@@ -62,9 +64,6 @@ export interface ExpenseRepository {
   getById(expenseId: ExpenseId): Promise<Expense | undefined>;
   listHouseholdHistory(householdId: HouseholdId): Promise<readonly Expense[]>;
   listActiveForBalances(householdId: HouseholdId): Promise<readonly Expense[]>;
-  create(expense: Expense): Promise<void>;
-  replace(expense: Expense): Promise<void>;
-  markDeleted(expense: Expense): Promise<void>;
   getPrivateCardSnapshot(expenseId: ExpenseId, ownerId: UserId): Promise<ExpenseCardPrivateSnapshot | undefined>;
 }
 
@@ -93,15 +92,39 @@ export interface ReceiptContent {
 
 export interface ReceiptRepository {
   listForExpense(expenseId: ExpenseId): Promise<readonly ReceiptMetadata[]>;
+  availableBytesByUploader(userId: UserId): Promise<number>;
   getMetadata(receiptId: ReceiptId): Promise<ReceiptMetadata | undefined>;
   readContent(receiptId: ReceiptId): Promise<ReceiptContent | undefined>;
   create(metadata: ReceiptMetadata, content: ReceiptContent): Promise<void>;
-  deleteContentAndTombstone(metadata: ReceiptMetadata): Promise<void>;
+  deleteContentAndMarkUserDeleted(metadata: ReceiptMetadata): Promise<void>;
+}
+
+export interface ReceiptRetentionCursor {
+  readonly createdAt: IsoInstant;
+  readonly receiptId: ReceiptId;
+}
+
+export interface ReceiptRetentionRepository {
+  findEligibleAvailableReceipts(input: Readonly<{
+    cutoff: IsoInstant;
+    after?: ReceiptRetentionCursor;
+    limit: number;
+  }>): Promise<readonly ReceiptMetadata[]>;
+  removeContentIfPresent(receiptId: ReceiptId): Promise<"removed" | "already-missing">;
+  markRetentionExpiredConditionally(input: Readonly<{
+    receiptId: ReceiptId;
+    expectedCreatedAt: IsoInstant;
+    removedAt: IsoInstant;
+  }>): Promise<"transitioned" | "terminal">;
 }
 
 export interface AuditEventRepository {
   append(event: AuditEvent): Promise<void>;
   listByHousehold(householdId: HouseholdId): Promise<readonly AuditEvent[]>;
+}
+
+export interface CommandOutcomeRepository {
+  get(descriptor: Pick<IdempotencyDescriptor, "actorId" | "commandType" | "commandId">): Promise<CommandOutcome | undefined>;
 }
 
 export interface CurrentSession {
@@ -119,7 +142,10 @@ export interface ApplicationRepositories {
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository;
   readonly auditEvents: AuditEventRepository;
+  readonly commandOutcomes: CommandOutcomeRepository;
 }
+
+export type IdempotentCreateInput = Readonly<{ idempotency: IdempotencyDescriptor }>;
 
 export interface DevelopmentIdentityController {
   listIdentityIds(): Promise<readonly UserId[]>;
@@ -127,9 +153,9 @@ export interface DevelopmentIdentityController {
 }
 
 export interface AtomicApplicationPersistence {
-  createHousehold(input: Readonly<{ household: Household; leaderMembership: MembershipSnapshot; auditEvent: AuditEvent }>): Promise<void>;
+  createHousehold(input: Readonly<{ household: Household; leaderMembership: MembershipSnapshot; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   updateHousehold(input: Readonly<{ household: Household; auditEvent: AuditEvent }>): Promise<void>;
-  createJoinRequest(input: Readonly<{ request: JoinRequest; auditEvent: AuditEvent }>): Promise<void>;
+  createJoinRequest(input: Readonly<{ request: JoinRequest; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   acceptJoinRequest(input: Readonly<{
     joinRequestId: JoinRequestId;
     actorId: UserId;
@@ -166,18 +192,24 @@ export interface AtomicApplicationPersistence {
     auditEvent: AuditEvent;
     joinRequestAuditIdBase: AuditEventId;
   }>): Promise<void>;
-  createExpense(input: Readonly<{ expense: Expense; selectedCardId?: CardId; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }>): Promise<void>;
+  createExpense(input: Readonly<{ expense: Expense; actorId?: UserId; commandId?: CommandId; relevantIntentDigest?: string; backdatedConfirmationToken?: string; selectedCardId?: CardId; receipts: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[]; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   editExpense(input: Readonly<{
+    expectedExpenseId: ExpenseId;
+    actorId?: UserId;
+    commandId?: CommandId;
+    relevantIntentDigest?: string;
+    backdatedConfirmationApplicable?: boolean;
+    backdatedConfirmationToken?: string;
     expense: Expense;
-    expectedUpdatedAt: string;
+    expectedRevision: number;
     selectedCardId?: CardId;
     receiptAdditions?: readonly Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent }>[];
     receiptRemovals?: readonly ReceiptMetadata[];
     auditEvents: readonly AuditEvent[];
   }>): Promise<void>;
-  createSettlement(input: Readonly<{ settlement: SettlementRecord; auditEvent: AuditEvent }>): Promise<void>;
+  createSettlement(input: Readonly<{ settlement: SettlementRecord; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   transitionSettlement(input: Readonly<{ settlement: SettlementRecord; expectedStatus: SettlementStatus; auditEvent: AuditEvent }>): Promise<void>;
-  createCard(input: Readonly<{ card: Card }>): Promise<void>;
+  createCard(input: Readonly<{ card: Card }> & IdempotentCreateInput): Promise<string>;
   updateCard(input: Readonly<{ card: Card; expectedUpdatedAt: string }>): Promise<void>;
   removeCard(input: Readonly<{
     cardId: CardId;
@@ -185,6 +217,6 @@ export interface AtomicApplicationPersistence {
     expectedAction: CardRemovalAction;
     occurredAt: IsoInstant;
   }>): Promise<CardRemovalResult>;
-  createReceipt(input: Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent; auditEvent: AuditEvent }>): Promise<void>;
+  createReceipt(input: Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   deleteReceipt(input: Readonly<{ metadata: ReceiptMetadata; auditEvent: AuditEvent }>): Promise<void>;
 }

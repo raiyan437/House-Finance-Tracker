@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 async function switchIdentity(page: Page, identity: "raiyan" | "john" | "alex") {
   await page.getByTestId("development-tools-trigger").click();
@@ -101,8 +101,11 @@ test("Card edits and archives never rewrite the owner's historical Expense snaps
   await page.goto("/expenses/expense-internet");
   await expect(page.getByText(/John Credit.*credit.*Powder Blue/)).toBeVisible();
   await page.getByRole("link", { name: "Edit" }).click();
-  await expect(page.getByLabel("Your Card")).toHaveValue("card-john-credit");
+  const archivedCardSelect = page.getByRole("combobox", { name: "Your Card" });
+  await expect(archivedCardSelect).toContainText("Keep John Credit (archived)");
+  await archivedCardSelect.click();
   await expect(page.getByRole("option", { name: /Keep John Credit \(archived\)/ })).toHaveCount(1);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.getByText(/John Credit.*credit.*Powder Blue/)).toBeVisible();
 });

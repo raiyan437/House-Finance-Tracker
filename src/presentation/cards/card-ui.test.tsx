@@ -44,6 +44,8 @@ function runtimeFor(
       transferLeadership: vi.fn(), deleteHousehold: vi.fn(), refresh: vi.fn(),
     },
     expenseActions: {
+      getCurrentBusinessDate: vi.fn(),
+      getMyAvailableReceiptBytes: vi.fn(),
       listExpenses: vi.fn(), listMembers: vi.fn(), listSelectableCards: vi.fn(),
       getExpense: vi.fn(), createExpense: vi.fn(), editExpense: vi.fn(), deleteExpense: vi.fn(),
       listReceipts: vi.fn(), readReceipt: vi.fn(), deleteReceipt: vi.fn(), listActivity: vi.fn(),
@@ -97,7 +99,7 @@ describe("Phase 9 Cards presentation", () => {
     await user.click(within(dialog).getByRole("radio", { name: "Soft Coral" }));
     await user.click(within(dialog).getByRole("button", { name: "Add Card" }));
     await waitFor(() => expect(createMyCard).toHaveBeenCalledWith({
-      name: "Travel", type: "credit", colorId: "soft-coral",
+      name: "Travel", type: "credit", colorId: "soft-coral", commandId: expect.any(String),
     }));
   });
 

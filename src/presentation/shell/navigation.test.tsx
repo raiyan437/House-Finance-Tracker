@@ -62,6 +62,8 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
           refresh: vi.fn(),
         },
         expenseActions: {
+          getCurrentBusinessDate: vi.fn(),
+          getMyAvailableReceiptBytes: vi.fn(),
           listExpenses: vi.fn(),
           listMembers: vi.fn(),
           listSelectableCards: vi.fn(),
@@ -118,6 +120,26 @@ describe("responsive navigation", () => {
     );
   });
 
+  it("smoothly collapses the desktop shell while keeping controls accessible", async () => {
+    const user = userEvent.setup();
+    renderWithRuntime(<DesktopSidebar />);
+
+    const sidebar = screen.getByRole("navigation", { name: "Primary navigation" }).parentElement;
+    const collapse = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeVisible();
+
+    await user.click(collapse);
+
+    expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open profile for Raiyan Uddin" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+  });
+
   it("exposes Cards, Household, and Profile through the mobile More sheet", async () => {
     const user = userEvent.setup();
     renderWithRuntime(<MobileNavigation />);
@@ -148,6 +170,23 @@ describe("responsive navigation", () => {
     );
     expect(screen.getByRole("link", { name: "Expenses" })).not.toHaveAttribute(
       "aria-current",
+    );
+  });
+
+  it("keeps mobile navigation icon-only while retaining accessible names", () => {
+    renderWithRuntime(<MobileNavigation />);
+
+    const navigation = screen.getByRole("navigation", { name: "Mobile navigation" });
+    expect(navigation).not.toHaveTextContent("Dashboard");
+    expect(navigation).not.toHaveTextContent("Expenses");
+    expect(navigation).not.toHaveTextContent("Settlements");
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "title",
+      "Dashboard",
+    );
+    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
+      "title",
+      "More",
     );
   });
 });

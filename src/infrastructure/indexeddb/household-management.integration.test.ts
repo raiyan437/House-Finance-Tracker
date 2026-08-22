@@ -8,6 +8,7 @@ import { expenseDate } from "@/domain/dates/expense-date";
 import { poisha, positivePoisha } from "@/domain/money/poisha";
 import {
   auditEventId,
+  commandId,
   expenseId,
   householdId,
   joinRequestId,
@@ -35,6 +36,7 @@ import {
 } from "./seed";
 
 const now = isoInstant("2026-08-19T12:00:00.000Z");
+const idempotency = (actorId: UserId, commandType: "create-household" | "send-join-request", label: string) => ({ actorId, commandType, commandId: commandId(label), intentDigest: `test:${label}` });
 
 function event(
   id: string,
@@ -73,6 +75,7 @@ function expense(
     splitMethod: "amount",
     allocations: [{ participantId, share: poisha(100) }],
     payment: { method: "cash" },
+    revision: 1,
     createdAt: now,
     updatedAt: now,
   };
@@ -212,11 +215,13 @@ describe("Phase 10 authoritative household management persistence", () => {
     expect(await repositories.memberships.findActiveByUser(removed)).toBeUndefined();
 
     await atomic.createHousehold({
+      idempotency: idempotency(leaving, "create-household", "leaver-next"),
       household: { householdId: householdId("house-leaver-next"), name: "Leaver Next", code: "000000104", createdAt: now, updatedAt: now },
       leaderMembership: { householdId: householdId("house-leaver-next"), userId: leaving, status: "active", role: "leader" },
       auditEvent: event("leaver-next", householdId("house-leaver-next"), leaving, "created", "household", "house-leaver-next"),
     });
     await atomic.createHousehold({
+      idempotency: idempotency(removed, "create-household", "removed-next"),
       household: { householdId: householdId("house-removed-next"), name: "Removed Next", code: "000000105", createdAt: now, updatedAt: now },
       leaderMembership: { householdId: householdId("house-removed-next"), userId: removed, status: "active", role: "leader" },
       auditEvent: event("removed-next", householdId("house-removed-next"), removed, "created", "household", "house-removed-next"),
@@ -281,6 +286,7 @@ describe("Phase 10 authoritative household management persistence", () => {
     expect(await repositories.households.findByCode(house.code)).toMatchObject({ householdId: house.householdId, deletedAt: now });
 
     await atomic.createHousehold({
+      idempotency: idempotency(requester, "create-household", "requester-next"),
       household: { householdId: householdId("house-requester-next"), name: "Requester Next", code: "000000108", createdAt: now, updatedAt: now },
       leaderMembership: { householdId: householdId("house-requester-next"), userId: requester, status: "active", role: "leader" },
       auditEvent: event("requester-next", householdId("house-requester-next"), requester, "created", "household", "house-requester-next"),
@@ -348,7 +354,7 @@ describe("Phase 10 authoritative household management persistence", () => {
 
     await expect(atomic.deleteHousehold(deleteInput)).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
     expect(await repositories.joinRequests.getById(request.joinRequestId)).toMatchObject({ status: "pending" });
-    await repositories.expenses.markDeleted({ ...financial, updatedAt: now, deletedAt: now, deletedByUserId: leader });
+    await db.put("expenses", toExpenseRecord({ ...financial, updatedAt: now, deletedAt: now, deletedByUserId: leader }));
     const pending = pendingSettlement(house.householdId, member, leader, "delete-gate-pending-settlement");
     await db.add("settlements", toSettlementRecord(pending));
 
@@ -411,6 +417,7 @@ describe("Phase 10 authoritative household management persistence", () => {
     };
 
     await expect(atomic.createJoinRequest({
+      idempotency: idempotency(requester, "send-join-request", "request-after-delete"),
       request,
       auditEvent: event("request-after-delete", house.householdId, requester, "requested", "join-request", request.joinRequestId),
     })).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
@@ -422,7 +429,7 @@ describe("Phase 10 authoritative household management persistence", () => {
     const seededRepositories = new IndexedDbRepositories(db);
     const seededAtomic = new IndexedDbAtomicApplicationPersistence(db);
     for (const current of await seededRepositories.expenses.listHouseholdHistory(SEEDED_HOUSEHOLD_ID)) {
-      await seededRepositories.expenses.markDeleted({ ...current, updatedAt: now, deletedAt: now, deletedByUserId: SEEDED_USER_IDS.raiyan });
+      await db.put("expenses", toExpenseRecord({ ...current, updatedAt: now, deletedAt: now, deletedByUserId: SEEDED_USER_IDS.raiyan }));
     }
     const pending = (await seededRepositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID))[0]!;
     await seededRepositories.settlements.transitionPending({ ...pending, status: "cancelled", resolvedAt: now });

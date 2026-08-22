@@ -37,6 +37,7 @@ function percentageExpense(
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    revision: overrides.revision ?? 1,
   };
 }
 

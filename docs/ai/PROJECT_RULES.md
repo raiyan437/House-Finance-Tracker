@@ -29,4 +29,4 @@ House Finance Tracker is a local-first shared household expense-tracking applica
 
 ## Execution gate
 
-The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. Phases 1-10 are complete, accepted, and committed; Phase 10 Household management is `c3585fe`. Phase 11 Dashboard, analytics, and Monthly Reports are implemented and verified under `docs/ai/work/PHASE_11_PLAN.md`, intentionally uncommitted for review. Phase 12 and Appwrite remain gated.
+The approved requirements/design context and implementation clarifications are frozen. Execute one explicitly authorized phase at a time. The complete local application through Phase 11, UI parity/stabilization corrections, Receipt Retention Foundation, Confirmed Settlement Financial Lock, and Pre-Production Business Logic Hardening H1-H8 is approved at the `pre-appwrite-local-v1` checkpoint. Appwrite has not been implemented. Phase 13 production integration and every later phase remain separately gated.

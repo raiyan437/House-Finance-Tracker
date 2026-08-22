@@ -70,7 +70,7 @@ export function MonthlyReportPageClient() {
     <PageContainer className="space-y-6">
       <Button asChild className="h-9 rounded-xl" size="sm" variant="ghost"><Link href="/dashboard"><ArrowLeft />Back to Dashboard</Link></Button>
       <PageHeader
-        action={<MonthSelector ariaLabel="Select Monthly Report month" onChange={changeMonth} value={month} />}
+        action={<MonthSelector ariaLabel="Select Monthly Report month" onChange={changeMonth} options={visibleState.status === "ready" ? visibleState.view.monthOptions : [month]} value={month} />}
         description="Household spending activity for the selected calendar month. Current outstanding is labelled separately."
         title="Monthly Report"
       />

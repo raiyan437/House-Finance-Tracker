@@ -110,6 +110,8 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
       transferLeadership: vi.fn(), deleteHousehold: vi.fn(), refresh: vi.fn(),
     },
     expenseActions: {
+      getCurrentBusinessDate: vi.fn(),
+      getMyAvailableReceiptBytes: vi.fn(),
       listExpenses: vi.fn(), listMembers: vi.fn(), listSelectableCards: vi.fn(),
       getExpense: vi.fn(), createExpense: vi.fn(), editExpense: vi.fn(), deleteExpense: vi.fn(),
       listReceipts: vi.fn(), readReceipt: vi.fn(), deleteReceipt: vi.fn(), listActivity: vi.fn(),
@@ -148,7 +150,7 @@ describe("Phase 8 settlement presentation", () => {
     const dialog = screen.getByRole("alertdialog");
     expect(within(dialog).getByText(/does not transfer money/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Mark as Paid" }));
-    await waitFor(() => expect(actions.markRecommendationPaid).toHaveBeenCalledWith(view.recommendations[0]!.recommendation));
+    await waitFor(() => expect(actions.markRecommendationPaid).toHaveBeenCalledWith(view.recommendations[0]!.recommendation, expect.any(String)));
   });
 
   it("refreshes stale confirmation data before allowing the receiver to confirm", async () => {

@@ -6,6 +6,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
+  expect: { timeout: 15_000 },
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry",
@@ -14,6 +15,16 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "firefox",
+      testMatch: /cross-browser-smoke\.spec\.ts/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      testMatch: /cross-browser-smoke\.spec\.ts/,
+      use: { ...devices["Desktop Safari"] },
     },
   ],
   webServer: {

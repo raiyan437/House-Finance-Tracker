@@ -43,6 +43,8 @@ function actions(overrides: Partial<HouseholdApplicationActions> = {}): Househol
 
 function expenseActions(): ExpenseApplicationActions {
   return {
+    getCurrentBusinessDate: vi.fn(),
+    getMyAvailableReceiptBytes: vi.fn(),
     listExpenses: vi.fn(),
     listMembers: vi.fn(),
     listSelectableCards: vi.fn(),
@@ -221,7 +223,7 @@ describe("Phase 6 household presentation", () => {
     await user.click(screen.getByRole("button", { name: "Generate Code" }));
     expect(screen.getByLabelText("House Code*")).toHaveValue("000000777");
     await user.click(screen.getByRole("button", { name: "Create Household" }));
-    await waitFor(() => expect(create).toHaveBeenCalledWith("Alex House", "000000777"));
+    await waitFor(() => expect(create).toHaveBeenCalledWith("Alex House", "000000777", expect.any(String)));
     expect(replace).toHaveBeenCalledWith("/dashboard");
   });
 
@@ -236,7 +238,7 @@ describe("Phase 6 household presentation", () => {
     expect(await screen.findByText("Raiyan House")).toBeVisible();
     expect(screen.queryByText(/Raiyan.*Leader|John|Sarah|Groceries/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Send Join Request" }));
-    await waitFor(() => expect(request).toHaveBeenCalledWith(householdId("household-main")));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(householdId("household-main"), expect.any(String)));
     expect(replace).toHaveBeenCalledWith("/household");
   });
 

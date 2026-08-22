@@ -162,6 +162,18 @@ describe("source dependency boundaries", () => {
     expect(source).not.toMatch(/LocalDevelopmentRuntime|IndexedDb|IDBDatabase|repositories|atomicPersistence/);
   });
 
+  it("does not expose privileged receipt retention through normal client actions or development tools", () => {
+    const publicClientSources = [
+      "presentation/runtime/application-runtime-context.tsx",
+      "app/_providers/local-application-runtime.client.tsx",
+      "presentation/devtools/development-tools.tsx",
+    ].map((path) => readFileSync(resolve(sourceRoot, path), "utf8")).join("\n");
+
+    expect(publicClientSources).not.toMatch(
+      /ReceiptRetentionService|findEligibleAvailableReceipts|removeContentIfPresent|markRetentionExpiredConditionally|purgeReceipts/i,
+    );
+  });
+
   it("route pages stay server components", () => {
     const violations = sourceFiles(resolve(sourceRoot, "app"))
       .filter((file) => file.endsWith("page.tsx"))
@@ -205,6 +217,22 @@ describe("source dependency boundaries", () => {
 
     expect(persistenceSource).not.toMatch(
       /DashboardPageView|MonthlyReportPageView|dailySpending|paymentMix|monthComparison|settlementHealth/,
+    );
+  });
+
+  it("keeps raw Expense replacement and deletion outside the application repository contract", () => {
+    const repositoryContract = readFileSync(
+      resolve(sourceRoot, "application/repositories/index.ts"),
+      "utf8",
+    );
+
+    const expenseRepository = repositoryContract.match(
+      /export interface ExpenseRepository\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(expenseRepository).toBeDefined();
+    expect(expenseRepository).not.toMatch(
+      /\bcreate\s*\(|\breplace\s*\(|\bmarkDeleted\s*\(/,
     );
   });
 

@@ -97,6 +97,26 @@ export interface ExpenseRecordV2 {
   deletedByUserId?: string;
 }
 
+export interface ExpenseRecordV3 {
+  recordVersion: 3;
+  id: string;
+  householdId: string;
+  creatorId: string;
+  payerId: string;
+  name: string;
+  amountPoisha: number;
+  expenseDate: string;
+  splitMethod: "equal" | "amount" | "percentage";
+  percentageEntries?: readonly { participantId: string; basisPoints: number }[];
+  allocations: readonly { participantId: string; sharePoisha: number }[];
+  paymentMethod: "cash" | "card";
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  deletedByUserId?: string;
+}
+
 export interface ExpenseCardPrivateRecordV1 {
   recordVersion: 1;
   expenseId: string;
@@ -172,6 +192,21 @@ export interface ReceiptMetadataRecordV1 {
   deletedByUserId?: string;
 }
 
+export interface ReceiptMetadataRecordV2 {
+  recordVersion: 2;
+  id: string;
+  householdId: string;
+  expenseId: string;
+  createdByUserId: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  originalFilename?: string;
+  sizeBytes: number;
+  createdAt: string;
+  contentStatus: "available" | "user-deleted" | "retention-expired";
+  contentRemovedAt?: string;
+  contentRemovedByUserId?: string;
+}
+
 export interface ReceiptBlobRecordV1 {
   recordVersion: 1;
   receiptId: string;
@@ -200,18 +235,41 @@ export interface DevelopmentSessionRecordV1 {
   currentUserId: string;
 }
 
+export interface CommandOutcomeRecordV1 {
+  recordVersion: 1;
+  key: string;
+  actorId: string;
+  commandType: "create-expense" | "create-household" | "send-join-request" | "create-pending-settlement" | "upload-receipt" | "create-card";
+  commandId: string;
+  intentDigest: string;
+  resourceId: string;
+  completedAt: string;
+}
+
 export interface HouseFinanceDatabase extends DBSchema {
   appMeta: { key: string; value: AppMetaRecordV1 };
   userProfiles: { key: string; value: UserProfileRecordV1; indexes: { emailKey: string } };
   households: { key: string; value: HouseholdRecordV1; indexes: { code: string } };
   memberships: { key: string; value: MembershipRecordV1; indexes: { householdId: string; activeMembershipUserKey: string } };
   joinRequests: { key: string; value: JoinRequestRecordV1 | JoinRequestRecordV2; indexes: { householdId: string; pendingJoinUserKey: string } };
-  expenses: { key: string; value: ExpenseRecordV2; indexes: { householdId: string; creatorId: string; payerId: string } };
+  expenses: { key: string; value: ExpenseRecordV3; indexes: { householdId: string; creatorId: string; payerId: string } };
   expenseCardPrivateDetails: { key: string; value: ExpenseCardPrivateRecordV2; indexes: { ownerId: string; cardId: string } };
   settlements: { key: string; value: SettlementRecordV1; indexes: { householdId: string; pendingSettlementPairKey: string } };
   cards: { key: string; value: CardRecordV2; indexes: { ownerId: string } };
-  receiptMetadata: { key: string; value: ReceiptMetadataRecordV1; indexes: { expenseId: string; householdId: string } };
+  receiptMetadata: {
+    key: string;
+    value: ReceiptMetadataRecordV2;
+    indexes: {
+      expenseId: string;
+      householdId: string;
+      contentStatusCreatedAt: ["available" | "user-deleted" | "retention-expired", string];
+      contentStatus: "available" | "user-deleted" | "retention-expired";
+      expenseContentStatus: [string, "available" | "user-deleted" | "retention-expired"];
+      uploaderContentStatus: [string, "available" | "user-deleted" | "retention-expired"];
+    };
+  };
   receiptBlobs: { key: string; value: ReceiptBlobRecordV1 };
   auditEvents: { key: string; value: AuditEventRecordV1; indexes: { householdId: string } };
   developmentSession: { key: string; value: DevelopmentSessionRecordV1 };
+  commandOutcomes: { key: string; value: CommandOutcomeRecordV1; indexes: { actorId: string } };
 }

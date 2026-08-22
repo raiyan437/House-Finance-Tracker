@@ -18,6 +18,7 @@ import {
   useApplicationRuntime,
   type CardApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
+import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import type { UserId } from "@/domain/shared/identifiers";
 import { CardActionsMenu } from "./card-actions-menu";
 import { CardFormDialog } from "./card-form-dialog";
@@ -58,7 +59,6 @@ function CardTile({
   return (
     <Surface
       className={lightForeground ? "min-h-52 text-white" : "min-h-52 text-foreground"}
-      role="listitem"
       style={{ backgroundColor: palette.hex }}
     >
       <div className="flex h-full flex-col">
@@ -100,6 +100,7 @@ function OwnedCardsPage({
   const requestRef = useRef(0);
   const headerAddRef = useRef<HTMLButtonElement>(null);
   const emptyAddRef = useRef<HTMLButtonElement>(null);
+  const createCommand = useIdempotentCommand();
 
   const reload = useCallback(async () => {
     const request = ++requestRef.current;
@@ -137,7 +138,10 @@ function OwnedCardsPage({
   async function saveCard(values: CardFormValues) {
     if (!formTarget) return;
     if (formTarget.card) await actions.updateMyCard(formTarget.card.cardId, values);
-    else await actions.createMyCard(values);
+    else {
+      await actions.createMyCard({ ...values, commandId: createCommand.forIntent(JSON.stringify(values)) });
+      createCommand.complete();
+    }
     await reload();
     toast.success(formTarget.card ? "Card updated" : "Card added");
   }
@@ -230,18 +234,19 @@ function OwnedCardsPage({
           title="No cards yet"
         />
       ) : (
-        <div aria-label="Your active Cards" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" role="list">
+        <ul aria-label="Your active Cards" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((card, index) => (
-            <CardTile
-              card={card}
-              count={cards.length}
-              key={card.cardId}
-              onEdit={(selected, trigger) => setFormTarget({ card: selected, restoreFocusRef: trigger })}
-              onRemove={(selected, trigger) => void openRemoval(selected, trigger)}
-              position={index + 1}
-            />
+            <li key={card.cardId}>
+              <CardTile
+                card={card}
+                count={cards.length}
+                onEdit={(selected, trigger) => setFormTarget({ card: selected, restoreFocusRef: trigger })}
+                onRemove={(selected, trigger) => void openRemoval(selected, trigger)}
+                position={index + 1}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {formTarget ? (

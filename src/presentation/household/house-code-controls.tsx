@@ -29,6 +29,7 @@ export function HouseCodeControls({ code }: Readonly<{ code: string }>) {
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           aria-label={visible ? "Hide House Code" : "Show House Code"}
+          className="min-h-11"
           onClick={() => {
             setVisible((current) => !current);
             setStatus(visible ? "House Code hidden." : "House Code shown.");
@@ -42,6 +43,7 @@ export function HouseCodeControls({ code }: Readonly<{ code: string }>) {
         </Button>
         <Button
           aria-label="Copy exact House Code"
+          className="min-h-11"
           onClick={() => void copyCode()}
           size="sm"
           type="button"

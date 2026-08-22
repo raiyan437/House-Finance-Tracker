@@ -31,6 +31,7 @@ export interface ExpenseFinancialFingerprint {
   readonly allocations: readonly SplitAllocation[];
   readonly expenseDate: ExpenseDate;
   readonly payment: ExpensePayment;
+  readonly cardAssociationIdentity?: string;
   readonly deleted: boolean;
 }
 
@@ -58,6 +59,26 @@ function canonicalAllocations(
   positivePoisha(fingerprint.amount);
   expenseDate(fingerprint.expenseDate);
   assertExpensePayment(fingerprint.payment);
+  if (
+    fingerprint.payment.method === "card" &&
+    (!fingerprint.cardAssociationIdentity ||
+      fingerprint.cardAssociationIdentity.trim() !==
+        fingerprint.cardAssociationIdentity)
+  ) {
+    throw new DomainError(
+      "INVALID_EXPENSE_LEDGER_ENTRY",
+      "A Card expense financial fingerprint requires an opaque Card association identity.",
+    );
+  }
+  if (
+    fingerprint.payment.method === "cash" &&
+    fingerprint.cardAssociationIdentity !== undefined
+  ) {
+    throw new DomainError(
+      "INVALID_EXPENSE_LEDGER_ENTRY",
+      "A Cash expense cannot contain a Card association identity.",
+    );
+  }
   const participantIds = fingerprint.allocations.map(
     (allocation) => allocation.participantId,
   );
@@ -77,12 +98,6 @@ function canonicalAllocations(
   return [...fingerprint.allocations].sort((left, right) =>
     compareUserIds(left.participantId, right.participantId),
   );
-}
-
-function paymentEquals(left: ExpensePayment, right: ExpensePayment): boolean {
-  if (left.method !== right.method) return false;
-  if (left.method === "cash" || right.method === "cash") return true;
-  return left.cardReference === right.cardReference;
 }
 
 function percentageEntriesEqual(
@@ -106,7 +121,7 @@ function percentageEntriesEqual(
   );
 }
 
-function fingerprintsEqual(
+export function expenseFinancialFingerprintsEqual(
   left: ExpenseFinancialFingerprint,
   right: ExpenseFinancialFingerprint,
 ): boolean {
@@ -120,7 +135,8 @@ function fingerprintsEqual(
     percentageEntriesEqual(left.percentageEntries, right.percentageEntries) &&
     left.expenseDate === right.expenseDate &&
     left.deleted === right.deleted &&
-    paymentEquals(left.payment, right.payment) &&
+    left.payment.method === right.payment.method &&
+    left.cardAssociationIdentity === right.cardAssociationIdentity &&
     leftAllocations.length === rightAllocations.length &&
     leftAllocations.every(
       (allocation, index) =>
@@ -139,7 +155,10 @@ export function assertLegacyPercentageChangeAllowed(
   const originalIsLegacyPercentage =
     original.splitMethod === "percentage" &&
     original.percentageEntries === undefined;
-  if (originalIsLegacyPercentage && !fingerprintsEqual(original, proposed)) {
+  if (
+    originalIsLegacyPercentage &&
+    !expenseFinancialFingerprintsEqual(original, proposed)
+  ) {
     throw new DomainError(
       "LEGACY_PERCENTAGE_INPUT_UNAVAILABLE",
       "This legacy percentage expense cannot be financially edited because its original percentage inputs are unavailable.",
@@ -164,7 +183,10 @@ export function assertFormerMemberChangeAllowed(
     expenseInvolvesFormerMember(original, memberships) ||
     expenseInvolvesFormerMember(proposed, memberships);
 
-  if (involvesFormerMember && !fingerprintsEqual(original, proposed)) {
+  if (
+    involvesFormerMember &&
+    !expenseFinancialFingerprintsEqual(original, proposed)
+  ) {
     throw new DomainError(
       "FORMER_MEMBER_FINANCIAL_HISTORY_FROZEN",
       "Financial and historical fields involving former members are frozen.",

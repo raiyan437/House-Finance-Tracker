@@ -10,6 +10,7 @@ import { applyExpenseListQuery, defaultExpenseListQuery, type ExpenseListQuery, 
 import type { ExpenseMemberView, ExpenseView } from "@/application/services/application-services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userId } from "@/domain/shared/identifiers";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { Surface } from "@/presentation/components/surface";
@@ -17,7 +18,7 @@ import { formatBdt } from "@/presentation/finance/format-bdt";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
-import { currentLocalMonth, formatExpenseDate, selectClassName } from "./expense-ui";
+import { currentLocalMonth, formatExpenseDate } from "./expense-ui";
 
 const EXPENSES_PER_PAGE = 8;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -110,10 +111,22 @@ export function ExpensesPageClient() {
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-text-muted" />
           <Input aria-label="Search expenses by name" className="rounded-[12px] pl-10 text-[13px]" placeholder="Search by expense name" value={query.search} onChange={(event) => updateQuery((current) => ({ ...current, search: event.target.value }))} />
         </div>
-        <label><span className="sr-only">Month</span><select aria-label="Month" className={`${selectClassName()} rounded-[12px] text-[13px]`} value={query.month} onChange={(event) => updateQuery((current) => ({ ...current, month: event.target.value as ExpenseListQuery["month"] }))}><option value="all">All Months</option>{months.map((month) => <option key={month} value={month}>{monthOptionLabel(month)}</option>)}</select></label>
-        <label><span className="sr-only">Paid By</span><select aria-label="Paid By" className={`${selectClassName()} rounded-[12px] text-[13px]`} value={query.payerId} onChange={(event) => updateQuery((current) => ({ ...current, payerId: event.target.value === "all" ? "all" : userId(event.target.value) }))}><option value="all">All payers</option>{payers.map((payer) => <option key={payer.userId} value={payer.userId}>{payer.displayName}{payer.former ? " (Former member)" : ""}</option>)}</select></label>
-        <label><span className="sr-only">Payment</span><select aria-label="Payment" className={`${selectClassName()} rounded-[12px] text-[13px]`} value={query.paymentMethod} onChange={(event) => updateQuery((current) => ({ ...current, paymentMethod: event.target.value as ExpenseListQuery["paymentMethod"] }))}><option value="all">All payments</option><option value="cash">Cash</option><option value="card">Card</option></select></label>
-        <label><span className="sr-only">Sort</span><select aria-label="Sort" className={`${selectClassName()} rounded-[12px] text-[13px]`} value={query.sort} onChange={(event) => updateQuery((current) => ({ ...current, sort: event.target.value as ExpenseListQuery["sort"] }))}><option value="newest">Newest to Oldest</option><option value="oldest">Oldest to Newest</option></select></label>
+        <Select value={query.month} onValueChange={(value) => updateQuery((current) => ({ ...current, month: value as ExpenseListQuery["month"] }))}>
+          <SelectTrigger aria-label="Month" size="compact"><SelectValue /></SelectTrigger>
+          <SelectContent align="start"><SelectItem value="all">All Months</SelectItem>{months.map((month) => <SelectItem key={month} value={month}>{monthOptionLabel(month)}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={query.payerId} onValueChange={(value) => updateQuery((current) => ({ ...current, payerId: value === "all" ? "all" : userId(value) }))}>
+          <SelectTrigger aria-label="Paid By" size="compact"><SelectValue /></SelectTrigger>
+          <SelectContent align="start"><SelectItem value="all">All Members</SelectItem>{payers.map((payer) => <SelectItem key={payer.userId} value={payer.userId}>{payer.displayName}{payer.former ? " (Former member)" : ""}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={query.paymentMethod} onValueChange={(value) => updateQuery((current) => ({ ...current, paymentMethod: value as ExpenseListQuery["paymentMethod"] }))}>
+          <SelectTrigger aria-label="Payment Method" className="min-w-[9rem]" size="compact"><SelectValue>{query.paymentMethod === "all" ? "Payment Method" : undefined}</SelectValue></SelectTrigger>
+          <SelectContent align="start"><SelectItem value="all">All Payment Methods</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem></SelectContent>
+        </Select>
+        <Select value={query.sort} onValueChange={(value) => updateQuery((current) => ({ ...current, sort: value as ExpenseListQuery["sort"] }))}>
+          <SelectTrigger aria-label="Sort" size="compact"><SelectValue /></SelectTrigger>
+          <SelectContent align="start"><SelectItem value="newest">Newest to Oldest</SelectItem><SelectItem value="oldest">Oldest to Newest</SelectItem></SelectContent>
+        </Select>
         <Button className="rounded-[12px] border bg-card text-[13px]" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
       </section>
 
@@ -148,9 +161,9 @@ export function ExpensesPageClient() {
           <nav aria-label="Expenses pagination" className="flex min-h-14 items-center justify-between gap-4 border-t px-5">
             <p className="compact-caption text-text-muted">Showing {(safePage - 1) * EXPENSES_PER_PAGE + 1}–{Math.min(safePage * EXPENSES_PER_PAGE, visibleRows.length)} of {visibleRows.length}</p>
             <div className="flex items-center gap-2">
-              <Button aria-label="Previous expenses page" className="size-8 rounded-lg" disabled={safePage === 1} onClick={() => setPage(Math.max(1, safePage - 1))} size="icon-xs" variant="outline"><ChevronLeft /></Button>
+              <Button aria-label="Previous expenses page" className="size-11 rounded-xl lg:size-9" disabled={safePage === 1} onClick={() => setPage(Math.max(1, safePage - 1))} size="icon" variant="outline"><ChevronLeft /></Button>
               <span aria-current="page" className="financial-numerals min-w-8 text-center text-xs">{safePage} / {pageCount}</span>
-              <Button aria-label="Next expenses page" className="size-8 rounded-lg" disabled={safePage === pageCount} onClick={() => setPage(Math.min(pageCount, safePage + 1))} size="icon-xs" variant="outline"><ChevronRight /></Button>
+              <Button aria-label="Next expenses page" className="size-11 rounded-xl lg:size-9" disabled={safePage === pageCount} onClick={() => setPage(Math.min(pageCount, safePage + 1))} size="icon" variant="outline"><ChevronRight /></Button>
             </div>
           </nav>
         </Surface>

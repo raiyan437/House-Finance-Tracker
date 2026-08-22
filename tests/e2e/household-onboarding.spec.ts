@@ -1,9 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 async function switchIdentity(page: Page, identity: "raiyan" | "john" | "sarah" | "alex") {
-  await page.getByTestId("development-tools-trigger").click();
-  await page.getByTestId(`development-identity-user-${identity}`).click();
+  await expect(page.locator('[data-slot="app-shell"]')).toHaveAttribute("data-runtime-state", "ready");
+  if (await page.getByRole("navigation", { name: "Mobile navigation" }).isVisible()) {
+    await page.getByRole("button", { name: "More" }).click();
+    await page.getByTestId(`mobile-development-identity-user-${identity}`).click();
+    await page.keyboard.press("Escape");
+  } else {
+    await page.getByTestId("development-tools-trigger").click();
+    await page.getByTestId(`development-identity-user-${identity}`).click();
+  }
   await expect(page.locator('[data-slot="app-shell"]')).toHaveAttribute("data-runtime-state", "ready");
 }
 
@@ -39,7 +46,8 @@ test("guards only household-dependent routes for a Pending requester", async ({ 
 
   await page.goto("/profile");
   await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.getByRole("heading", { name: "Profile foundation ready" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No household" })).toBeVisible();
   await page.goto("/cards");
   await expect(page).toHaveURL(/\/cards$/);
   await expect(page.getByRole("heading", { name: "My Cards" })).toBeVisible();
@@ -63,8 +71,8 @@ test("creates a household with exact manual code and persists leader state after
   await page.getByRole("button", { name: "Create Household" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator("aside").getByText("Alex", { exact: true })).toBeVisible();
-  await expect(page.locator("aside").getByText("Leader", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
   const persisted = await page.evaluate(async () => {
     const request = indexedDB.open("house-finance-tracker-local");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -91,8 +99,8 @@ test("creates a household with exact manual code and persists leader state after
   const reopened = await context.newPage();
   const expectNoReopenErrors = collectBrowserErrors(reopened);
   await reopened.goto("/dashboard");
-  await expect(reopened.locator("aside").getByText("Alex", { exact: true })).toBeVisible();
-  await expect(reopened.locator("aside").getByText("Leader", { exact: true })).toBeVisible();
+  await expect(reopened.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
+  await expect(reopened.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
   expectNoErrors();
   expectNoReopenErrors();
 });
@@ -134,10 +142,10 @@ test("leader accepts atomically and the requester reconstructs active membership
   await expect(page.getByText("No Pending join requests.")).toBeVisible();
 
   await switchIdentity(page, "alex");
-  await expect(page.locator("aside").getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator("aside").getByText("Alex", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
   expectNoErrors();
 });
 
@@ -173,10 +181,10 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/household");
     await switchIdentity(page, "alex");
-    await expect(page.getByRole("heading", { name: "Household" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Household", exact: true })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow).toBe(false);
-    const results = await new AxeBuilder({ page }).disableRules(["landmark-unique"]).analyze();
+    const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
 
     const cancel = page.getByRole("button", { name: "Cancel Request" });

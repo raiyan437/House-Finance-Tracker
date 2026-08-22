@@ -26,6 +26,7 @@ import {
 } from "../shared/identifiers";
 import { isoInstant, type IsoInstant } from "../shared/instant";
 import { assertCompleteAllocation } from "../splits/split-invariants";
+import { allocateEqualSplit } from "../splits/equal-split";
 import type {
   PercentageSplitEntry,
   SplitAllocation,
@@ -80,6 +81,7 @@ export interface Expense {
   readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly payment: ExpensePayment;
+  readonly revision: number;
   readonly createdAt: IsoInstant;
   readonly updatedAt: IsoInstant;
   readonly deletedAt?: IsoInstant;
@@ -111,6 +113,8 @@ export interface ExpenseCardPrivateSnapshot {
 export const RECEIPT_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export type ReceiptMimeType = (typeof RECEIPT_MIME_TYPES)[number];
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+export const RECEIPT_CONTENT_STATUSES = ["available", "user-deleted", "retention-expired"] as const;
+export type ReceiptContentStatus = (typeof RECEIPT_CONTENT_STATUSES)[number];
 
 export interface ReceiptMetadata {
   readonly receiptId: ReceiptId;
@@ -121,8 +125,9 @@ export interface ReceiptMetadata {
   readonly originalFilename?: string;
   readonly sizeBytes: number;
   readonly createdAt: IsoInstant;
-  readonly deletedAt?: IsoInstant;
-  readonly deletedByUserId?: UserId;
+  readonly contentStatus: ReceiptContentStatus;
+  readonly contentRemovedAt?: IsoInstant;
+  readonly contentRemovedByUserId?: UserId;
 }
 
 export type AuditAggregateType =
@@ -227,6 +232,24 @@ export function assertExpense(value: Expense): void {
     throw new DomainError("INVALID_EXPENSE", "Unsupported expense split method.");
   }
   assertCompleteAllocation(value.amount, value.allocations.map((item) => item.participantId), value.allocations);
+  if (value.splitMethod === "equal") {
+    const expected = allocateEqualSplit(
+      value.amount,
+      value.allocations.map((allocation) => allocation.participantId),
+    );
+    if (
+      expected.some(
+        (allocation, index) =>
+          allocation.participantId !== value.allocations[index]?.participantId ||
+          allocation.share !== value.allocations[index]?.share,
+      )
+    ) {
+      throw new DomainError(
+        "INVALID_EXPENSE",
+        "Equal split allocations must use the canonical largest-remainder result.",
+      );
+    }
+  }
   assertExpensePercentageSource(
     value.amount,
     value.splitMethod,
@@ -234,6 +257,9 @@ export function assertExpense(value: Expense): void {
     value.percentageEntries,
   );
   assertExpensePayment(value.payment);
+  if (!Number.isSafeInteger(value.revision) || value.revision < 1) {
+    throw new DomainError("INVALID_EXPENSE", "Expense revision must be a positive safe integer.");
+  }
   isoInstant(value.createdAt);
   isoInstant(value.updatedAt);
   if (value.deletedAt) isoInstant(value.deletedAt);
@@ -292,10 +318,28 @@ export function assertReceiptMetadata(value: ReceiptMetadata): void {
   }
   if (value.originalFilename !== undefined) assertTrimmedText(value.originalFilename, "INVALID_RECEIPT");
   isoInstant(value.createdAt);
-  if (value.deletedAt) isoInstant(value.deletedAt);
-  if (value.deletedByUserId) userId(value.deletedByUserId);
-  if (Boolean(value.deletedAt) !== Boolean(value.deletedByUserId)) {
-    throw new DomainError("INVALID_RECEIPT", "Receipt deletion metadata must be complete.");
+  if (!RECEIPT_CONTENT_STATUSES.includes(value.contentStatus)) {
+    throw new DomainError("INVALID_RECEIPT", "Unsupported receipt content status.");
+  }
+  if (value.contentRemovedAt) isoInstant(value.contentRemovedAt);
+  if (value.contentRemovedByUserId) userId(value.contentRemovedByUserId);
+  if (
+    value.contentStatus === "available" &&
+    (value.contentRemovedAt !== undefined || value.contentRemovedByUserId !== undefined)
+  ) {
+    throw new DomainError("INVALID_RECEIPT", "Available receipt content cannot contain removal metadata.");
+  }
+  if (
+    value.contentStatus === "user-deleted" &&
+    (!value.contentRemovedAt || !value.contentRemovedByUserId)
+  ) {
+    throw new DomainError("INVALID_RECEIPT", "User-deleted receipt content requires removal time and user.");
+  }
+  if (
+    value.contentStatus === "retention-expired" &&
+    (!value.contentRemovedAt || value.contentRemovedByUserId !== undefined)
+  ) {
+    throw new DomainError("INVALID_RECEIPT", "Retention-expired receipt content requires only a removal time.");
   }
 }
 

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { UserProfile } from "@/domain/records/domain-records";
 import {
   auditEventId,
+  commandId,
   householdId,
   joinRequestId,
   userId,
@@ -224,5 +225,20 @@ describe("Phase 6 household onboarding application flows", () => {
     expect(await repositories.joinRequests.getById(pending.joinRequestId)).toMatchObject({ status: "pending" });
     expect(await repositories.memberships.get(SEEDED_HOUSEHOLD_ID, SEEDED_USER_IDS.alex)).toBeUndefined();
     expect((await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((entry) => entry.aggregateId === pending.joinRequestId && entry.action === "accepted")).toHaveLength(0);
+  });
+
+  it("replays Join Request and Household creates exactly once", async () => {
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    await application.households.cancelJoinRequest(joinRequestId("join-alex-main"));
+    const firstRequest = await application.households.requestToJoin(SEEDED_HOUSEHOLD_ID, commandId("idem-join"));
+    const replayedRequest = await application.households.requestToJoin(SEEDED_HOUSEHOLD_ID, commandId("idem-join"));
+    expect(replayedRequest.joinRequestId).toBe(firstRequest.joinRequestId);
+    expect((await repositories.joinRequests.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((item) => item.joinRequestId === firstRequest.joinRequestId)).toHaveLength(1);
+    await application.households.cancelJoinRequest(firstRequest.joinRequestId);
+
+    const firstHousehold = await application.households.createHousehold("Retry House", "000000111", commandId("idem-household"));
+    const replayedHousehold = await application.households.createHousehold("Retry House", "000000111", commandId("idem-household"));
+    expect(replayedHousehold.householdId).toBe(firstHousehold.householdId);
+    await expect(application.households.createHousehold("Changed House", "000000111", commandId("idem-household"))).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
   });
 });

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, selectExpenseDate, test, type Page } from "./fixtures";
 
 async function switchIdentity(page: Page, identity: "raiyan" | "john" | "sarah") {
   await page.getByTestId("development-tools-trigger").click();
@@ -84,7 +84,7 @@ test("a reversed stale Pending warns the receiver and confirmation applies the o
   await page.goto("/expenses/new");
   await page.getByLabel("Expense Name").fill("Large shared payment");
   await page.getByLabel("Amount (BDT)").fill("900");
-  await page.getByLabel("Expense Date").fill("2026-08-18");
+  await selectExpenseDate(page, "2026-08-18");
   await page.getByRole("button", { name: "Create Expense" }).click();
   await expect(page.getByRole("heading", { name: "Large shared payment" })).toBeVisible();
 

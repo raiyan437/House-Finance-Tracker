@@ -1,4 +1,5 @@
 import { ApplicationError } from "@/application/errors/application-error";
+import { assertCommandOutcome, type CommandOutcome } from "@/application/idempotency/command-idempotency";
 import { expenseDate } from "@/domain/dates/expense-date";
 import { CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
@@ -25,6 +26,7 @@ import {
 import {
   auditEventId,
   cardId,
+  commandId,
   expenseId,
   householdId,
   joinRequestId,
@@ -45,18 +47,20 @@ import {
 import type {
   AuditEventRecordV1,
   CardRecordV2,
+  CommandOutcomeRecordV1,
   ExpenseCardPrivateRecordV2,
   ExpenseRecordV2,
+  ExpenseRecordV3,
   HouseholdRecordV1,
   JoinRequestRecordV2,
   MembershipRecordV1,
-  ReceiptMetadataRecordV1,
+  ReceiptMetadataRecordV2,
   SettlementRecordV1,
   UserProfileRecordV1,
 } from "./records";
 
 const recordVersion = z.literal(1);
-const expenseRecordVersion = z.literal(2);
+const expenseRecordVersion = z.literal(3);
 const cardRecordVersion = z.literal(2);
 const trimmed = z.string().min(1).refine((value) => value.trim() === value);
 const idText = trimmed;
@@ -115,14 +119,17 @@ const expenseSchema = z.object({
   recordVersion: expenseRecordVersion,
   ...expenseRecordFields,
   percentageEntries: z.array(percentageEntrySchema).optional(),
+  revision: safeInteger.refine((value) => value >= 1),
 }).strict();
 const legacyPrivateCardSchema = z.object({ recordVersion, expenseId: idText, ownerId: idText, cardId: idText, cardNameSnapshot: trimmed, cardTypeSnapshot: z.enum(["debit", "credit"]), colorSnapshot: trimmed }).strict();
 const privateCardSchema = z.object({ recordVersion: cardRecordVersion, expenseId: idText, ownerId: idText, cardId: idText, cardNameSnapshot: trimmed, cardTypeSnapshot: z.enum(["debit", "credit"]), colorIdSnapshot: z.enum(CARD_COLOR_IDS) }).strict();
 const settlementSchema = z.object({ recordVersion, id: idText, householdId: idText, senderId: idText, receiverId: idText, amountPoisha: safeInteger, recommendationHouseholdId: idText, recommendationSenderId: idText, recommendationReceiverId: idText, recommendationAmountPoisha: safeInteger, createdAt: instantText, status: z.enum(["pending", "confirmed", "rejected", "cancelled"]), resolvedAt: instantText.optional(), pendingSettlementPairKey: trimmed.optional() }).strict();
 const legacyCardSchema = z.object({ recordVersion, id: idText, ownerId: idText, name: trimmed, type: z.enum(["debit", "credit"]), color: trimmed, createdAt: instantText, updatedAt: instantText, archivedAt: instantText.optional() }).strict();
 const cardSchema = z.object({ recordVersion: cardRecordVersion, id: idText, ownerId: idText, name: trimmed, type: z.enum(["debit", "credit"]), colorId: z.enum(CARD_COLOR_IDS), createdAt: instantText, updatedAt: instantText, archivedAt: instantText.optional() }).strict();
-const receiptSchema = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
+const receiptSchemaV1 = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
+const receiptSchema = z.object({ recordVersion: z.literal(2), id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, contentStatus: z.enum(["available", "user-deleted", "retention-expired"]), contentRemovedAt: instantText.optional(), contentRemovedByUserId: idText.optional() }).strict();
 const auditSchema = z.object({ recordVersion, id: idText, householdId: idText, actorId: idText, aggregateType: z.enum(["household", "membership", "join-request", "expense", "settlement", "card", "receipt"]), aggregateId: trimmed, action: trimmed, occurredAt: instantText, changedFields: z.array(trimmed) }).strict();
+const commandOutcomeSchema = z.object({ recordVersion, key: trimmed, actorId: idText, commandType: z.enum(["create-expense", "create-household", "send-join-request", "create-pending-settlement", "upload-receipt", "create-card"]), commandId: idText, intentDigest: trimmed, resourceId: idText, completedAt: instantText }).strict();
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown, store: string, key?: string): T {
   const result = schema.safeParse(value);
@@ -213,14 +220,30 @@ export const migrateExpenseRecordV1ToV2 = (
   return { ...value, recordVersion: 2 };
 };
 
-export const toExpenseRecord = (value: Expense): ExpenseRecordV2 => {
+export const migrateExpenseRecordToV3 = (
+  raw: unknown,
+  key?: string,
+): ExpenseRecordV3 => {
+  const version = z.object({ recordVersion: z.union([z.literal(1), z.literal(2)]) }).passthrough().safeParse(raw);
+  if (!version.success) {
+    throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Stored expenses data failed validation.", { store: "expenses", key });
+  }
+  const value = version.data.recordVersion === 1
+    ? migrateExpenseRecordV1ToV2(raw, key)
+    : parsed(z.object({ recordVersion: z.literal(2), ...expenseRecordFields, percentageEntries: z.array(percentageEntrySchema).optional() }).strict(), raw, "expenses", key);
+  const migrated: ExpenseRecordV3 = { ...value, recordVersion: 3, revision: 1 };
+  fromExpenseRecord(migrated, key ?? value.id);
+  return migrated;
+};
+
+export const toExpenseRecord = (value: Expense): ExpenseRecordV3 => {
   assertExpense(value);
-  return { recordVersion: 2, id: value.expenseId, householdId: value.householdId, creatorId: value.creatorId, payerId: value.payerId, name: value.name, amountPoisha: value.amount, expenseDate: value.expenseDate, splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => ({ participantId: entry.participantId, basisPoints: entry.basisPoints })) }), allocations: value.allocations.map((item) => ({ participantId: item.participantId, sharePoisha: item.share })), paymentMethod: value.payment.method, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) };
+  return { recordVersion: 3, id: value.expenseId, householdId: value.householdId, creatorId: value.creatorId, payerId: value.payerId, name: value.name, amountPoisha: value.amount, expenseDate: value.expenseDate, splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => ({ participantId: entry.participantId, basisPoints: entry.basisPoints })) }), allocations: value.allocations.map((item) => ({ participantId: item.participantId, sharePoisha: item.share })), paymentMethod: value.payment.method, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) };
 };
 export const fromExpenseRecord = (raw: unknown, key?: string): Expense => {
   const value = parsed(expenseSchema, raw, "expenses", key);
   return reconstructed("expenses", key, () => {
-    const domain: Expense = { expenseId: expenseId(value.id), householdId: householdId(value.householdId), creatorId: userId(value.creatorId), payerId: userId(value.payerId), name: value.name, amount: positivePoisha(value.amountPoisha), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => Object.freeze({ participantId: userId(entry.participantId), basisPoints: basisPoints(entry.basisPoints) })) }), allocations: value.allocations.map((item) => Object.freeze({ participantId: userId(item.participantId), share: poisha(item.sharePoisha) })), payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${value.id}` }, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) };
+    const domain: Expense = { expenseId: expenseId(value.id), householdId: householdId(value.householdId), creatorId: userId(value.creatorId), payerId: userId(value.payerId), name: value.name, amount: positivePoisha(value.amountPoisha), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => Object.freeze({ participantId: userId(entry.participantId), basisPoints: basisPoints(entry.basisPoints) })) }), allocations: value.allocations.map((item) => Object.freeze({ participantId: userId(item.participantId), share: poisha(item.sharePoisha) })), payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${value.id}` }, revision: value.revision, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) };
     assertExpense(domain);
     return Object.freeze(domain);
   });
@@ -301,8 +324,44 @@ export const fromSettlementRecord = (raw: unknown, key?: string): SettlementReco
 export const toCardRecord = (value: Card): CardRecordV2 => { assertCard(value); return { recordVersion: 2, id: value.cardId, ownerId: value.ownerId, name: value.name, type: value.type, colorId: value.colorId, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.archivedAt ? { archivedAt: value.archivedAt } : {}) }; };
 export const fromCardRecord = (raw: unknown, key?: string): Card => { const value = parsed(cardSchema, raw, "cards", key); return reconstructed("cards", key, () => { const domain: Card = { cardId: cardId(value.id), ownerId: userId(value.ownerId), name: value.name, type: value.type, colorId: cardColorId(value.colorId), createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.archivedAt ? { archivedAt: isoInstant(value.archivedAt) } : {}) }; assertCard(domain); return Object.freeze(domain); }); };
 
-export const toReceiptRecord = (value: ReceiptMetadata): ReceiptMetadataRecordV1 => { assertReceiptMetadata(value); return { recordVersion: 1, id: value.receiptId, householdId: value.householdId, expenseId: value.expenseId, createdByUserId: value.createdByUserId, mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: value.createdAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) }; };
-export const fromReceiptRecord = (raw: unknown, key?: string): ReceiptMetadata => { const value = parsed(receiptSchema, raw, "receiptMetadata", key); return reconstructed("receiptMetadata", key, () => { const domain: ReceiptMetadata = { receiptId: receiptId(value.id), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), createdByUserId: userId(value.createdByUserId), mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: isoInstant(value.createdAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) }; assertReceiptMetadata(domain); return Object.freeze(domain); }); };
+export const toReceiptRecord = (value: ReceiptMetadata): ReceiptMetadataRecordV2 => { assertReceiptMetadata(value); return { recordVersion: 2, id: value.receiptId, householdId: value.householdId, expenseId: value.expenseId, createdByUserId: value.createdByUserId, mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: value.createdAt, contentStatus: value.contentStatus, ...(value.contentRemovedAt ? { contentRemovedAt: value.contentRemovedAt } : {}), ...(value.contentRemovedByUserId ? { contentRemovedByUserId: value.contentRemovedByUserId } : {}) }; };
+export const fromReceiptRecord = (raw: unknown, key?: string): ReceiptMetadata => { const value = parsed(receiptSchema, raw, "receiptMetadata", key); return reconstructed("receiptMetadata", key, () => { const domain: ReceiptMetadata = { receiptId: receiptId(value.id), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), createdByUserId: userId(value.createdByUserId), mimeType: value.mimeType, ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}), sizeBytes: value.sizeBytes, createdAt: isoInstant(value.createdAt), contentStatus: value.contentStatus, ...(value.contentRemovedAt ? { contentRemovedAt: isoInstant(value.contentRemovedAt) } : {}), ...(value.contentRemovedByUserId ? { contentRemovedByUserId: userId(value.contentRemovedByUserId) } : {}) }; assertReceiptMetadata(domain); return Object.freeze(domain); }); };
+
+export function migrateReceiptRecordV1ToV2(raw: unknown): ReceiptMetadataRecordV2 {
+  const value = parsed(receiptSchemaV1, raw, "receiptMetadata");
+  if (Boolean(value.deletedAt) !== Boolean(value.deletedByUserId)) {
+    throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Stored receipt deletion metadata is incomplete.", { store: "receiptMetadata", key: value.id });
+  }
+  const migrated: ReceiptMetadataRecordV2 = {
+    recordVersion: 2,
+    id: value.id,
+    householdId: value.householdId,
+    expenseId: value.expenseId,
+    createdByUserId: value.createdByUserId,
+    mimeType: value.mimeType,
+    ...(value.originalFilename ? { originalFilename: value.originalFilename } : {}),
+    sizeBytes: value.sizeBytes,
+    createdAt: value.createdAt,
+    contentStatus: value.deletedAt ? "user-deleted" : "available",
+    ...(value.deletedAt ? { contentRemovedAt: value.deletedAt, contentRemovedByUserId: value.deletedByUserId } : {}),
+  };
+  fromReceiptRecord(migrated, value.id);
+  return migrated;
+}
 
 export const toAuditRecord = (value: AuditEvent): AuditEventRecordV1 => { assertAuditEvent(value); return { recordVersion: 1, id: value.auditEventId, householdId: value.householdId, actorId: value.actorId, aggregateType: value.aggregateType, aggregateId: value.aggregateId, action: value.action, occurredAt: value.occurredAt, changedFields: [...value.changedFields] }; };
 export const fromAuditRecord = (raw: unknown, key?: string): AuditEvent => { const value = parsed(auditSchema, raw, "auditEvents", key); return reconstructed("auditEvents", key, () => { const domain: AuditEvent = { auditEventId: auditEventId(value.id), householdId: householdId(value.householdId), actorId: userId(value.actorId), aggregateType: value.aggregateType, aggregateId: value.aggregateId, action: value.action, occurredAt: isoInstant(value.occurredAt), changedFields: Object.freeze([...value.changedFields]) }; assertAuditEvent(domain); return Object.freeze(domain); }); };
+
+export const toCommandOutcomeRecord = (value: CommandOutcome): CommandOutcomeRecordV1 => {
+  assertCommandOutcome(value);
+  return { recordVersion: 1, key: JSON.stringify([value.actorId, value.commandType, value.commandId]), actorId: value.actorId, commandType: value.commandType, commandId: value.commandId, intentDigest: value.intentDigest, resourceId: value.resourceId, completedAt: value.completedAt };
+};
+export const fromCommandOutcomeRecord = (raw: unknown, key?: string): CommandOutcome => {
+  const value = parsed(commandOutcomeSchema, raw, "commandOutcomes", key);
+  return reconstructed("commandOutcomes", key, () => {
+    const outcome: CommandOutcome = { actorId: userId(value.actorId), commandType: value.commandType, commandId: commandId(value.commandId), intentDigest: value.intentDigest, resourceId: value.resourceId, completedAt: isoInstant(value.completedAt) };
+    assertCommandOutcome(outcome);
+    if (value.key !== JSON.stringify([outcome.actorId, outcome.commandType, outcome.commandId]) || (key !== undefined && value.key !== key)) throw new ApplicationError("MALFORMED_PERSISTED_DATA", "Stored command outcome key is inconsistent.");
+    return Object.freeze(outcome);
+  });
+};

@@ -33,6 +33,7 @@ function fingerprint(): ExpenseFinancialFingerprint {
     ],
     expenseDate: expenseDate("2026-08-12"),
     payment: { method: "card", cardReference: "historical-card" },
+    cardAssociationIdentity: "opaque-card-a",
     deleted: false,
   };
 }
@@ -102,10 +103,14 @@ describe("former-member financial fingerprint", () => {
       ...fingerprint(),
       expenseDate: expenseDate("2026-08-13"),
     });
-    expectFrozenChange({ ...fingerprint(), payment: { method: "cash" } });
     expectFrozenChange({
       ...fingerprint(),
-      payment: { method: "card", cardReference: "different-card" },
+      payment: { method: "cash" },
+      cardAssociationIdentity: undefined,
+    });
+    expectFrozenChange({
+      ...fingerprint(),
+      cardAssociationIdentity: "opaque-card-b",
     });
     expectFrozenChange({ ...fingerprint(), deleted: true });
   });

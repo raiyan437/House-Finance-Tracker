@@ -57,7 +57,7 @@ export function DashboardPageClient() {
     <PageContainer className="space-y-5">
       <h1 className="sr-only">Dashboard</h1>
       <div className="flex min-h-11 flex-wrap items-center gap-4">
-        <MonthSelector value={month} onChange={setMonth} />
+        <MonthSelector options={visibleState.status === "ready" ? visibleState.view.monthOptions : [month]} value={month} onChange={setMonth} />
         {visibleState.status === "ready" ? <MemberAvatars members={visibleState.view.members} /> : <div aria-hidden="true" className="h-10" />}
       </div>
 
@@ -120,7 +120,7 @@ export function DashboardContent({ view }: Readonly<{ view: DashboardPageView }>
 
       <div className="dashboard-analytics-grid mt-6 grid gap-4">
         <ChartCard
-          className="h-[286px] gap-3 overflow-hidden"
+          className="col-span-full h-[286px] min-w-0 gap-3 overflow-hidden"
           action={<Button asChild size="sm" variant="outline"><Link href={`/reports/monthly?month=${view.selectedMonth}`}>View Monthly Report<ArrowRight /></Link></Button>}
           description={`Daily spending for ${formatCalendarMonth(view.selectedMonth)}`}
           padding="canonical"
@@ -130,13 +130,6 @@ export function DashboardContent({ view }: Readonly<{ view: DashboardPageView }>
         >
           <p className="sr-only" id="dashboard-spending-trend-description">{trendSummary}</p>
           <DailySpendingChart data={view.dailySpending} descriptionId="dashboard-spending-trend-description" label={`Daily spending bar chart for ${formatCalendarMonth(view.selectedMonth)}, day 1 through day ${view.dailySpending.length}`} />
-        </ChartCard>
-        <ChartCard className="h-[286px] gap-3 overflow-hidden" description="Cash vs Card this month" padding="canonical" summary={paymentSummary} summaryVisuallyHidden title="Payment Mix">
-          <p className="sr-only" id="dashboard-payment-mix-description">{paymentSummary}</p>
-          <div className="grid min-h-[174px] grid-cols-[138px_minmax(0,1fr)] items-center gap-4">
-            {view.paymentMix.total > 0 ? <PaymentMixChart descriptionId="dashboard-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} /> : <p className="col-span-2 text-center text-body text-text-secondary">No spending this month</p>}
-            {view.paymentMix.total > 0 ? <PaymentMixRows mix={view.paymentMix} /> : null}
-          </div>
         </ChartCard>
       </div>
 
@@ -148,23 +141,31 @@ export function DashboardContent({ view }: Readonly<{ view: DashboardPageView }>
           <div className="mt-4 min-h-0 flex-1 overflow-hidden"><ExpenseSummaryList compact emptyMessage="No expenses this month" expenses={view.recentExpenses} /></div>
           <div className="mt-3"><Button asChild className="h-8 rounded-[10px] border bg-secondary px-4 text-xs" variant="ghost"><Link href={`/expenses?month=${view.selectedMonth}`}>View All Expenses</Link></Button></div>
         </Surface>
+        <ChartCard className="dashboard-payment-mix-card min-h-[286px] min-w-0 gap-3 overflow-hidden" description="Cash vs Card this month" padding="canonical" summary={paymentSummary} summaryVisuallyHidden title="Payment Mix">
+          <p className="sr-only" id="dashboard-payment-mix-description">{paymentSummary}</p>
+          <div className="flex min-h-[174px] min-w-0 flex-col items-center justify-center gap-4 sm:flex-row sm:gap-3">
+            {view.paymentMix.total > 0 ? <PaymentMixChart compact descriptionId="dashboard-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} /> : <p className="text-center text-body text-text-secondary">No spending this month</p>}
+            {view.paymentMix.total > 0 ? <div className="w-full min-w-0 sm:flex-1"><PaymentMixRows compact mix={view.paymentMix} /></div> : null}
+          </div>
+        </ChartCard>
       </div>
     </div>
   );
 }
 
-export function PaymentMixRows({ mix }: Readonly<{ mix: DashboardPageView["paymentMix"] }>) {
+export function PaymentMixRows({ compact = false, mix }: Readonly<{ compact?: boolean; mix: DashboardPageView["paymentMix"] }>) {
+  const valueClassName = compact ? "flex flex-col items-end leading-4" : "text-right";
   return (
     <dl className="grid gap-3">
-      <div className="grid grid-cols-[1fr_auto] items-center gap-2"><dt className="flex items-center gap-2 text-xs"><span className="flex size-6 items-center justify-center rounded-lg bg-secondary"><Banknote aria-hidden="true" className="size-3.5 text-text-secondary" /></span>Cash</dt><dd className="financial-numerals text-right"><span className="text-sm font-semibold">{formatBdt(mix.cash.amount)}</span>{mix.cash.basisPoints === undefined ? null : <span className="ml-2 text-xs font-semibold">{formatBasisPointPercentage(mix.cash.basisPoints)}</span>}</dd></div>
-      <div className="grid grid-cols-[1fr_auto] items-center gap-2"><dt className="flex items-center gap-2 text-xs"><span className="flex size-6 items-center justify-center rounded-lg bg-brand-soft"><CreditCard aria-hidden="true" className="size-3.5 text-text-secondary" /></span>Card</dt><dd className="financial-numerals text-right"><span className="text-sm font-semibold">{formatBdt(mix.card.amount)}</span>{mix.card.basisPoints === undefined ? null : <span className="ml-2 text-xs font-semibold">{formatBasisPointPercentage(mix.card.basisPoints)}</span>}</dd></div>
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2"><dt className="flex items-center gap-2 text-xs"><span className="flex size-6 items-center justify-center rounded-lg bg-secondary"><Banknote aria-hidden="true" className="size-3.5 text-text-secondary" /></span>Cash</dt><dd className={`financial-numerals ${valueClassName}`}><span className="text-sm font-semibold">{formatBdt(mix.cash.amount)}</span>{mix.cash.basisPoints === undefined ? null : <span className={compact ? "text-xs font-semibold text-text-secondary" : "ml-2 text-xs font-semibold"}>{formatBasisPointPercentage(mix.cash.basisPoints)}</span>}</dd></div>
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2"><dt className="flex items-center gap-2 text-xs"><span className="flex size-6 items-center justify-center rounded-lg bg-brand-soft"><CreditCard aria-hidden="true" className="size-3.5 text-text-secondary" /></span>Card</dt><dd className={`financial-numerals ${valueClassName}`}><span className="text-sm font-semibold">{formatBdt(mix.card.amount)}</span>{mix.card.basisPoints === undefined ? null : <span className={compact ? "text-xs font-semibold text-text-secondary" : "ml-2 text-xs font-semibold"}>{formatBasisPointPercentage(mix.card.basisPoints)}</span>}</dd></div>
     </dl>
   );
 }
 
 function HousemateBalances({ view }: Readonly<{ view: DashboardPageView }>) {
   return (
-    <Surface className="flex h-[366px] flex-col" padding="canonical">
+    <Surface className="flex min-h-[286px] flex-col" padding="canonical">
       <h2 className="dashboard-panel-title">Housemate Balances</h2>
       <p className="compact-caption mt-1 text-text-muted">Current net position after all expenses</p>
       <ul className="mt-4 flex-1">

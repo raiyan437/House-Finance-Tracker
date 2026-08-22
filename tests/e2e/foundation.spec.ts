@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("redirects to the primary destination and renders the application shell", async ({
   page,

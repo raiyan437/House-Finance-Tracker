@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { MobileDevelopmentTools } from "@/presentation/devtools/development-tools";
 import { moreNavigationItems } from "./navigation-items";
 
 interface MobileLinkProps {
@@ -46,10 +47,11 @@ function MobileLink({
         : label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+        "flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
         active && "text-foreground",
       )}
       href={href}
+      title={label}
     >
       <span
         className={cn(
@@ -68,7 +70,6 @@ function MobileLink({
           </span>
         ) : null}
       </span>
-      <span className="truncate">{label}</span>
     </Link>
   );
 }
@@ -119,11 +120,13 @@ export function MobileNavigation() {
         <Sheet>
           <SheetTrigger asChild>
             <button
+              aria-label="More"
               aria-current={moreActive ? "page" : undefined}
               className={cn(
-                "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                "flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                 moreActive && "text-foreground",
               )}
+              title="More"
               type="button"
             >
               <span
@@ -134,7 +137,6 @@ export function MobileNavigation() {
               >
                 <Ellipsis aria-hidden="true" className="size-5" strokeWidth={1.8} />
               </span>
-              <span>More</span>
             </button>
           </SheetTrigger>
           <SheetContent side="bottom">
@@ -164,6 +166,7 @@ export function MobileNavigation() {
                 );
               })}
             </nav>
+            <MobileDevelopmentTools />
           </SheetContent>
         </Sheet>
       </div>

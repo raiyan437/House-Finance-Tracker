@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("native IndexedDB persists the selected development identity across runtime reopen", async ({
   context,
@@ -19,8 +19,8 @@ test("native IndexedDB persists the selected development identity across runtime
     "data-runtime-state",
     "ready",
   );
-  await expect(page.locator("aside").getByText("Raiyan", { exact: true })).toBeVisible();
-  await expect(page.locator("aside").getByText("Leader", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Raiyan", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
 
   const databases = await page.evaluate(async () =>
     (await indexedDB.databases()).map((database) => database.name),
@@ -29,8 +29,8 @@ test("native IndexedDB persists the selected development identity across runtime
 
   await page.getByTestId("development-tools-trigger").click();
   await page.getByTestId("development-identity-user-john").click();
-  await expect(page.locator("aside").getByText("John", { exact: true })).toBeVisible();
-  await expect(page.locator("aside").getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("John", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
 
   const closeCount = await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent("pagehide"));
@@ -47,9 +47,9 @@ test("native IndexedDB persists the selected development identity across runtime
     "ready",
   );
   await expect(
-    reopenedPage.locator("aside").getByText("John", { exact: true }),
+    reopenedPage.locator('a[href="/profile"]').getByText("John", { exact: true }),
   ).toBeVisible();
   await expect(
-    reopenedPage.locator("aside").getByText("Member", { exact: true }),
+    reopenedPage.locator('a[href="/profile"]').getByText("Member", { exact: true }),
   ).toBeVisible();
 });

@@ -11,7 +11,8 @@ import { deleteLocalDatabase, LOCAL_DATABASE_NAME, openLocalDatabase } from "./i
 import { LocalCurrentSession } from "./indexeddb/development-session";
 import { IndexedDbRepositories } from "./indexeddb/repositories";
 import type { HouseFinanceDatabase } from "./indexeddb/records";
-import { seedLocalDatabase } from "./indexeddb/seed";
+import { initializeLocalDatabase } from "./indexeddb/seed";
+import { decodeReceiptContentInBrowser } from "./browser/receipt-content-decoder";
 import type { UserProfile } from "@/domain/records/domain-records";
 
 export class LocalDevelopmentRuntime {
@@ -27,7 +28,7 @@ export class LocalDevelopmentRuntime {
   static async create(databaseName = LOCAL_DATABASE_NAME): Promise<LocalDevelopmentRuntime> {
     const connection = await openLocalDatabase(databaseName);
     try {
-      await seedLocalDatabase(connection);
+      await initializeLocalDatabase(connection);
     } catch (error) {
       connection.close();
       throw error;
@@ -41,7 +42,7 @@ export class LocalDevelopmentRuntime {
       repositories,
       atomicPersistence,
       currentSession,
-      new HouseFinanceApplication({ repositories, atomic: atomicPersistence, session: currentSession, values: new BrowserApplicationValues() }),
+      new HouseFinanceApplication({ repositories, atomic: atomicPersistence, session: currentSession, values: new BrowserApplicationValues(), receiptContentDecoder: decodeReceiptContentInBrowser }),
     );
   }
 
@@ -62,11 +63,11 @@ export class LocalDevelopmentRuntime {
     this.connection.close();
     await deleteLocalDatabase(this.databaseName);
     this.connection = await openLocalDatabase(this.databaseName);
-    await seedLocalDatabase(this.connection);
+    await initializeLocalDatabase(this.connection);
     this.repositories = new IndexedDbRepositories(this.connection);
     this.atomicPersistence = new IndexedDbAtomicApplicationPersistence(this.connection);
     this.currentSession = new LocalCurrentSession(this.connection);
-    this.application = new HouseFinanceApplication({ repositories: this.repositories, atomic: this.atomicPersistence, session: this.currentSession, values: new BrowserApplicationValues() });
+    this.application = new HouseFinanceApplication({ repositories: this.repositories, atomic: this.atomicPersistence, session: this.currentSession, values: new BrowserApplicationValues(), receiptContentDecoder: decodeReceiptContentInBrowser });
   }
 
   close(): void {

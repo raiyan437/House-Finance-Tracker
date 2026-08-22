@@ -1,5 +1,8 @@
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { BasisPoints } from "@/domain/money/basis-points";
+import type { ReceiptContentStatus } from "@/domain/records/domain-records";
+import type { IsoInstant } from "@/domain/shared/instant";
+import { RECEIPT_RETENTION_TIME_ZONE } from "@/domain/receipts/receipt-content-lifecycle";
 
 const MONTHS = [
   "Jan",
@@ -41,6 +44,25 @@ export function formatBasisPoints(value: BasisPoints): string {
     : `${whole}.${fraction.toString().padStart(2, "0")}`;
 }
 
-export function selectClassName(): string {
-  return "h-11 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20";
+const receiptCreatedAtFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: RECEIPT_RETENTION_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+export const RECEIPT_RETENTION_NOTICE = "Receipt files are kept for the current month and the previous two calendar months.";
+
+export function formatReceiptCreatedAt(value: IsoInstant): string {
+  return receiptCreatedAtFormatter.format(new Date(value));
+}
+
+export function receiptContentStateText(status: ReceiptContentStatus): Readonly<{ title: string; description?: string }> {
+  if (status === "retention-expired") {
+    return { title: "Receipt no longer available", description: RECEIPT_RETENTION_NOTICE };
+  }
+  if (status === "user-deleted") {
+    return { title: "Receipt removed" };
+  }
+  return { title: "Receipt available" };
 }

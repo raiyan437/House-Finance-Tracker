@@ -36,6 +36,7 @@ function expense(input: Partial<Expense> & Pick<Expense, "expenseId" | "amount" 
     createdAt: isoInstant("2026-08-01T00:00:00.000Z"),
     updatedAt: isoInstant("2026-08-01T00:00:00.000Z"),
     ...input,
+    revision: input.revision ?? 1,
   };
 }
 

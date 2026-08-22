@@ -15,7 +15,7 @@ import {
 } from "@/presentation/runtime/application-runtime-context";
 import { localCalendarMonthFromInstant } from "@/application/analytics/calendar-month";
 import {
-  DevelopmentTools,
+  DevelopmentToolsProvider,
   type DevelopmentIdentityOption,
 } from "@/presentation/devtools/development-tools";
 import { Toaster } from "@/components/ui/sonner";
@@ -186,12 +186,12 @@ export function LocalApplicationRuntime({
         };
         actions = Object.freeze<HouseholdApplicationActions>({
           generateCode: () => runtime.application.households.generateUniqueHouseholdCode(),
-          createHousehold: async (name, code) => {
-            await mutateAndReconstruct(() => runtime.application.households.createHousehold(name, code));
+          createHousehold: async (name, code, commandId) => {
+            await mutateAndReconstruct(() => runtime.application.households.createHousehold(name, code, commandId));
           },
           findHousehold: (code) => runtime.application.households.findHouseholdForJoin(code),
-          requestToJoin: async (householdId) => {
-            await mutateAndReconstruct(() => runtime.application.households.requestToJoin(householdId));
+          requestToJoin: async (householdId, commandId) => {
+            await mutateAndReconstruct(() => runtime.application.households.requestToJoin(householdId, commandId));
           },
           cancelJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.cancelJoinRequest(joinRequestId)),
           acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
@@ -203,6 +203,8 @@ export function LocalApplicationRuntime({
           refresh: () => reconstructState(runtime, true),
         });
         expenseActions = Object.freeze<ExpenseApplicationActions>({
+          getCurrentBusinessDate: async () => runtime.application.expenses.currentBusinessDate(),
+          getMyAvailableReceiptBytes: () => runtime.application.receipts.getMyAvailableReceiptBytes(),
           listExpenses: (householdId, includeDeleted) =>
             runtime.application.expenses.listHouseholdExpenses(
               householdId,
@@ -218,8 +220,8 @@ export function LocalApplicationRuntime({
             runtime.application.expenses.createExpense(command),
           editExpense: (command) =>
             runtime.application.expenses.editExpense(command),
-          deleteExpense: (expenseId) =>
-            runtime.application.expenses.deleteExpense(expenseId),
+          deleteExpense: (expenseId, expectedRevision) =>
+            runtime.application.expenses.deleteExpense(expenseId, expectedRevision),
           listReceipts: (expenseId) =>
             runtime.application.receipts.listExpenseReceipts(expenseId),
           readReceipt: (receiptId) =>
@@ -234,9 +236,9 @@ export function LocalApplicationRuntime({
             runtime.application.settlements.getSettlementPage(householdId),
           getPendingPreview: (settlementId) =>
             runtime.application.settlements.getPendingSettlementActionPreview(settlementId),
-          markRecommendationPaid: async (recommendation) => {
+          markRecommendationPaid: async (recommendation, commandId) => {
             await mutateAndReconstruct(() =>
-              runtime.application.settlements.createSettlement(recommendation),
+              runtime.application.settlements.createSettlement(recommendation, commandId),
             );
           },
           confirm: (settlementId) =>
@@ -319,14 +321,17 @@ export function LocalApplicationRuntime({
 
   return (
     <ApplicationRuntimeProvider value={state}>
-      {children}
-      {process.env.NODE_ENV === "development" && state.status === "ready" ? (
-        <DevelopmentTools
-          currentUserId={state.session.userId}
-          identities={identities}
-          onSwitchIdentity={switchIdentity}
-        />
-      ) : null}
+      <DevelopmentToolsProvider
+        value={process.env.NODE_ENV === "development" && state.status === "ready"
+          ? {
+              currentUserId: state.session.userId,
+              identities,
+              onSwitchIdentity: switchIdentity,
+            }
+          : undefined}
+      >
+        {children}
+      </DevelopmentToolsProvider>
       <Toaster closeButton position="top-right" richColors />
     </ApplicationRuntimeProvider>
   );
