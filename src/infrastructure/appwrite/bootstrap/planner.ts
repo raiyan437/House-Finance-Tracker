@@ -36,13 +36,28 @@ export function appwriteSchemaReader(clients: Readonly<{ tablesDB: TablesDB; sto
       throw error;
     }
   }
+  async function listOrEmpty<T>(call: () => Promise<T>, empty: T): Promise<T> {
+    try {
+      return await call();
+    } catch (error) {
+      if (error instanceof AppwriteException && error.code === 404) return empty;
+      throw error;
+    }
+  }
   return {
     getDatabase: (databaseId) => optional(() => clients.tablesDB.get({ databaseId })),
-    listTables: async (databaseId) => (await clients.tablesDB.listTables({ databaseId })).tables.map((table) => ({ id: table.$id })),
+    listTables: async (databaseId) =>
+      ((await listOrEmpty(() => clients.tablesDB.listTables({ databaseId }), { tables: [], total: 0 })) as { tables: { $id: string }[] }).tables.map(
+        (table) => ({ id: table.$id }),
+      ),
     listColumns: async (databaseId, tableId) =>
-      (await clients.tablesDB.listColumns({ databaseId, tableId })).columns.map((column) => ({ key: column.key })),
+      ((await listOrEmpty(() => clients.tablesDB.listColumns({ databaseId, tableId }), { columns: [], total: 0 })) as { columns: { key: string }[] }).columns.map(
+        (column) => ({ key: column.key }),
+      ),
     listIndexes: async (databaseId, tableId) =>
-      (await clients.tablesDB.listIndexes({ databaseId, tableId })).indexes.map((index) => ({ key: index.key })),
+      ((await listOrEmpty(() => clients.tablesDB.listIndexes({ databaseId, tableId }), { indexes: [], total: 0 })) as { indexes: { key: string }[] }).indexes.map(
+        (index) => ({ key: index.key }),
+      ),
     getBucket: (bucketId) => { const storage = clients.storage; return storage ? optional(() => storage.getBucket({ bucketId })) : Promise.resolve(undefined); },
     getFunction: (functionId) => { const functions = clients.functions; return functions ? optional(() => functions.get({ functionId })) : Promise.resolve(undefined); },
   };
