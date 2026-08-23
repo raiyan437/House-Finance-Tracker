@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadAppwriteServerConfig, validateRegistrationAllowlist, MAX_ALLOWLIST_ENTRIES } from "./config";
+import { loadAppwriteServerConfig, mergeDotEnvFile, validateRegistrationAllowlist, MAX_ALLOWLIST_ENTRIES } from "./config";
 
 describe("registration allowlist (fail-closed)", () => {
   it("disables registration when the configuration is missing or blank", () => {
@@ -67,5 +70,23 @@ describe("server config loading", () => {
     expect(result.value?.bootstrapApiKey).toBeUndefined();
     expect(result.value?.runtimeApiKey).toBeUndefined();
     expect(result.value?.registration.status).toBe("disabled");
+  });
+});
+
+describe("local env file merging", () => {
+  it("loads missing keys from a dotenv file, strips quotes, and never overrides existing values", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hft-env-"));
+    try {
+      const file = join(dir, ".env.local");
+      writeFileSync(file, ["APPWRITE_ENDPOINT=https://syd.cloud.appwrite.io/v1", "APPWRITE_PROJECT_ID=\"hft-prod\"", "# comment", "", "APPWRITE_RUNTIME_API_KEY=secret"].join("\n"));
+      const env: Record<string, string | undefined> = { APPWRITE_PROJECT_ID: "already-set" };
+      expect(mergeDotEnvFile(file, env)).toBe(2);
+      expect(env.APPWRITE_ENDPOINT).toBe("https://syd.cloud.appwrite.io/v1");
+      expect(env.APPWRITE_PROJECT_ID).toBe("already-set");
+      expect(env.APPWRITE_RUNTIME_API_KEY).toBe("secret");
+      expect(mergeDotEnvFile(join(dir, "missing.env"), env)).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

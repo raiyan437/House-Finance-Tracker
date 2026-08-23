@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -45,9 +46,25 @@ export function validateRegistrationAllowlist(raw: string | undefined): Registra
 
 const endpointSchema = z.string().url();
 
+export function mergeDotEnvFile(path: string, target: Record<string, string | undefined> = process.env): number {
+  if (!existsSync(path)) return 0;
+  let merged = 0;
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+    if (!match) continue;
+    const key = match[1];
+    let value = match[2];
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    if (target[key] === undefined) {
+      target[key] = value;
+      merged += 1;
+    }
+  }
+  return merged;
+}
+
 export function loadAppwriteServerConfig(env: Record<string, string | undefined> = process.env): AppwriteServerConfigResult {
-  const errors: string[] = [];
-  const endpoint = env.APPWRITE_ENDPOINT;
+  const errors: string[] = [];  const endpoint = env.APPWRITE_ENDPOINT;
   const projectId = env.APPWRITE_PROJECT_ID;
   if (!endpoint) errors.push("APPWRITE_ENDPOINT is required.");
   else if (!endpointSchema.safeParse(endpoint).success) errors.push("APPWRITE_ENDPOINT must be a valid HTTPS URL.");
