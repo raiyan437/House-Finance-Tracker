@@ -1,0 +1,76 @@
+import { describe, expect, it } from "vitest";
+import {
+  BUCKET,
+  MAINTENANCE_FUNCTION,
+  RECEIPT_MAX_FILE_BYTES,
+  SCHEMA_VERSION,
+  TABLES,
+  tableById,
+  type TableDefinition,
+} from "./definitions";
+
+function columns(table: TableDefinition): Map<string, string> {
+  return new Map(table.columns.map((column) => [column.key, column.kind]));
+}
+
+describe("Appwrite schema definitions (approved Rev 2 + corrections)", () => {
+  it("stores every exact monetary value in a bigint column", () => {
+    expect(columns(tableById("expenses")!).get("amountPoisha")).toBe("bigint");
+    const settlements = columns(tableById("settlements")!);
+    expect(settlements.get("amountPoisha")).toBe("bigint");
+    expect(settlements.get("originalAmountPoisha")).toBe("bigint");
+    for (const table of TABLES) {
+      for (const column of table.columns) {
+        if (column.key.toLowerCase().includes("poisha")) expect(column.kind).toBe("bigint");
+      }
+    }
+  });
+
+  it("keeps private Card associations out of the general Expense row", () => {
+    const expenseColumns = [...columns(tableById("expenses")!).keys()];
+    expect(expenseColumns.some((key) => key.toLowerCase().includes("card"))).toBe(false);
+    expect(tableById("expense_card_private_details")).toBeDefined();
+    expect(tableById("expenses")!.columns.map((c) => c.key)).not.toContain("cardAssocToken");
+  });
+
+  it("does not persist derived financial-lock state", () => {
+    for (const table of TABLES) {
+      expect(table.columns.map((column) => column.key)).not.toContain("financialLockedAt");
+      expect(table.columns.map((column) => column.key)).not.toContain("lockedAt");
+    }
+  });
+
+  it("does not persist balances, recommendations, or analytics aggregates", () => {
+    const forbidden = ["balance", "recommendation_cache", "snapshot_total", "monthly_total"];
+    for (const table of TABLES) {
+      for (const column of table.columns) {
+        expect(forbidden.some((fragment) => column.key.includes(fragment))).toBe(false);
+      }
+    }
+  });
+
+  it("defines the coordination guard and reservation infrastructure tables", () => {
+    const ids = TABLES.map((table) => table.id);
+    for (const id of ["coordination_guards", "receipt_reservations", "command_outcomes", "schema_metadata"]) {
+      expect(ids).toContain(id);
+    }
+  });
+
+  it("keeps the receipts bucket private with frozen file limits", () => {
+    expect(BUCKET.fileSecurity).toBe(true);
+    expect(BUCKET.maxFileSizeBytes).toBe(RECEIPT_MAX_FILE_BYTES);
+    expect(RECEIPT_MAX_FILE_BYTES).toBe(10 * 1024 * 1024);
+  });
+
+  it("defines exactly one scheduled maintenance function skeleton within Free-plan limits", () => {
+    expect(MAINTENANCE_FUNCTION.schedule).toBe("0 0 * * *");
+    expect(MAINTENANCE_FUNCTION.timeoutSeconds).toBeLessThanOrEqual(900);
+    expect(MAINTENANCE_FUNCTION.execute).toEqual([]);
+  });
+
+  it("exposes a stable schema version and lookup helper", () => {
+    expect(SCHEMA_VERSION).toBe(1);
+    expect(TABLES.every((table) => table.id.length <= 36 && /^[a-z_]+$/.test(table.id))).toBe(true);
+    expect(tableById("missing")).toBeUndefined();
+  });
+});
