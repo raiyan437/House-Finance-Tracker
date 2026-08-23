@@ -11,6 +11,8 @@ import {
 export const LOCAL_DATABASE_NAME = "house-finance-tracker-local";
 export const LOCAL_DATABASE_VERSION = 5;
 
+export type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
+
 function sanitizedMigrationError(error: unknown, store: string): ApplicationError {
   if (error instanceof ApplicationError) {
     return new ApplicationError(error.code, error.message, { store });

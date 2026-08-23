@@ -1072,6 +1072,16 @@ describe("Phase 4 application services with IndexedDB", () => {
       colorId: "soft-coral",
     });
     expect(updated).toMatchObject({ name: "Everyday", type: "credit", colorId: "soft-coral" });
+
+    const designCard = await application.cards.createMyCard({ name: "Travel Fund", type: "debit", colorId: "orange" });
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    await application.cards.createMyCard({ name: "Reloadable", type: "debit", colorId: "red" });
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    expect((await application.cards.getMyCards()).cards).toContainEqual(
+      expect.objectContaining({ cardId: designCard.cardId, name: "Travel Fund", colorId: "orange" }),
+    );
+    await application.cards.deleteOrArchiveMyCard(designCard.cardId, "delete");
+
     const preview = await application.cards.getMyCardRemovalPreview(second.cardId);
     expect(preview.expectedAction).toBe("delete");
     await expect(application.cards.deleteOrArchiveMyCard(second.cardId, "delete")).resolves.toBe("deleted");
@@ -1245,5 +1255,43 @@ describe("Phase 4 application services with IndexedDB", () => {
     const replayedSettlement = await application.settlements.createSettlement(recommendation, commandId("idem-settlement"));
     expect(replayedSettlement).toBe(firstSettlement);
     expect((await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((item) => item.settlementId === firstSettlement)).toHaveLength(1);
+  });
+
+  it("updates the current profile atomically with transaction-time email uniqueness", async () => {
+    const updated = await application.profiles.updateCurrentProfile("Raiyan Updated", "Raiyan.Updated@Local.test");
+    expect(updated.displayName).toBe("Raiyan Updated");
+    expect(updated.displayEmail).toBe("Raiyan.Updated@Local.test");
+    expect(updated.emailKey).toBe("raiyan.updated@local.test");
+    expect(updated.updatedAt).toBe("2026-08-13T13:00:00.000Z");
+    const persisted = await repositories.profiles.getById(SEEDED_USER_IDS.raiyan);
+    expect(persisted?.emailKey).toBe("raiyan.updated@local.test");
+
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    await expect(application.profiles.updateCurrentProfile("John", "RAIYAN.UPDATED@Local.test")).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "That local email is already in use.",
+    });
+    const johnAfterConflict = await repositories.profiles.getById(SEEDED_USER_IDS.john);
+    expect(johnAfterConflict?.updatedAt).toBe("2026-08-13T00:00:00.000Z");
+  });
+
+  it("rejects a stale profile save through the atomic expectedUpdatedAt gate", async () => {
+    const sarah = (await repositories.profiles.getById(SEEDED_USER_IDS.sarah))!;
+    const stale = { ...sarah, displayName: "Stale Sarah", updatedAt: isoInstant("2026-08-13T12:59:59.000Z") };
+    await expect(atomic.updateCurrentProfile({ profile: stale, expectedUpdatedAt: stale.updatedAt })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "The profile changed before the save completed. Reload and try again.",
+    });
+    expect((await repositories.profiles.getById(SEEDED_USER_IDS.sarah))?.displayName).toBe("Sarah");
+  });
+
+  it("uses a distinct typed error for malformed household codes", async () => {
+    await expect(application.households.findHouseholdForJoin("12345")).rejects.toMatchObject({
+      code: "INVALID_HOUSEHOLD_CODE",
+      message: "A household code must contain exactly nine digits.",
+    });
+    await expect(
+      application.households.createHousehold("Bad Code House", "abcdefghi"),
+    ).rejects.toMatchObject({ code: "INVALID_HOUSEHOLD_CODE" });
   });
 });

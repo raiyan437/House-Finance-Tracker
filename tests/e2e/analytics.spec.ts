@@ -257,3 +257,29 @@ for (const viewport of [
     expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
   });
 }
+
+test("selecting a past month keeps the current month selectable and survives in-session navigation", async ({ page }) => {
+  const selector = page.getByRole("combobox", { name: "Select month" });
+
+  await createJulyOnlyExpense(page);
+  await dashboardReady(page);
+
+  // Select July while August itself has no expenses.
+  await selector.click();
+  await page.getByRole("option", { name: "July 2026" }).click();
+  await expect(selector).toContainText("July 2026");
+
+  // Regression: August must not disappear from the options after selection.
+  await selector.click();
+  await expect(page.getByRole("option", { name: "August 2026" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // In-session navigation away and back preserves the chosen month.
+  await page.getByRole("link", { name: "Expenses" }).first().click();
+  await expect(page.getByRole("heading", { name: /Expenses/i })).toBeVisible();
+  await page.getByRole("link", { name: "Dashboard" }).first().click();
+  await expect(page.getByText("Spending Trend", { exact: true })).toBeVisible();
+  await expect(selector).toContainText("July 2026");
+  await selector.click();
+  await expect(page.getByRole("option", { name: "August 2026" })).toBeVisible();
+});

@@ -43,7 +43,7 @@ export function ProfilePageClient() {
         description="Your local account and current household membership."
       />
 
-      <div className="mt-6 grid items-start gap-[18px] lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+      <div className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
         <Surface padding="large" aria-labelledby="profile-account-heading">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <MemberAvatar

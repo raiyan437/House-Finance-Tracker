@@ -335,7 +335,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
             <thead>
               <tr>
                 {WEEKDAY_NAMES.map((weekday) => (
-                  <th className="h-8 text-center text-[10px] font-medium uppercase tracking-wide text-text-muted" key={weekday} scope="col">
+                  <th className="h-8 text-center text-mini font-medium uppercase tracking-wide text-text-muted" key={weekday} scope="col">
                     {weekday}
                   </th>
                 ))}

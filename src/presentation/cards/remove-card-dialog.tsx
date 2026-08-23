@@ -50,7 +50,7 @@ export function RemoveCardDialog({
       <AlertDialogContent
         aria-busy={pending}
         onCloseAutoFocus={(event) => {
-          if (!restoreFocusRef?.current) return;
+          if (!restoreFocusRef?.current?.isConnected) return;
           event.preventDefault();
           restoreFocusRef.current.focus();
         }}
@@ -66,7 +66,7 @@ export function RemoveCardDialog({
             aria-busy={pending}
             disabled={pending}
             onClick={(event) => void confirm(event)}
-            variant="destructive"
+            variant={preview?.expectedAction === "delete" ? "destructive" : "default"}
           >
             {pending ? "Working…" : preview?.expectedAction === "delete" ? "Delete Card" : "Archive Card"}
           </AlertDialogAction>

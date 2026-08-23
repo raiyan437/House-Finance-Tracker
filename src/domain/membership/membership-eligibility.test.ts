@@ -123,6 +123,26 @@ describe("membership eligibility", () => {
     ).toContain("MEMBER_HAS_PENDING_SETTLEMENT");
   });
 
+  it("carries every blocker on the thrown error, not only the first reason", () => {
+    let caught: DomainError | undefined;
+    try {
+      leaveHousehold(
+        house,
+        member,
+        memberships,
+        balanceSheet({ member: -10, leader: 10 }),
+        [pending(other, member)],
+      );
+    } catch (error) {
+      caught = error as DomainError;
+    }
+    expect(caught?.code).toBe("MEMBER_BALANCE_NOT_ZERO");
+    expect(caught?.details).toEqual([
+      "MEMBER_BALANCE_NOT_ZERO",
+      "MEMBER_HAS_PENDING_SETTLEMENT",
+    ]);
+  });
+
   it("requires a leader with remaining members to transfer leadership first", () => {
     expect(
       evaluateLeaveEligibility(

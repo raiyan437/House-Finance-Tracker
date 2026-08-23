@@ -33,6 +33,7 @@ function actions(overrides: Partial<HouseholdApplicationActions> = {}): Househol
     acceptJoinRequest: vi.fn().mockResolvedValue(undefined),
     rejectJoinRequest: vi.fn().mockResolvedValue(undefined),
     leaveHousehold: vi.fn().mockResolvedValue(undefined),
+    renameHousehold: vi.fn().mockResolvedValue(undefined),
     removeMember: vi.fn().mockResolvedValue(undefined),
     transferLeadership: vi.fn().mockResolvedValue(undefined),
     deleteHousehold: vi.fn().mockResolvedValue(undefined),
@@ -172,7 +173,7 @@ describe("Phase 6 household presentation", () => {
     expect(routeRequiresHousehold("/dashboard")).toBe(true);
     expect(routeRequiresHousehold("/reports/monthly")).toBe(true);
     expect(routeRequiresHousehold("/expenses/new")).toBe(true);
-    expect(routeRequiresHousehold("/settlements/history")).toBe(true);
+    expect(routeRequiresHousehold("/settlements")).toBe(true);
     expect(routeRequiresHousehold("/household")).toBe(false);
     expect(routeRequiresHousehold("/profile")).toBe(false);
     expect(routeRequiresHousehold("/cards")).toBe(false);
@@ -316,6 +317,31 @@ describe("Phase 6 household presentation", () => {
     expect(within(dialog).getByText(/you will remain a normal household member/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("offers House name rename to the Leader only and commits a changed name", async () => {
+    const user = userEvent.setup();
+    const rename = vi.fn().mockResolvedValue(undefined);
+    const { unmount } = renderRuntime(<HouseholdPageClient />, activeState("leader", actions({ renameHousehold: rename })));
+
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    const dialog = screen.getByRole("dialog", { name: "Rename Household" });
+    expect(dialog).toBeVisible();
+    expect(screen.getByLabelText("House name")).toHaveValue("Raiyan House");
+
+    await user.clear(screen.getByLabelText("House name"));
+    await user.click(screen.getByRole("button", { name: /Save Changes/ }));
+    expect(await screen.findByText("The House name cannot be empty.")).toBeVisible();
+    expect(rename).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("House name"), "Sunrise Villa");
+    await user.click(screen.getByRole("button", { name: /Save Changes/ }));
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("Sunrise Villa"));
+    unmount();
+
+    renderRuntime(<HouseholdPageClient />, activeState("member"));
+    expect(screen.queryByRole("button", { name: "Rename" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Rename Household" })).toBeNull();
   });
 
   it("uses one deletion confirmation that promises preservation rather than erasure", async () => {

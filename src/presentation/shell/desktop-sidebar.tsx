@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MemberRow } from "@/presentation/components/member-row";
-import { DevelopmentTools } from "@/presentation/devtools/development-tools";
+import { DevelopmentTools, useDevelopmentToolsActive } from "@/presentation/devtools/development-tools";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { Brand } from "./brand";
 import { desktopNavigationItems } from "./navigation-items";
@@ -37,9 +37,9 @@ function SidebarToggle({
       aria-expanded={!collapsed}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       className={cn(
-        "z-10 rounded-xl transition-[background-color,color,opacity,transform] duration-200 ease-[var(--motion-ease-out)]",
+        "z-10 rounded-md text-text-secondary transition-[background-color,color,opacity] duration-200 ease-[var(--motion-ease-out)] hover:text-foreground",
         collapsed
-          ? "invisible pointer-events-none absolute inset-0 size-10 scale-95 bg-foreground text-white opacity-0 shadow-[var(--shadow-small)] hover:bg-foreground/90 group-hover/sidebar-logo:pointer-events-auto group-hover/sidebar-logo:visible group-hover/sidebar-logo:scale-100 group-hover/sidebar-logo:opacity-100 group-focus-within/sidebar-logo:pointer-events-auto group-focus-within/sidebar-logo:visible group-focus-within/sidebar-logo:scale-100 group-focus-within/sidebar-logo:opacity-100"
+          ? "invisible pointer-events-none absolute inset-0 size-10 opacity-0 group-hover/sidebar-logo:pointer-events-auto group-hover/sidebar-logo:visible group-hover/sidebar-logo:opacity-100 group-focus-within/sidebar-logo:pointer-events-auto group-focus-within/sidebar-logo:visible group-focus-within/sidebar-logo:opacity-100"
           : "ml-auto size-9",
         className,
       )}
@@ -47,7 +47,7 @@ function SidebarToggle({
       size="icon-sm"
       title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       type="button"
-      variant={collapsed ? "default" : "ghost"}
+      variant="ghost"
     >
       {collapsed ? (
         <PanelLeftOpen aria-hidden="true" />
@@ -64,6 +64,10 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = collapsed !== undefined;
   const isCollapsed = isControlled ? collapsed : internalCollapsed;
+  const developmentToolsActive = useDevelopmentToolsActive();
+  const joinRequestCount = runtime.status === "ready" && runtime.household.status === "active-leader"
+    ? runtime.household.joinRequests.length
+    : 0;
 
   function toggleSidebar() {
     if (onToggle) {
@@ -114,7 +118,9 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
             const Icon = item.icon;
             const actionCount = item.href === "/settlements" && runtime.status === "ready"
               ? runtime.session.settlementActionCount
-              : 0;
+              : item.href === "/household"
+                ? joinRequestCount
+                : 0;
 
             return (
               <li key={item.href}>
@@ -122,7 +128,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
                   aria-current={active ? "page" : undefined}
                   aria-label={isCollapsed ? item.label : undefined}
                   className={cn(
-                    "relative flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium text-text-secondary transition-[background-color,color,gap,padding] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                    "relative flex h-10 items-center gap-3 rounded-xl px-3 text-row font-medium text-text-secondary transition-[background-color,color,gap,padding] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                     isCollapsed && "justify-center gap-0 px-2",
                     active
                       ? "bg-foreground text-white"
@@ -149,9 +155,11 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
                   </span>
                   {actionCount > 0 ? (
                     <span
-                      aria-label={`${actionCount} settlement ${actionCount === 1 ? "action" : "actions"} waiting for you`}
+                      aria-label={item.href === "/household"
+                        ? `${actionCount} join request${actionCount === 1 ? "" : "s"} waiting for your review`
+                        : `${actionCount} settlement ${actionCount === 1 ? "action" : "actions"} waiting for you`}
                       className={cn(
-                        "inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[0.6875rem] font-semibold leading-5 text-foreground",
+                        "inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-fine font-semibold leading-5 text-foreground",
                         isCollapsed
                           ? "absolute -right-1 -top-1"
                           : "ml-auto",
@@ -166,14 +174,16 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           })}
         </ul>
       </nav>
-      <div
-        className={cn(
-          "border-t border-warning/30 py-4 transition-[margin,padding] duration-300 ease-[var(--motion-ease-out)]",
-          isCollapsed ? "mx-2" : "mx-4",
-        )}
-      >
-        <DevelopmentTools compact={isCollapsed} />
-      </div>
+      {developmentToolsActive ? (
+        <div
+          className={cn(
+            "border-t border-warning/30 py-4 transition-[margin,padding] duration-300 ease-[var(--motion-ease-out)]",
+            isCollapsed ? "mx-2" : "mx-4",
+          )}
+        >
+          <DevelopmentTools compact={isCollapsed} />
+        </div>
+      ) : null}
       <div
         className={cn(
           "border-t pb-12 pt-5 transition-[padding] duration-300 ease-[var(--motion-ease-out)]",
@@ -183,7 +193,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
         <p
           aria-hidden={isCollapsed}
           className={cn(
-            "mb-3 overflow-hidden px-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted transition-[max-height,opacity,margin] duration-300 ease-[var(--motion-ease-out)]",
+            "mb-3 overflow-hidden px-2 text-mini font-semibold uppercase tracking-wide text-text-muted transition-[max-height,opacity,margin] duration-300 ease-[var(--motion-ease-out)]",
             isCollapsed ? "mb-0 max-h-0 opacity-0" : "max-h-6 opacity-100",
           )}
         >
@@ -204,7 +214,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
               compact={isCollapsed}
               displayName={runtime.session.displayName}
               secondaryText={runtime.session.roleLabel}
-              className="w-full [&_[data-slot=avatar]]:size-[42px] [&_p:first-child]:text-[13px] [&_p:last-child]:text-[11px] [&_p:last-child]:text-text-muted"
+              className="w-full [&_[data-slot=avatar]]:size-[42px] [&_p:first-child]:text-row [&_p:last-child]:text-fine [&_p:last-child]:text-text-muted"
             />
           </Link>
         ) : (
@@ -221,7 +231,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           aria-disabled="true"
           aria-label="Log Out"
           className={cn(
-            "mt-4 h-10 w-full justify-center rounded-xl bg-foreground text-[13px] font-semibold text-white transition-[gap,padding] hover:bg-foreground/90 aria-disabled:cursor-not-allowed aria-disabled:opacity-100",
+            "mt-4 h-10 w-full justify-center rounded-xl bg-foreground text-row font-semibold text-white transition-[gap,padding] hover:bg-foreground/90 aria-disabled:cursor-not-allowed aria-disabled:opacity-100",
             isCollapsed ? "gap-0 px-0" : "gap-2",
           )}
           onClick={preventUnavailableAction}

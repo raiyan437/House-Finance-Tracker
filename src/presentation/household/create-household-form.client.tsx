@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { ErrorState, LoadingState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
+import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
@@ -67,7 +68,7 @@ export function CreateHouseholdForm() {
       router.replace("/dashboard");
     } catch (error) {
       setCreating(false);
-      const message = error instanceof Error ? error.message : "The household could not be created.";
+      const message = userErrorMessage(error, "The household could not be created.");
       if (/code/i.test(message)) form.setError("code", { message });
       else form.setError("root", { message });
     }

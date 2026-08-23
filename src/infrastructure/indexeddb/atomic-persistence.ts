@@ -28,11 +28,13 @@ import {
   type ExpenseFinancialFingerprint,
 } from "@/domain/expenses/expense-financial-fingerprint";
 import {
+  assertHousehold,
   toBalanceExpense,
   type AuditEvent,
   type Card,
   type Expense,
   type ExpenseCardPrivateSnapshot,
+  type Household,
 } from "@/domain/records/domain-records";
 import { auditEventId, commandId } from "@/domain/shared/identifiers";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
@@ -50,6 +52,7 @@ import {
   fromJoinRequestRecord,
   fromMembershipRecord,
   fromPrivateCardRecord,
+  fromProfileRecord,
   fromReceiptRecord,
   fromSettlementRecord,
   toAuditRecord,
@@ -60,6 +63,7 @@ import {
   toJoinRequestRecord,
   toMembershipRecord,
   toPrivateCardRecord,
+  toProfileRecord,
   toReceiptRecord,
   toSettlementRecord,
 } from "./mappers";
@@ -69,8 +73,8 @@ import {
   pendingJoinUserKey,
 } from "./keys";
 import type { HouseFinanceDatabase } from "./records";
+import type { DatabaseSource } from "./database";
 
-type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
 
 function abortSafely<Stores extends StoreNames<HouseFinanceDatabase>[]>(
   transaction: IDBPTransaction<HouseFinanceDatabase, Stores, "readwrite">,
@@ -176,11 +180,58 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
-  async updateHousehold(input: Parameters<AtomicApplicationPersistence["updateHousehold"]>[0]): Promise<void> {
-    if (input.household.deletedAt) throw new ApplicationError("CONFLICT", "Deleted households cannot be renamed.");
-    const tx = (await this.db()).transaction(["households", "auditEvents"], "readwrite");
-    try { if (!(await tx.objectStore("households").getKey(input.household.householdId))) throw new ApplicationError("NOT_FOUND", "Household not found."); await tx.objectStore("households").put(toHouseholdRecord(input.household)); await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent)); await tx.done; }
-    catch (error) { abortSafely(tx); persistenceFailure(error); }
+  async updateCurrentProfile(input: Parameters<AtomicApplicationPersistence["updateCurrentProfile"]>[0]): Promise<void> {
+    const profile = toProfileRecord(input.profile);
+    const tx = (await this.db()).transaction("userProfiles", "readwrite");
+    try {
+      const raw = await tx.objectStore("userProfiles").get(input.profile.userId);
+      if (!raw) throw new ApplicationError("NOT_FOUND", "Profile not found.");
+      const current = fromProfileRecord(raw, input.profile.userId);
+      if (current.updatedAt !== input.expectedUpdatedAt) {
+        throw new ApplicationError("CONFLICT", "The profile changed before the save completed. Reload and try again.");
+      }
+      const conflicts = await tx.objectStore("userProfiles").index("emailKey").getAll(input.profile.emailKey);
+      if (conflicts.some((row) => row.id !== input.profile.userId)) {
+        throw new ApplicationError("CONFLICT", "That local email is already in use.");
+      }
+      await tx.objectStore("userProfiles").put(profile);
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async renameHousehold(input: Parameters<AtomicApplicationPersistence["renameHousehold"]>[0]): Promise<void> {
+    if (input.name.trim() !== input.name || input.name.length === 0) {
+      throw new ApplicationError("CONFLICT", "The House name must be non-empty and trimmed.");
+    }
+    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    try {
+      const raw = await tx.objectStore("households").get(input.householdId);
+      if (!raw || raw.deletedAt) throw new ApplicationError("NOT_FOUND", "Household not found.");
+      const current = fromHouseholdRecord(raw, input.householdId);
+      if (current.name === input.name) {
+        await tx.done;
+        return;
+      }
+      const leaderKey = await tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.actorId));
+      if (!leaderKey) throw new ApplicationError("NOT_FOUND", "Household not found.");
+      const membershipRaw = await tx.objectStore("memberships").get(leaderKey);
+      const membership = fromMembershipRecord(membershipRaw, leaderKey);
+      if (
+        membership.householdId !== input.householdId ||
+        membership.role !== "leader" ||
+        input.auditEvent.actorId !== input.actorId ||
+        input.auditEvent.aggregateType !== "household" ||
+        input.auditEvent.aggregateId !== input.householdId ||
+        input.auditEvent.action !== "renamed"
+      ) {
+        throw new ApplicationError("NOT_FOUND", "Household not found.");
+      }
+      const updated: Household = { ...current, name: input.name, updatedAt: input.occurredAt };
+      assertHousehold(updated);
+      await tx.objectStore("households").put(toHouseholdRecord(updated));
+      await tx.objectStore("auditEvents").add(toAuditRecord({ ...input.auditEvent, occurredAt: input.occurredAt }));
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJoinRequest"]>[0]): Promise<string> {

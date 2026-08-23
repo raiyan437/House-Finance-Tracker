@@ -73,7 +73,7 @@ test("duplicate Pending blocks Settle Up while receiver Reject and sender Cancel
   await page.getByRole("button", { name: /settle up with raiyan/i }).click();
   await page.getByRole("button", { name: "Mark as Paid" }).click();
   await expect(page.getByText(/Waiting for Raiyan to confirm/)).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel Claim" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Cancel Claim" }).click();
   await expect(page.getByRole("row").filter({ hasText: "John" }).filter({ hasText: "Cancelled" })).toBeVisible();
 });

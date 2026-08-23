@@ -7,11 +7,20 @@ import { formatExpenseDate } from "@/presentation/expenses/expense-ui";
 interface ExpenseSummaryListProps {
   readonly expenses: readonly AnalyticsExpenseView[];
   readonly emptyMessage: string;
+  readonly emptyAction?: React.ReactNode;
   readonly compact?: boolean;
 }
 
-export function ExpenseSummaryList({ expenses, emptyMessage, compact = false }: ExpenseSummaryListProps) {
+export function ExpenseSummaryList({ expenses, emptyMessage, emptyAction, compact = false }: ExpenseSummaryListProps) {
   if (expenses.length === 0) {
+    if (emptyAction) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center" data-slot="expense-summary-empty">
+          <p className="text-body text-text-secondary">{emptyMessage}</p>
+          <div className="flex justify-center">{emptyAction}</div>
+        </div>
+      );
+    }
     return <p className="py-8 text-center text-body text-text-secondary">{emptyMessage}</p>;
   }
   return (
@@ -27,7 +36,7 @@ export function ExpenseSummaryList({ expenses, emptyMessage, compact = false }: 
             {compact ? <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-xl bg-brand-soft"><ArrowUpRight className="size-4" /></span> : null}
             <div className="min-w-0">
               <p className={compact ? "truncate text-xs font-semibold" : "truncate font-medium"}>{expense.name}</p>
-              <p className="text-[10px] text-text-muted">{formatExpenseDate(expense.expenseDate)}{compact ? ` · ${expense.payer.isCurrentUser ? "You" : expense.payer.displayName} · ${expense.paymentMethod === "cash" ? "Cash" : "Card"}` : ""}</p>
+              <p className="text-mini text-text-muted">{formatExpenseDate(expense.expenseDate)}{compact ? ` · ${expense.payer.isCurrentUser ? "You" : expense.payer.displayName} · ${expense.paymentMethod === "cash" ? "Cash" : "Card"}` : ""}</p>
             </div>
             <p className={compact ? "hidden" : "text-sm text-text-secondary"}>
               {expense.payer.isCurrentUser ? "You" : expense.payer.displayName}
@@ -35,7 +44,7 @@ export function ExpenseSummaryList({ expenses, emptyMessage, compact = false }: 
               <span aria-hidden="true"> · </span>
               <span>{expense.paymentMethod === "cash" ? "Cash" : "Card"}</span>
             </p>
-            <p className={compact ? "financial-numerals text-xs font-semibold" : "financial-numerals text-lg font-semibold sm:text-right"}>{formatBdt(expense.amount)}</p>
+            <p className={compact ? "financial-numerals text-right text-xs font-semibold" : "financial-numerals text-xl font-semibold sm:text-right"}>{formatBdt(expense.amount)}</p>
           </div>
         </li>
       ))}

@@ -8,6 +8,7 @@ import { compareUserIds, type HouseholdId, type UserId } from "@/domain/shared/i
 import type { IsoInstant } from "@/domain/shared/instant";
 import type { SettlementRecommendation, SettlementRecord } from "@/domain/settlements/settlement-types";
 import {
+  calendarMonth,
   compareCalendarMonths,
   previousCalendarMonth,
   type CalendarMonth,
@@ -50,6 +51,10 @@ export interface HousemateBalanceView extends AnalyticsMemberView {
   readonly state: "gets-back" | "owes" | "settled";
 }
 
+export interface DashboardMemberContributionView extends AnalyticsMemberView {
+  readonly paid: Poisha;
+}
+
 export interface DashboardPageView {
   readonly selectedMonth: CalendarMonth;
   readonly monthOptions: readonly CalendarMonth[];
@@ -57,6 +62,7 @@ export interface DashboardPageView {
   readonly spent: Poisha;
   readonly outstanding: Readonly<{ youOwe: Poisha; youAreOwed: Poisha }>;
   readonly settlementHealth: Readonly<{ outstandingCount: number; pendingCount: number }>;
+  readonly memberContributions: readonly DashboardMemberContributionView[];
   readonly dailySpending: readonly DailySpendingPoint[];
   readonly paymentMix: PaymentMixResult;
   readonly housemateBalances: readonly HousemateBalanceView[];
@@ -152,11 +158,13 @@ function expenseView(source: AnalyticsSourceSnapshot, expense: Expense): Analyti
 function monthOptions(
   source: AnalyticsSourceSnapshot,
   selectedMonth: CalendarMonth,
+  currentMonth?: CalendarMonth,
   localMonthOfInstant?: (instant: IsoInstant) => CalendarMonth,
 ): readonly CalendarMonth[] {
   const values = new Set<CalendarMonth>([selectedMonth]);
+  if (currentMonth) values.add(currentMonth);
   for (const expense of source.expenses) {
-    if (!expense.deletedAt) values.add(expense.expenseDate.slice(0, 7) as CalendarMonth);
+    if (!expense.deletedAt) values.add(calendarMonth(expense.expenseDate.slice(0, 7)));
   }
   if (localMonthOfInstant) {
     for (const settlement of source.settlements) {
@@ -211,17 +219,41 @@ function housemateBalances(source: AnalyticsSourceSnapshot): readonly HousemateB
   }));
 }
 
+function memberContributions(source: AnalyticsSourceSnapshot, selectedMonth: CalendarMonth, spent: Poisha): readonly DashboardMemberContributionView[] {
+  const contributions = calculateMemberContributions(source.expenses, selectedMonth)
+    .filter((entry) => entry.paid > 0)
+    .map((entry): DashboardMemberContributionView => Object.freeze({
+      ...memberView(source, entry.userId),
+      paid: entry.paid,
+    }))
+    .sort((left, right) => {
+      if (left.paid !== right.paid) return left.paid > right.paid ? -1 : 1;
+      return compareText(left.displayName, right.displayName) || compareUserIds(left.userId, right.userId);
+    });
+  const paidTotal = contributions.reduce((sum, entry) => sum + BigInt(entry.paid), BigInt(0));
+  if (paidTotal !== BigInt(spent)) {
+    throw new ApplicationError(
+      "MALFORMED_PERSISTED_DATA",
+      "Dashboard member payments do not reconcile with Household spending.",
+    );
+  }
+  return Object.freeze(contributions);
+}
+
 export function buildDashboardPageView(
   source: AnalyticsSourceSnapshot,
   selectedMonth: CalendarMonth,
+  currentMonth: CalendarMonth,
 ): DashboardPageView {
+  const spent = calculateMonthlySpending(source.expenses, selectedMonth);
   return Object.freeze({
     selectedMonth,
-    monthOptions: monthOptions(source, selectedMonth),
+    monthOptions: monthOptions(source, selectedMonth, currentMonth),
     members: activeMembers(source),
-    spent: calculateMonthlySpending(source.expenses, selectedMonth),
+    spent,
     outstanding: viewerOutstanding(source),
     settlementHealth: settlementHealth(source),
+    memberContributions: memberContributions(source, selectedMonth, spent),
     dailySpending: calculateDailySpending(source.expenses, selectedMonth),
     paymentMix: calculatePaymentMix(source.expenses, selectedMonth),
     housemateBalances: housemateBalances(source),
@@ -233,6 +265,7 @@ export function buildMonthlyReportPageView(
   source: AnalyticsSourceSnapshot,
   selectedMonth: CalendarMonth,
   localMonthOfInstant: (instant: IsoInstant) => CalendarMonth,
+  currentMonth: CalendarMonth,
 ): MonthlyReportPageView {
   const totalSpending = calculateMonthlySpending(source.expenses, selectedMonth);
   const contributions = calculateMemberContributions(source.expenses, selectedMonth).map((entry): MonthlyReportMemberView => Object.freeze({
@@ -258,7 +291,7 @@ export function buildMonthlyReportPageView(
   ));
   return Object.freeze({
     selectedMonth,
-    monthOptions: monthOptions(source, selectedMonth, localMonthOfInstant),
+    monthOptions: monthOptions(source, selectedMonth, currentMonth, localMonthOfInstant),
     totalSpending,
     expenseCount: selectedMonthExpenses(source.expenses, selectedMonth).length,
     comparison: calculateMonthComparison(totalSpending, calculateMonthlySpending(source.expenses, previousCalendarMonth(selectedMonth))),

@@ -25,7 +25,7 @@ describe("shared DatePicker", () => {
 
     await user.click(trigger);
     expect(screen.getByRole("button", { name: "Previous month" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "23 August 2026" }));
+    await user.click(screen.getByRole("button", { name: /^23 August 2026(, today)?$/ }));
     expect(onChange).toHaveBeenCalledWith("2026-08-23");
   });
 

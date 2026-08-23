@@ -33,6 +33,7 @@ export function MonthlyReportPageClient() {
   const searchParams = useSearchParams();
   const [fallbackMonth] = useState(() => currentLocalCalendarMonth());
   const monthValues = searchParams.getAll("month");
+  const invalidMonthRequested = monthValues.length === 1 && tryCalendarMonth(monthValues[0]) === undefined;
   const month = monthValues.length === 1
     ? tryCalendarMonth(monthValues[0]) ?? fallbackMonth
     : fallbackMonth;
@@ -69,6 +70,11 @@ export function MonthlyReportPageClient() {
   return (
     <PageContainer className="space-y-6">
       <Button asChild className="h-9 rounded-xl" size="sm" variant="ghost"><Link href="/dashboard"><ArrowLeft />Back to Dashboard</Link></Button>
+      {invalidMonthRequested ? (
+        <div className="rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status">
+          The month link was invalid, so this report shows {formatCalendarMonth(month)} instead.
+        </div>
+      ) : null}
       <PageHeader
         action={<MonthSelector ariaLabel="Select Monthly Report month" onChange={changeMonth} options={visibleState.status === "ready" ? visibleState.view.monthOptions : [month]} value={month} />}
         description="Household spending activity for the selected calendar month. Current outstanding is labelled separately."
@@ -110,7 +116,7 @@ export function MonthlyReportContent({ view }: Readonly<{ view: MonthlyReportPag
   return (
     <div className="space-y-6">
       <Surface className="flex flex-wrap items-center justify-between gap-4" padding="canonical">
-        <div><p className="metric-label">Report month</p><h2 className="mt-1 text-[22px] font-semibold">{formatCalendarMonth(view.selectedMonth)}</h2></div>
+        <div><p className="metric-label">Report month</p><h2 className="mt-1 text-xl font-semibold">{formatCalendarMonth(view.selectedMonth)}</h2></div>
         <FileChartColumn aria-hidden="true" className="size-7 text-text-muted" />
       </Surface>
       <div className="grid gap-4 md:grid-cols-3">
@@ -122,11 +128,11 @@ export function MonthlyReportContent({ view }: Readonly<{ view: MonthlyReportPag
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(20rem,0.8fr)]">
         <ChartCard description="Daily household spending" summary={trendSummary} title="Daily Spending Trend">
           <p className="sr-only" id="report-spending-trend-description">{trendSummary}</p>
-          <DailySpendingChart data={view.dailySpending} descriptionId="report-spending-trend-description" label={`Daily spending bar chart for ${formatCalendarMonth(view.selectedMonth)}, day 1 through day ${view.dailySpending.length}`} />
+          <DailySpendingChart data={view.dailySpending} descriptionId="report-spending-trend-description" label={`Daily spending bar chart for ${formatCalendarMonth(view.selectedMonth)}, day 1 through day ${view.dailySpending.length}`} month={view.selectedMonth} />
         </ChartCard>
         <ChartCard description="By amount spent" summary={paymentSummary} title="Payment Mix">
           <p className="sr-only" id="report-payment-mix-description">{paymentSummary}</p>
-          {view.paymentMix.total > 0 ? <PaymentMixChart descriptionId="report-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} /> : <p className="py-12 text-center text-body text-text-secondary">No spending this month</p>}
+          {view.paymentMix.total > 0 ? <PaymentMixChart descriptionId="report-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} month={view.selectedMonth} /> : <p className="py-12 text-center text-body text-text-secondary">No spending this month</p>}
           <PaymentMixRows mix={view.paymentMix} />
         </ChartCard>
       </div>

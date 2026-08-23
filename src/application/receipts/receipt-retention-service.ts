@@ -8,6 +8,11 @@ import {
 } from "@/domain/receipts/receipt-content-lifecycle";
 import type { IsoInstant } from "@/domain/shared/instant";
 
+export interface ReceiptRetentionFailureEntry {
+  readonly receiptId: string;
+  readonly reason: string;
+}
+
 export interface ReceiptRetentionRunSummary {
   readonly cutoff: IsoInstant;
   readonly candidatesProcessed: number;
@@ -16,7 +21,10 @@ export interface ReceiptRetentionRunSummary {
   readonly transitioned: number;
   readonly skippedTerminal: number;
   readonly failures: number;
+  readonly failuresDetail: readonly ReceiptRetentionFailureEntry[];
 }
+
+const MAX_REPORTED_FAILURES = 20;
 
 export class ReceiptRetentionService {
   constructor(private readonly repository: ReceiptRetentionRepository) {}
@@ -35,6 +43,7 @@ export class ReceiptRetentionService {
     let transitioned = 0;
     let skippedTerminal = 0;
     let failures = 0;
+    const failuresDetail: ReceiptRetentionFailureEntry[] = [];
 
     while (true) {
       const candidates = await this.repository.findEligibleAvailableReceipts({
@@ -63,8 +72,14 @@ export class ReceiptRetentionService {
           });
           if (transition === "transitioned") transitioned += 1;
           else skippedTerminal += 1;
-        } catch {
+        } catch (error) {
           failures += 1;
+          if (failuresDetail.length < MAX_REPORTED_FAILURES) {
+            failuresDetail.push(Object.freeze({
+              receiptId: candidate.receiptId,
+              reason: error instanceof Error ? error.message : String(error),
+            }));
+          }
         }
       }
 
@@ -81,6 +96,7 @@ export class ReceiptRetentionService {
       transitioned,
       skippedTerminal,
       failures,
+      failuresDetail: Object.freeze(failuresDetail),
     });
   }
 }

@@ -11,7 +11,6 @@ import type {
 } from "@/application/cards/card-page";
 import type { CardFormValues } from "@/application/validation/card-form.schema";
 import { EmptyState, ErrorState, LoadingState } from "@/presentation/components/async-state";
-import { Surface } from "@/presentation/components/surface";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import {
@@ -21,6 +20,7 @@ import {
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import type { UserId } from "@/domain/shared/identifiers";
 import { CardActionsMenu } from "./card-actions-menu";
+import { CardDesignPreview } from "./card-design-preview";
 import { CardFormDialog } from "./card-form-dialog";
 import { getCardPaletteOption } from "./card-palette";
 import { RemoveCardDialog } from "./remove-card-dialog";
@@ -42,58 +42,43 @@ interface RemoveTarget {
 
 function CardTile({
   card,
+  holderName,
   position,
   count,
   onEdit,
   onRemove,
 }: Readonly<{
   card: MyCardSummaryView;
+  holderName: string;
   position: number;
   count: number;
   onEdit: (card: MyCardSummaryView, trigger: RefObject<HTMLButtonElement | null>) => void;
   onRemove: (card: MyCardSummaryView, trigger: RefObject<HTMLButtonElement | null>) => void;
 }>) {
-  const palette = getCardPaletteOption(card.colorId);
-  const lightForeground = palette.foreground === "light";
+  const option = getCardPaletteOption(card.colorId);
 
   return (
-    <Surface
-      className={lightForeground ? "min-h-52 text-white" : "min-h-52 text-foreground"}
-      style={{ backgroundColor: palette.hex }}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="panel-title break-words">{card.name}</h2>
-            <p className={lightForeground ? "mt-1 capitalize text-white/80" : "mt-1 capitalize text-text-secondary"}>
-              {card.type}
-            </p>
-          </div>
-          <CardActionsMenu
-            card={card}
-            count={count}
-            onEdit={(trigger) => onEdit(card, trigger)}
-            onRemove={(trigger) => onRemove(card, trigger)}
-            position={position}
-          />
-        </div>
-        <div className="mt-auto flex items-end justify-between gap-4 pt-10">
-          <p className={lightForeground ? "text-sm text-white/80" : "text-sm text-text-secondary"}>
-            Private to you
-          </p>
-          <p className={lightForeground ? "text-caption text-white/70" : "text-caption text-text-secondary"}>
-            {palette.label}
-          </p>
-        </div>
+    <div className="group relative">
+      <CardDesignPreview cardName={card.name} cardType={card.type} holderName={holderName} option={option} />
+      <div className="absolute right-2 top-2">
+        <CardActionsMenu
+          card={card}
+          count={count}
+          onEdit={(trigger) => onEdit(card, trigger)}
+          onRemove={(trigger) => onRemove(card, trigger)}
+          position={position}
+        />
       </div>
-    </Surface>
+      <p className="mt-3 text-caption text-text-secondary">Private to you · decorative number is not stored</p>
+    </div>
   );
 }
 
 function OwnedCardsPage({
   ownerId,
+  ownerName,
   actions,
-}: Readonly<{ ownerId: UserId; actions: CardApplicationActions }>) {
+}: Readonly<{ ownerId: UserId; ownerName: string; actions: CardApplicationActions }>) {
   const [cardsState, setCardsState] = useState<CardsState>({ status: "loading", ownerId });
   const [formTarget, setFormTarget] = useState<FormTarget>();
   const [removeTarget, setRemoveTarget] = useState<RemoveTarget>();
@@ -240,6 +225,7 @@ function OwnedCardsPage({
               <CardTile
                 card={card}
                 count={cards.length}
+                holderName={ownerName}
                 onEdit={(selected, trigger) => setFormTarget({ card: selected, restoreFocusRef: trigger })}
                 onRemove={(selected, trigger) => void openRemoval(selected, trigger)}
                 position={index + 1}
@@ -252,6 +238,7 @@ function OwnedCardsPage({
       {formTarget ? (
         <CardFormDialog
           card={formTarget.card}
+          holderName={ownerName}
           onOpenChange={(open) => { if (!open) closeForm(); }}
           onSubmit={saveCard}
           open
@@ -294,6 +281,7 @@ export function CardsPageClient() {
       actions={runtime.cardActions}
       key={runtime.session.userId}
       ownerId={runtime.session.userId}
+      ownerName={runtime.session.displayName}
     />
   );
 }

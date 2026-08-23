@@ -112,6 +112,40 @@ test("active Leader and Member views protect the House Code and Leader-only cont
   await expect(page.getByText("Join requests")).toHaveCount(0);
   await expect(page.getByText("Danger zone")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Manage / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
+});
+
+test("Leader renames the House name atomically while members see no control", async ({
+  page,
+}) => {
+  await page.goto("/household");
+  await expect(
+    page.getByText("Raiyan House", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Rename" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename Household" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("House name")).toHaveValue("Raiyan House");
+
+  await dialog.getByLabel("House name").fill("   ");
+  await dialog.getByRole("button", { name: /Save Changes/ }).click();
+  await expect(
+    dialog.getByText("The House name cannot be empty."),
+  ).toBeVisible();
+
+  await dialog.getByLabel("House name").fill("Sunrise Villa");
+  await dialog.getByRole("button", { name: /Save Changes/ }).click();
+  await expect(page.getByText("Sunrise Villa", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Rename Household" }),
+  ).toHaveCount(0);
+
+  await switchIdentity(page, "sarah");
+  await expect(
+    page.getByText("Sunrise Villa", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
 });
 
 test("cross-identity transfer, Leave, and Remove reconstruct authority and route access", async ({

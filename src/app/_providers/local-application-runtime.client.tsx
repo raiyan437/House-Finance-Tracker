@@ -197,6 +197,9 @@ export function LocalApplicationRuntime({
           acceptJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.acceptJoinRequest(joinRequestId)),
           rejectJoinRequest: (joinRequestId) => mutateAndReconstruct(() => runtime.application.households.rejectJoinRequest(joinRequestId)),
           leaveHousehold: () => mutateAndReconstruct(() => runtime.application.households.leaveCurrentHousehold()),
+          renameHousehold: async (name) => {
+            await mutateAndReconstruct(() => runtime.application.households.renameHousehold(name));
+          },
           removeMember: (memberId) => mutateAndReconstruct(() => runtime.application.households.removeMember(memberId)),
           transferLeadership: (memberId) => mutateAndReconstruct(() => runtime.application.households.transferLeadership(memberId)),
           deleteHousehold: () => mutateAndReconstruct(() => runtime.application.households.deleteCurrentHousehold()),

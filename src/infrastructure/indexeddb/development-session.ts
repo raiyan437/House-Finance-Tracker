@@ -3,8 +3,8 @@ import type { CurrentSession, DevelopmentIdentityController } from "@/applicatio
 import { userId, type UserId } from "@/domain/shared/identifiers";
 import type { IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "./records";
+import type { DatabaseSource } from "./database";
 
-type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
 
 export class LocalCurrentSession implements CurrentSession, DevelopmentIdentityController {
   private readonly listeners = new Set<(userId: UserId) => void>();

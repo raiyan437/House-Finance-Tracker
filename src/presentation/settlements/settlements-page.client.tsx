@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/presentation/components/confirm-dialog";
 import { MetricCard } from "@/presentation/components/metric-card";
 import { StatusBadge, type StatusTone } from "@/presentation/components/status-badge";
 import { Surface } from "@/presentation/components/surface";
+import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { MoneyValue } from "@/presentation/finance/money-value";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
@@ -68,7 +69,7 @@ function RecommendationCard({ item, markPaid }: RecommendationCardProps) {
         {outgoing && item.canMarkPaid ? (
           <ConfirmDialog
             confirmLabel="Mark as Paid"
-            description={`House Finance Tracker does not transfer money. Confirm that you paid ${item.counterparty.displayName} ${formatBdt(item.recommendation.amount)} outside the application.`}
+            description={<span>House Finance Tracker does not transfer money. Confirm that you paid {item.counterparty.displayName} <span className="financial-numerals font-semibold">{formatBdt(item.recommendation.amount)}</span> outside the application.</span>}
             onConfirm={markPaid}
             title={`Settle up with ${item.counterparty.displayName}?`}
             trigger={(
@@ -136,7 +137,7 @@ function PendingCard({ item, loadPreview, confirm, reject, cancel }: PendingCard
             <ConfirmDialog
               confirmLabel="Reject Payment"
               destructive
-              description={`Reject ${item.sender.displayName}'s claim that they paid ${formatBdt(item.amount)}? The claim will remain in Settlement History and will not affect balances.`}
+              description={<span>Reject {item.sender.displayName}&apos;s claim that they paid <span className="financial-numerals font-semibold">{formatBdt(item.amount)}</span>? The claim will remain in Settlement History and will not affect balances.</span>}
               onConfirm={reject}
               title="Reject this payment claim?"
               trigger={<Button className="w-full sm:w-auto" variant="outline">Reject</Button>}
@@ -147,10 +148,10 @@ function PendingCard({ item, loadPreview, confirm, reject, cancel }: PendingCard
           <ConfirmDialog
             confirmLabel="Cancel Claim"
             destructive
-            description={`Cancel your ${formatBdt(item.amount)} payment claim to ${item.receiver.displayName}? It will remain in Settlement History and will not affect balances.`}
+            description={<span>Cancel your <span className="financial-numerals font-semibold">{formatBdt(item.amount)}</span> payment claim to {item.receiver.displayName}? It will remain in Settlement History and will not affect balances.</span>}
             onConfirm={cancel}
             title="Cancel this payment claim?"
-            trigger={<Button className="w-full sm:w-auto" variant="outline">Cancel</Button>}
+            trigger={<Button className="w-full sm:w-auto" variant="outline">Cancel Claim</Button>}
           />
         )}
       </Surface>
@@ -167,7 +168,7 @@ function History({ items }: { readonly items: readonly SettlementHistoryView[] }
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full border-collapse text-left">
           <thead className="border-b bg-secondary text-label text-text-secondary">
-            <tr><th className="px-5 py-3 font-medium">Payment</th><th className="px-5 py-3 font-medium">Amount</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Created</th><th className="px-5 py-3 font-medium">Resolved</th></tr>
+            <tr><th className="px-5 py-3 font-medium">Payment</th><th className="px-5 py-3 font-medium" scope="col">Amount</th><th className="px-5 py-3 font-medium" scope="col">Status</th><th className="px-5 py-3 font-medium" scope="col">Created</th><th className="px-5 py-3 font-medium" scope="col">Resolved</th></tr>
           </thead>
           <tbody className="divide-y">
             {items.map((item) => (
@@ -189,7 +190,7 @@ function History({ items }: { readonly items: readonly SettlementHistoryView[] }
               <p className="font-medium">{item.sender.displayName}<span className="sr-only"> paid </span> <ArrowRight aria-hidden="true" className="mx-1 inline size-4" /> {item.receiver.displayName}</p>
               <StatusBadge tone={statusTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
             </div>
-            <MoneyValue className="text-lg font-semibold" value={item.amount} />
+            <MoneyValue className="text-xl font-semibold" value={item.amount} />
             <div className="grid gap-1 text-caption text-text-secondary">
               <p>Created <time dateTime={item.createdAt}>{formatInstant(item.createdAt)}</time></p>
               <p>Resolved <time dateTime={item.resolvedAt}>{formatInstant(item.resolvedAt)}</time></p>
@@ -242,7 +243,7 @@ export function SettlementsPageClient() {
       toast.success(success);
       await refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "The settlement action could not be completed.";
+      const message = userErrorMessage(error, "The settlement action could not be completed.");
       setFeedback(message);
       toast.error(message);
       throw error;
@@ -258,7 +259,7 @@ export function SettlementsPageClient() {
       <PageContainer>
         <Surface className="space-y-4 text-center">
           <p role="alert" className="text-danger">Settlements could not be loaded.</p>
-          <Button onClick={() => { setStatus("loading"); void refresh(); }} variant="outline">Try Again</Button>
+          <Button onClick={() => { setStatus("loading"); void refresh(); }} variant="outline">Try again</Button>
         </Surface>
       </PageContainer>
     );

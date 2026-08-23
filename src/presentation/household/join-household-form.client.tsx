@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { ErrorState, LoadingState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
+import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
@@ -56,7 +57,7 @@ export function JoinHouseholdForm() {
     try {
       setHousehold(await actions.findHousehold(values.code));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "The household could not be found.";
+      const message = userErrorMessage(error, "No household was found for that code.");
       form.setError("code", { message });
       setHousehold(undefined);
     }
@@ -72,7 +73,7 @@ export function JoinHouseholdForm() {
       toast.success("Join request sent.");
       router.replace("/household");
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : "The join request could not be sent.");
+      setSendError(userErrorMessage(error, "The join request could not be sent."));
     } finally {
       setSending(false);
     }

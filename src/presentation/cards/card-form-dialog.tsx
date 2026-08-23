@@ -20,11 +20,12 @@ import {
   type CardFormValues,
 } from "@/application/validation/card-form.schema";
 import type { MyCardSummaryView } from "@/application/cards/card-page";
-import { CardPaletteRadioGroup } from "./card-palette-radio-group";
+import { CardDesignPicker } from "./card-design-picker";
 
 interface CardFormDialogProps {
   readonly open: boolean;
   readonly card?: MyCardSummaryView;
+  readonly holderName: string;
   readonly restoreFocusRef?: RefObject<HTMLElement | null>;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSubmit: (values: CardFormValues) => Promise<void>;
@@ -33,12 +34,13 @@ interface CardFormDialogProps {
 const EMPTY_VALUES: CardFormValues = {
   name: "",
   type: "debit",
-  colorId: "mint",
+  colorId: "red",
 };
 
 export function CardFormDialog({
   open,
   card,
+  holderName,
   restoreFocusRef,
   onOpenChange,
   onSubmit,
@@ -55,6 +57,7 @@ export function CardFormDialog({
 
   const pending = form.formState.isSubmitting;
   const type = useWatch({ control: form.control, name: "type" });
+  const name = useWatch({ control: form.control, name: "name" });
   const colorId = useWatch({ control: form.control, name: "colorId" });
 
   async function submit(values: CardFormValues) {
@@ -124,13 +127,17 @@ export function CardFormDialog({
           </fieldset>
 
           <fieldset className="space-y-2">
-            <legend className="text-label font-medium">Card Color</legend>
-            <CardPaletteRadioGroup
+            <legend className="text-label font-medium">Card Design</legend>
+            <CardDesignPicker
+              cardName={name ?? ""}
+              cardType={type}
               disabled={pending}
+              holderName={holderName}
               invalid={Boolean(form.formState.errors.colorId)}
               onValueChange={(value) => form.setValue("colorId", value, { shouldValidate: true })}
               value={colorId}
             />
+            <p className="text-caption text-text-muted">Card number and expiry are decorative demo values. They are never stored.</p>
           </fieldset>
 
           {submitError ? <p className="text-sm text-danger" role="alert">{submitError}</p> : null}

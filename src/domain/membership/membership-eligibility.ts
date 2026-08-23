@@ -157,6 +157,7 @@ export function assertEligible(decisionToAssert: EligibilityDecision): void {
     throw new DomainError(
       reason as DomainErrorCode,
       "The requested household membership action is not eligible.",
+      decisionToAssert.reasons,
     );
   }
 }

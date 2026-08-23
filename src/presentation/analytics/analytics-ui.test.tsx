@@ -32,6 +32,10 @@ const dashboard: DashboardPageView = {
   spent: poisha(42_580),
   outstanding: { youOwe: poisha(0), youAreOwed: poisha(20_000) },
   settlementHealth: { outstandingCount: 1, pendingCount: 1 },
+  memberContributions: [
+    { userId: raiyan, displayName: "Raiyan", isCurrentUser: true, isFormerMember: false, paid: poisha(30_000) },
+    { userId: john, displayName: "John", isCurrentUser: false, isFormerMember: false, paid: poisha(12_580) },
+  ],
   dailySpending: daily,
   paymentMix,
   housemateBalances: [
@@ -68,6 +72,45 @@ describe("Dashboard analytics presentation", () => {
     expect(screen.queryByText("50.00%")).not.toBeInTheDocument();
     expect(screen.getByText("No expenses this month")).toBeInTheDocument();
   });
+
+  it("keeps the Add Expense action on Recent Expenses only, not Member Contributions", () => {
+    render(<DashboardContent view={{ ...dashboard, memberContributions: [], recentExpenses: [] }} />);
+    const addExpenseLinks = screen.getAllByRole("link", { name: "Add Expense" });
+    expect(addExpenseLinks).toHaveLength(1);
+    expect(addExpenseLinks[0]).toHaveAttribute("href", "/expenses/new");
+    const section = screen.getByText("Member Contributions").closest("section");
+    expect(section).not.toBeNull();
+    if (section) {
+      expect(within(section).getByText("No expenses recorded for this month yet.")).toBeInTheDocument();
+      expect(within(section).queryByRole("link")).not.toBeInTheDocument();
+    }
+  });
+
+  it("collapses bottom sections on mobile through accessible toggles", () => {
+    render(<DashboardContent view={dashboard} />);
+    const toggle = screen.getByRole("button", { name: "Collapse Housemate Balances" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle.getAttribute("aria-controls")).toBe("dashboard-housemate-balances-body");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("dashboard-housemate-balances-body")).toHaveAttribute("data-open", "false");
+    fireEvent.click(toggle);
+    expect(document.getElementById("dashboard-housemate-balances-body")).toHaveAttribute("data-open", "true");
+  });
+
+  it("lists exact selected-month member payments and an empty state without spending", () => {
+    render(<DashboardContent view={dashboard} />);
+    const section = screen.getByText("Member Contributions").closest("section");
+    expect(section).not.toBeNull();
+    if (!section) return;
+    expect(within(section).getByText("August 2026")).toBeInTheDocument();
+    expect(within(section).getByText("Raiyan (You)")).toBeInTheDocument();
+    expect(within(section).getByLabelText("Raiyan paid ৳300.00")).toBeInTheDocument();
+    expect(within(section).getByLabelText("John paid ৳125.80")).toBeInTheDocument();
+
+    const empty = render(<DashboardContent view={{ ...dashboard, memberContributions: [] }} />);
+    expect(empty.getAllByText("No expenses recorded for this month yet.").length).toBeGreaterThan(0);
+  });
 });
 
 describe("Month selector", () => {
@@ -79,6 +122,29 @@ describe("Month selector", () => {
     fireEvent.click(screen.getByRole("option", { name: "February 2028" }));
     expect(onChange).toHaveBeenCalledWith("2028-02");
     expect(screen.getByRole("combobox", { name: "Select month" })).toHaveTextContent("August 2026");
+  });
+
+  it("steps to adjacent calendar months with chevron buttons", () => {
+    const onChange = vi.fn();
+    render(<MonthSelector onChange={onChange} options={[calendarMonth("2026-07"), month, calendarMonth("2028-02")]} value={month} />);
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(onChange).toHaveBeenCalledWith("2026-07");
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(onChange).toHaveBeenCalledWith("2026-09");
+  });
+
+  it("disables stepping beyond the available month range", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<MonthSelector onChange={onChange} options={[calendarMonth("2026-07"), month]} value={calendarMonth("2026-07")} />);
+    expect(screen.getByRole("button", { name: "Previous month" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Next month" })).toHaveAttribute("aria-disabled", "false");
+    rerender(<MonthSelector onChange={onChange} options={[month, calendarMonth("2028-02")]} value={calendarMonth("2028-02")} />);
+    expect(screen.getByRole("button", { name: "Next month" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Previous month" })).toHaveAttribute("aria-disabled", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(onChange).toHaveBeenCalledWith("2028-01");
   });
 });
 

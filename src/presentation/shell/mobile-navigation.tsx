@@ -53,18 +53,18 @@ function MobileLink({
       href={href}
       title={label}
     >
-      <span
-        className={cn(
-          "relative flex size-7 items-center justify-center rounded-full",
-          emphasized && "size-10 bg-brand text-foreground shadow-[var(--shadow-small)]",
-          active && !emphasized && "bg-brand-soft text-foreground",
-        )}
-      >
+        <span
+          className={cn(
+            "relative flex size-7 items-center justify-center rounded-md",
+            emphasized && "size-10 bg-brand text-foreground shadow-[var(--shadow-small)]",
+            active && !emphasized && "bg-brand-soft text-foreground",
+          )}
+        >
         <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
         {actionCount > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-semibold leading-5 text-white"
+            className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-fine font-semibold leading-5 text-foreground"
           >
             {actionCount}
           </span>
@@ -81,11 +81,16 @@ export function MobileNavigation() {
   const settlementActionCount = runtime.status === "ready"
     ? runtime.session.settlementActionCount
     : 0;
+  const joinRequestCount = runtime.status === "ready" && runtime.household.status === "active-leader"
+    ? runtime.household.joinRequests.length
+    : 0;
+  const joinRequestBadgeLabel = `${joinRequestCount} join request${joinRequestCount === 1 ? "" : "s"} waiting for your review`;
 
   return (
     <nav
       aria-label="Mobile navigation"
       className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-2 shadow-[var(--shadow-small)] backdrop-blur lg:hidden"
+      suppressHydrationWarning
     >
       <div
         className="grid grid-cols-5 items-start"
@@ -120,7 +125,7 @@ export function MobileNavigation() {
         <Sheet>
           <SheetTrigger asChild>
             <button
-              aria-label="More"
+              aria-label={joinRequestCount > 0 && settlementActionCount > 0 ? `More, ${settlementActionCount} payments to confirm, ${joinRequestBadgeLabel}` : joinRequestCount > 0 ? `More, ${joinRequestBadgeLabel}` : settlementActionCount > 0 ? `More, ${settlementActionCount} payments to confirm` : "More"}
               aria-current={moreActive ? "page" : undefined}
               className={cn(
                 "flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
@@ -131,11 +136,19 @@ export function MobileNavigation() {
             >
               <span
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-full",
+                  "flex size-7 items-center justify-center rounded-md",
                   moreActive && "bg-brand-soft text-foreground",
                 )}
               >
                 <Ellipsis aria-hidden="true" className="size-5" strokeWidth={1.8} />
+                {joinRequestCount > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-fine font-semibold leading-5 text-foreground"
+                  >
+                    {joinRequestCount}
+                  </span>
+                ) : null}
               </span>
             </button>
           </SheetTrigger>
@@ -153,6 +166,9 @@ export function MobileNavigation() {
                   <SheetClose asChild key={item.href}>
                     <Link
                       aria-current={active ? "page" : undefined}
+                      aria-label={item.href === "/household" && joinRequestCount > 0
+                        ? `${item.label}, ${joinRequestBadgeLabel}`
+                        : undefined}
                       className={cn(
                         "flex min-h-12 items-center gap-3 rounded-md px-4 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                         active ? "bg-brand-soft text-foreground" : "hover:bg-secondary",
@@ -161,6 +177,22 @@ export function MobileNavigation() {
                     >
                       <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
                       {item.label}
+                      {item.href === "/household" && joinRequestCount > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-fine font-semibold leading-5 text-foreground"
+                        >
+                          {joinRequestCount}
+                        </span>
+                      ) : null}
+                      {item.href === "/settlements" && settlementActionCount > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-fine font-semibold leading-5 text-foreground"
+                        >
+                          {settlementActionCount}
+                        </span>
+                      ) : null}
                     </Link>
                   </SheetClose>
                 );

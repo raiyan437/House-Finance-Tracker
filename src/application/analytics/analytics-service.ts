@@ -5,7 +5,7 @@ import { generateSettlementRecommendations } from "@/domain/balances/settlement-
 import { toBalanceExpense } from "@/domain/records/domain-records";
 import type { HouseholdId, UserId } from "@/domain/shared/identifiers";
 import type { IsoInstant } from "@/domain/shared/instant";
-import type { CalendarMonth } from "./calendar-month";
+import { currentLocalCalendarMonth, type CalendarMonth } from "./calendar-month";
 import {
   buildDashboardPageView,
   buildMonthlyReportPageView,
@@ -57,7 +57,7 @@ export class HouseholdAnalyticsApplicationService {
   }
 
   async getDashboard(householdId: HouseholdId, selectedMonth: CalendarMonth): Promise<DashboardPageView> {
-    return buildDashboardPageView(await this.source(householdId), selectedMonth);
+    return buildDashboardPageView(await this.source(householdId), selectedMonth, currentLocalCalendarMonth());
   }
 
   async getMonthlyReport(
@@ -65,6 +65,6 @@ export class HouseholdAnalyticsApplicationService {
     selectedMonth: CalendarMonth,
     localMonthOfInstant: (instant: IsoInstant) => CalendarMonth,
   ): Promise<MonthlyReportPageView> {
-    return buildMonthlyReportPageView(await this.source(householdId), selectedMonth, localMonthOfInstant);
+    return buildMonthlyReportPageView(await this.source(householdId), selectedMonth, localMonthOfInstant, currentLocalCalendarMonth());
   }
 }

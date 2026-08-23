@@ -134,7 +134,8 @@ export interface ExpenseCardPrivateRecordV2 {
   cardId: string;
   cardNameSnapshot: string;
   cardTypeSnapshot: "debit" | "credit";
-  colorIdSnapshot: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal";
+  colorIdSnapshot: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal"
+    | "red" | "yellow" | "black" | "blue" | "green" | "orange";
 }
 
 export interface SettlementRecordV1 {
@@ -172,7 +173,8 @@ export interface CardRecordV2 {
   ownerId: string;
   name: string;
   type: "debit" | "credit";
-  colorId: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal";
+  colorId: "mint" | "powder-blue" | "lavender" | "warm-sand" | "soft-coral" | "charcoal"
+    | "red" | "yellow" | "black" | "blue" | "green" | "orange";
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;

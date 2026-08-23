@@ -12,6 +12,7 @@ import { LocalCurrentSession } from "./indexeddb/development-session";
 import { IndexedDbRepositories } from "./indexeddb/repositories";
 import type { HouseFinanceDatabase } from "./indexeddb/records";
 import { initializeLocalDatabase } from "./indexeddb/seed";
+import { sweepExpiredLocalReceiptContent } from "./receipt-retention-sweep";
 import { decodeReceiptContentInBrowser } from "./browser/receipt-content-decoder";
 import type { UserProfile } from "@/domain/records/domain-records";
 
@@ -36,6 +37,12 @@ export class LocalDevelopmentRuntime {
     const repositories = new IndexedDbRepositories(connection);
     const atomicPersistence = new IndexedDbAtomicApplicationPersistence(connection);
     const currentSession = new LocalCurrentSession(connection);
+
+    // Owner-approved local retention enforcement: opportunistically expire
+    // receipt content past the rolling three-calendar-month cutoff during
+    // bootstrap. Privileged infrastructure work; no UI trigger or purge action.
+    void sweepExpiredLocalReceiptContent(repositories.receipts);
+
     return new LocalDevelopmentRuntime(
       databaseName,
       connection,

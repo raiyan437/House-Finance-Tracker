@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { householdId, userId } from "@/domain/shared/identifiers";
+import { householdId, joinRequestId, userId } from "@/domain/shared/identifiers";
+import { isoInstant } from "@/domain/shared/instant";
 import { ApplicationRuntimeProvider } from "@/presentation/runtime/application-runtime-context";
 import { DesktopSidebar } from "./desktop-sidebar";
 import { MobileNavigation } from "./mobile-navigation";
@@ -12,7 +13,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => currentPathname,
 }));
 
-function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0) {
+function renderWithRuntime(
+  children: React.ReactNode,
+  settlementActionCount = 0,
+  joinRequestCount = 0,
+) {
   return render(
     <ApplicationRuntimeProvider
       value={{
@@ -45,7 +50,11 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
             viewerRole: "leader",
             deleteHousehold: { eligible: true, blockers: [] },
           },
-          joinRequests: [],
+          joinRequests: Array.from({ length: joinRequestCount }, (_, index) => ({
+            joinRequestId: joinRequestId(`join-request-${index + 1}`),
+            requesterName: `Requester ${index + 1}`,
+            createdAt: isoInstant("2026-08-22T10:00:00.000Z"),
+          })),
         },
         householdActions: {
           generateCode: vi.fn(),
@@ -56,6 +65,7 @@ function renderWithRuntime(children: React.ReactNode, settlementActionCount = 0)
           acceptJoinRequest: vi.fn(),
           rejectJoinRequest: vi.fn(),
           leaveHousehold: vi.fn(),
+          renameHousehold: vi.fn(),
           removeMember: vi.fn(),
           transferLeadership: vi.fn(),
           deleteHousehold: vi.fn(),
@@ -199,5 +209,43 @@ describe("settlement attention badge", () => {
 
     renderWithRuntime(<MobileNavigation />, 2);
     expect(screen.getByRole("link", { name: "Settlements, 2 actions waiting for you" })).toBeInTheDocument();
+  });
+});
+
+describe("leader join request attention badge", () => {
+  it("announces pending review counts on the desktop Household destination", () => {
+    const single = renderWithRuntime(<DesktopSidebar />, 0, 1);
+    expect(screen.getByLabelText("1 join request waiting for your review")).toHaveTextContent("1");
+    expect(screen.queryByLabelText(/settlement .* waiting/)).not.toBeInTheDocument();
+    single.unmount();
+
+    renderWithRuntime(<DesktopSidebar />, 0, 3);
+    expect(screen.getByLabelText("3 join requests waiting for your review")).toHaveTextContent("3");
+  });
+
+  it("keeps destinations without attention free of badges", () => {
+    renderWithRuntime(<DesktopSidebar />, 0, 0);
+    expect(screen.queryByLabelText(/waiting for your review/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/settlement .* waiting/)).not.toBeInTheDocument();
+  });
+
+  it("surfaces pending reviews on the mobile More trigger and its sheet Household row", async () => {
+    const user = userEvent.setup();
+    renderWithRuntime(<MobileNavigation />, 0, 2);
+
+    const more = screen.getByRole("button", { name: "More, 2 join requests waiting for your review" });
+    expect(more).toBeInTheDocument();
+    expect(more).toHaveTextContent("2");
+
+    await user.click(more);
+    const dialog = screen.getByRole("dialog", { name: "More" });
+    expect(
+      within(dialog).getByRole("link", { name: "Household, 2 join requests waiting for your review" }),
+    ).toHaveAttribute("href", "/household");
+  });
+
+  it("leaves More unlabeled when no review is waiting", () => {
+    renderWithRuntime(<MobileNavigation />, 0, 0);
+    expect(screen.getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 });

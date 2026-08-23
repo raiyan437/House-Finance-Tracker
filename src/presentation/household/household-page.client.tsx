@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type RefObject } from "react";
-import { ArrowRight, Crown, House, LogOut, Trash2, UserPlus, Users } from "lucide-react";
+import { ArrowRight, Crown, House, LogOut, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import type {
   ActiveHouseholdPageView,
@@ -22,6 +22,7 @@ import { HouseCodeControls } from "./house-code-controls";
 import { HouseholdActionExplanations } from "./household-action-copy";
 import { HouseholdManagementDialog, type HouseholdDialogAction } from "./household-management-dialog";
 import { HouseholdMemberList } from "./household-member-list";
+import { RenameHouseholdDialog } from "./rename-household-dialog.client";
 import type { MemberManagementAction } from "./household-member-actions";
 
 function HouseholdIdentity({ name, code }: Readonly<{ name: string; code: string }>) {
@@ -80,7 +81,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
     <li className="flex flex-col gap-4 border-b py-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="break-words font-medium">{request.requesterName}</p>
-        <p className="mt-1 text-caption text-text-secondary">Requested {request.createdAt.slice(0, 10)}</p>
+        <p className="mt-1 text-caption text-text-secondary"><time dateTime={request.createdAt.slice(0, 10)}>Requested {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(request.createdAt))}</time></p>
       </div>
       <div className="flex flex-wrap gap-2">
         <ConfirmDialog
@@ -122,7 +123,9 @@ function ActiveHouseholdView({
   const actions = runtime.status === "ready" ? runtime.householdActions : undefined;
   const leaveRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLButtonElement>(null);
+  const renameRef = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogState>();
+  const [renameOpen, setRenameOpen] = useState(false);
   const selectedMember = dialog?.memberId
     ? page.members.find((member) => member.memberId === dialog.memberId)
     : undefined;
@@ -155,7 +158,19 @@ function ActiveHouseholdView({
   return (
     <div className="grid max-w-4xl gap-6">
       <Surface padding="large">
-        <HouseholdIdentity name={page.household.name} code={page.household.code} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <HouseholdIdentity name={page.household.name} code={page.household.code} />
+          {page.viewerRole === "leader" ? (
+            <Button
+              onClick={() => setRenameOpen(true)}
+              ref={renameRef}
+              size="sm"
+              variant="outline"
+            >
+              <Pencil aria-hidden="true" /> Rename
+            </Button>
+          ) : null}
+        </div>
       </Surface>
 
       <Surface padding="large">
@@ -246,6 +261,18 @@ function ActiveHouseholdView({
           onOpenChange={(open) => { if (!open) setDialog(undefined); }}
           open
           restoreFocusRef={dialog.restoreFocusRef}
+        />
+      ) : null}
+
+      {renameOpen && actions ? (
+        <RenameHouseholdDialog
+          currentName={page.household.name}
+          onOpenChange={(open) => { if (!open) setRenameOpen(false); }}
+          onSubmit={async (name) => {
+            await actions.renameHousehold(name);
+            toast.success("The House name was updated.");
+          }}
+          restoreFocusRef={renameRef}
         />
       ) : null}
     </div>

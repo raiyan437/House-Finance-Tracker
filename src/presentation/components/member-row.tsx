@@ -18,7 +18,7 @@ export function MemberRow({
 }: MemberRowProps) {
   return (
     <div
-      className={cn("flex min-w-0 items-center gap-3", className)}
+      className={cn("flex min-w-0 items-center", compact ? "justify-center gap-0" : "gap-3", className)}
       data-slot="member-row"
       {...props}
     >

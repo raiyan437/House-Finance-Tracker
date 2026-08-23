@@ -40,7 +40,7 @@ function runtimeFor(
     householdActions: {
       generateCode: vi.fn(), createHousehold: vi.fn(), findHousehold: vi.fn(),
       requestToJoin: vi.fn(), cancelJoinRequest: vi.fn(), acceptJoinRequest: vi.fn(),
-      rejectJoinRequest: vi.fn(), leaveHousehold: vi.fn(), removeMember: vi.fn(),
+      rejectJoinRequest: vi.fn(), leaveHousehold: vi.fn(), renameHousehold: vi.fn(), removeMember: vi.fn(),
       transferLeadership: vi.fn(), deleteHousehold: vi.fn(), refresh: vi.fn(),
     },
     expenseActions: {
@@ -76,10 +76,10 @@ function renderPage(runtime: ApplicationRuntimeState) {
 }
 
 describe("Phase 9 Cards presentation", () => {
-  it("shows the no-Household empty state and an accessible form with every approved palette choice", async () => {
+  it("shows the no-Household empty state and an accessible form with every approved design choice", async () => {
     const user = userEvent.setup();
     const createMyCard = vi.fn().mockResolvedValue({
-      cardId: cardId("created-card"), name: "Travel", type: "credit", colorId: "soft-coral",
+      cardId: cardId("created-card"), name: "Travel", type: "credit", colorId: "red",
     });
     renderPage(runtimeFor(alice, { createMyCard }));
 
@@ -88,18 +88,21 @@ describe("Phase 9 Cards presentation", () => {
     await user.click(screen.getAllByRole("button", { name: "Add Card" })[0]!);
     const dialog = screen.getByRole("dialog", { name: "Add Card" });
     await waitFor(() => expect(within(dialog).getByRole("textbox", { name: "Card Name" })).toHaveFocus());
-    for (const name of ["Mint", "Powder Blue", "Lavender", "Warm Sand", "Soft Coral", "Charcoal"]) {
+    for (const name of ["Red", "Yellow", "Black", "Blue", "Green", "Orange"]) {
       expect(within(dialog).getByRole("radio", { name })).toBeInTheDocument();
     }
+    expect(within(dialog).getAllByText("4242 8153 9021 3456").length).toBe(6);
+    expect(within(dialog).getAllByText("Alice").length).toBe(6);
 
     await user.click(within(dialog).getByRole("button", { name: "Add Card" }));
     expect(await within(dialog).findByText("Card Name is required.")).toBeInTheDocument();
     await user.type(within(dialog).getByRole("textbox", { name: "Card Name" }), "  Travel  ");
     await user.click(within(dialog).getByRole("radio", { name: "Credit" }));
-    await user.click(within(dialog).getByRole("radio", { name: "Soft Coral" }));
+    expect(within(dialog).getAllByText("Travel").length).toBeGreaterThanOrEqual(6);
+    await user.click(within(dialog).getByRole("radio", { name: "Red" }));
     await user.click(within(dialog).getByRole("button", { name: "Add Card" }));
     await waitFor(() => expect(createMyCard).toHaveBeenCalledWith({
-      name: "Travel", type: "credit", colorId: "soft-coral", commandId: expect.any(String),
+      name: "Travel", type: "credit", colorId: "red", commandId: expect.any(String),
     }));
   });
 
@@ -117,6 +120,8 @@ describe("Phase 9 Cards presentation", () => {
       getRemovalPreview: vi.fn().mockResolvedValue(preview),
     }));
     expect(await screen.findByText("Salary Card")).toBeInTheDocument();
+    expect(screen.getAllByText("4242 8153 9021 3456").length).toBeGreaterThan(0);
+    expect(screen.getByText("Alice")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /actions for salary card/i });
 
     trigger.focus();

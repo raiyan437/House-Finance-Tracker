@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Banknote, Check, CreditCard, Paperclip, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Banknote, Check, CreditCard, Loader2, Paperclip, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 
 import {
@@ -34,7 +34,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
 import { DomainError } from "@/domain/shared/domain-error";
 import { expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
+import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
+import { ErrorState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
@@ -134,11 +136,15 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   const [submitError, setSubmitError] = useState<string>();
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadTick, setLoadTick] = useState(0);
   const [confirmCardToCash, setConfirmCardToCash] = useState(false);
   const [businessDate, setBusinessDate] = useState("");
   const [uploaderAvailableReceiptBytes, setUploaderAvailableReceiptBytes] = useState(0);
   const [backdatedConfirmationToken, setBackdatedConfirmationToken] = useState<string>();
-  const existingUrlsRef = useRef<string[]>([]);
+  const existingUrlsRef = useRef<{ receiptId: string; url: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const submitErrorRef = useRef<HTMLDivElement>(null);
   const pendingReceiptsRef = useRef<readonly PendingReceipt[]>([]);
   const loadVersionRef = useRef(0);
 
@@ -188,7 +194,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     ]);
     if (!isCurrent()) return;
     setOriginal(view);
-    existingUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    existingUrlsRef.current.forEach((entry) => URL.revokeObjectURL(entry.url));
     existingUrlsRef.current = [];
     const receiptPreviews = await Promise.all(receipts.map(async (metadata): Promise<ExistingReceiptPreview | undefined> => {
       if (metadata.visibility === "attachment") {
@@ -201,7 +207,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
         const url = await createTrackedReceiptPreviewUrl(
           () => runtime.expenseActions.readReceipt(metadata.receiptId),
           isCurrent,
-          (nextUrl) => existingUrlsRef.current.push(nextUrl),
+          (nextUrl) => existingUrlsRef.current.push({ receiptId: metadata.receiptId, url: nextUrl }),
         );
         return url ? { metadata, url } : undefined;
       } catch {
@@ -220,23 +226,27 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void load().catch(() => {
-        setSubmitError("The expense form could not be loaded.");
+        setLoadFailed(true);
         setLoading(false);
       });
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [load]);
-
-  useEffect(() => {
-    pendingReceiptsRef.current = pendingReceipts;
-  }, [pendingReceipts]);
+  }, [load, loadTick]);
 
   useEffect(() => () => {
     loadVersionRef.current += 1;
-    existingUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    existingUrlsRef.current.forEach((entry) => URL.revokeObjectURL(entry.url));
     existingUrlsRef.current = [];
     pendingReceiptsRef.current.forEach((receipt) => URL.revokeObjectURL(receipt.url));
   }, []);
+
+  function stageExistingReceiptRemoval(receiptId: string) {
+    setRemovedReceiptIds((current) => (current.includes(receiptId) ? current : [...current, receiptId]));
+    const entry = existingUrlsRef.current.find((candidate) => candidate.receiptId === receiptId);
+    if (!entry) return;
+    URL.revokeObjectURL(entry.url);
+    existingUrlsRef.current = existingUrlsRef.current.filter((candidate) => candidate !== entry);
+  }
 
   const draft: ExpenseFormDraft = useMemo(() => ({
     name: values.name ?? "",
@@ -357,19 +367,20 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     }
     if (accepted.length) {
       setReceiptError(undefined);
-      setPendingReceipts((current) => [...current, ...accepted]);
+      pendingReceiptsRef.current = [...pendingReceiptsRef.current, ...accepted];
+      setPendingReceipts(pendingReceiptsRef.current);
     }
   }
 
   function removePendingReceipt(key: string) {
-    setPendingReceipts((current) => {
-      const target = current.find((receipt) => receipt.key === key);
-      if (target) URL.revokeObjectURL(target.url);
-      return current.filter((receipt) => receipt.key !== key);
-    });
+    const target = pendingReceiptsRef.current.find((receipt) => receipt.key === key);
+    if (!target) return;
+    URL.revokeObjectURL(target.url);
+    pendingReceiptsRef.current = pendingReceiptsRef.current.filter((receipt) => receipt.key !== key);
+    setPendingReceipts(pendingReceiptsRef.current);
   }
 
-  async function saveExpense(confirmationToken?: string) {
+  async function doSaveExpense(confirmationToken?: string) {
     if (runtime.status !== "ready" || !household) return;
     setAttemptedSubmit(true);
     setSubmitError(undefined);
@@ -522,15 +533,41 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
           return;
         }
       }
-      setSubmitError(error instanceof Error ? error.message : "The expense could not be saved.");
+      setSubmitError(userErrorMessage(error, "The expense could not be saved."));
+    }
+  }
+
+  const pendingSave = saving || form.formState.isSubmitting;
+  useEffect(() => {
+    if (submitError) submitErrorRef.current?.focus();
+  }, [submitError]);
+
+  async function saveExpense(confirmationToken?: string) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await doSaveExpense(confirmationToken);
+    } finally {
+      setSaving(false);
     }
   }
 
   if (loading) {
     return <PageContainer><Surface><p role="status">Loading expense form…</p></Surface></PageContainer>;
   }
+  if (loadFailed) {
+    return (
+      <PageContainer>
+        <ErrorState
+          description="The expense could not be loaded. Your saved financial data was not changed."
+          onRetry={() => { setLoadFailed(false); setLoading(true); setLoadTick((value) => value + 1); }}
+          title="Expense form unavailable"
+        />
+      </PageContainer>
+    );
+  }
   if (original?.financialEditability.state === "deleted") {
-    return <PageContainer><Surface><p>This deleted expense is read-only.</p></Surface></PageContainer>;
+    return <PageContainer><Surface><div role="status" className="p-4"><p className="font-semibold text-danger">This deleted expense is read-only.</p><p className="mt-1 text-sm text-text-secondary">Deleted expenses remain as read-only household history and can no longer be edited or deleted again.</p></div></Surface></PageContainer>;
   }
 
   const allocationStatus = preview.remaining !== undefined
@@ -550,21 +587,21 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
       <PageHeader className="mt-[14px]" title={mode === "create" ? "Add Expense" : "Edit Expense"} description={mode === "create" ? "Record what you paid and allocate every poisha exactly." : "Payer and creator remain fixed; permitted changes recalculate from source history."} />
       {financialLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status"><p className="font-semibold">{original?.financialEditability.title}</p><p className="mt-1">{original?.financialEditability.description}</p><p className="mt-1 text-text-secondary">Expense Name and receipts may still be updated.</p></div> : null}
 
-      <AlertDialog open={Boolean(backdatedConfirmationToken)} onOpenChange={(open) => { if (!open) { setBackdatedConfirmationToken(undefined); expenseCommand.complete(); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Expense dated before a confirmed settlement</AlertDialogTitle><AlertDialogDescription>This expense is dated before a household settlement that was already confirmed. Adding it may create new outstanding balances even though earlier balances were previously settled.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={(event) => { event.preventDefault(); const token = backdatedConfirmationToken; if (token) void saveExpense(token); }}>{mode === "create" ? "Add Expense" : "Save Changes"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={Boolean(backdatedConfirmationToken)} onOpenChange={(open) => { if (!open) { setBackdatedConfirmationToken(undefined); expenseCommand.complete(); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Expense dated before a confirmed settlement</AlertDialogTitle><AlertDialogDescription>This expense is dated before a household settlement that was already confirmed. Adding it may create new outstanding balances even though earlier balances were previously settled.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel><AlertDialogAction onClick={(event) => { event.preventDefault(); if (saving) return; const token = backdatedConfirmationToken; if (token) void saveExpense(token); }}>{saving ? "Saving…" : mode === "create" ? "Add Expense" : "Save Changes"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <form className="expense-form-grid mt-7 grid gap-6" onSubmit={form.handleSubmit(() => saveExpense(), revealErrorsAndFocus)} noValidate>
-        <div className="grid content-start gap-[18px]">
+        <div className="grid content-start gap-4">
           <Surface className="expense-details-panel order-1 space-y-3" padding="canonical">
             <h2 className="panel-title">Expense Details</h2>
             <div className="expense-details-fields grid gap-3 sm:grid-cols-2">
-              <div className="expense-name-field space-y-1 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(nameIssue)} aria-describedby={nameIssue ? "expense-name-error" : undefined} {...form.register("name")} />{nameIssue ? <p id="expense-name-error" className="text-caption text-danger">{nameIssue}</p> : null}</div>
-              <div className="space-y-1"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(amountIssue)} aria-describedby={amountIssue ? "expense-amount-error" : undefined} {...form.register("amountText")} />{amountIssue ? <p id="expense-amount-error" className="text-caption text-danger">{amountIssue}</p> : null}</div>
-               <div className="space-y-1"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
-              <div className="space-y-1"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>
+              <div className="expense-name-field space-y-2 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(nameIssue)} aria-describedby={nameIssue ? "expense-name-error" : undefined} {...form.register("name")} />{nameIssue ? <p id="expense-name-error" className="text-caption text-danger">{nameIssue}</p> : null}</div>
+              <div className="space-y-2"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(amountIssue)} aria-describedby={amountIssue ? "expense-amount-error" : undefined} {...form.register("amountText")} />{amountIssue ? <p id="expense-amount-error" className="text-caption text-danger">{amountIssue}</p> : null}</div>
+               <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
+              <div className="space-y-2"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>
             </div>
             <fieldset disabled={financialLocked || (Boolean(original) && !ownerEditing && original?.expense.payment.method === "cash")}>
               <legend className="text-label font-medium">Payment Method</legend>
               <div className="mt-2 grid grid-cols-2 rounded-xl bg-secondary p-1">
-                {(["cash", "card"] as const).map((method) => <label key={method} className={`relative flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[9px] text-sm font-medium focus-within:ring-3 focus-within:ring-ring/30 ${draft.paymentMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("paymentMethod")} />{method === "cash" ? <Banknote aria-hidden="true" className="size-4" /> : <CreditCard aria-hidden="true" className="size-4" />}<span className="capitalize">{method}</span></label>)}
+                {(["cash", "card"] as const).map((method) => <label key={method} className={`relative flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg text-sm font-medium focus-within:ring-3 focus-within:ring-ring/30 ${draft.paymentMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("paymentMethod")} />{method === "cash" ? <Banknote aria-hidden="true" className="size-4" /> : <CreditCard aria-hidden="true" className="size-4" />}<span className="capitalize">{method}</span></label>)}
               </div>
             </fieldset>
             {draft.paymentMethod === "card" ? (
@@ -585,7 +622,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             </fieldset>
             <fieldset id="expense-split-method" disabled={financialLocked}>
               <legend className="sr-only">Split Method</legend>
-              <div className="grid grid-cols-3 rounded-xl bg-secondary p-1">{(["equal", "amount", "percentage"] as const).map((method) => <label key={method} className={`relative flex h-9 cursor-pointer items-center justify-center rounded-[9px] text-xs font-medium capitalize focus-within:ring-3 focus-within:ring-ring/30 ${draft.splitMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("splitMethod")} /> {method}</label>)}</div>
+              <div className="grid grid-cols-3 rounded-xl bg-secondary p-1">{(["equal", "amount", "percentage"] as const).map((method) => <label key={method} className={`relative flex h-9 cursor-pointer items-center justify-center rounded-lg text-xs font-medium capitalize focus-within:ring-3 focus-within:ring-ring/30 ${draft.splitMethod === method ? "bg-card shadow-[var(--shadow-small)]" : "text-text-secondary"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="radio" value={method} {...form.register("splitMethod")} /> {method}</label>)}</div>
             </fieldset>
             {original?.percentageSourceStatus === "legacy-percentage-input-unavailable" ? <p className="rounded-lg bg-warning-soft p-3 text-sm" role="status">Original percentage inputs are unavailable. No percentages have been inferred from the saved poisha shares.</p> : null}
             <div className="grid gap-2 sm:grid-cols-3">
@@ -596,31 +633,31 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
                   ? undefined
                   : preview.issues[`${draft.splitMethod}:${id}`];
                 const inputId = `expense-${draft.splitMethod}-share-${id}`;
-                return <div key={id} className="grid items-center gap-1 rounded-xl border p-3"><span className="truncate text-xs font-medium">{id === currentUserId ? "You" : member?.displayName ?? "Member"}</span>{draft.splitMethod === "amount" ? <Input id={inputId} className="h-9" disabled={financialLocked} inputMode="decimal" aria-label={`Amount share for ${member?.displayName ?? id}`} aria-invalid={Boolean(entryIssue)} aria-describedby={entryIssue ? `${inputId}-error` : undefined} value={draft.amountTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`amountTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} onBlur={() => form.setValue(`amountTextByParticipant.${id}`, draft.amountTextByParticipant[id] ?? "", { shouldTouch: true, shouldValidate: true })} /> : draft.splitMethod === "percentage" ? <div className="relative"><Input id={inputId} disabled={financialLocked} inputMode="decimal" aria-label={`Percentage share for ${member?.displayName ?? id}`} aria-invalid={Boolean(entryIssue)} aria-describedby={entryIssue ? `${inputId}-error` : undefined} className="h-9 pr-8" value={draft.percentageTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`percentageTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} onBlur={() => form.setValue(`percentageTextByParticipant.${id}`, draft.percentageTextByParticipant[id] ?? "", { shouldTouch: true, shouldValidate: true })} /><span className="absolute right-3 top-2 text-text-muted">%</span></div> : <span className="text-[11px] text-text-muted">Calculated equally</span>}<span className="financial-numerals text-xs font-semibold">{allocation ? formatBdt(allocation.share) : "—"}{preview.provisional && draft.splitMethod === "percentage" ? <small className="block text-warning">Provisional</small> : null}</span>{entryIssue ? <p id={`${inputId}-error`} className="text-caption text-danger">{entryIssue}</p> : null}</div>;
+                return <div key={id} className="grid items-center gap-1 rounded-xl border p-3"><span className="truncate text-xs font-medium">{id === currentUserId ? "You" : member?.displayName ?? "Member"}</span>{draft.splitMethod === "amount" ? <Input id={inputId} className="h-9" disabled={financialLocked} inputMode="decimal" aria-label={`Amount share for ${member?.displayName ?? id}`} aria-invalid={Boolean(entryIssue)} aria-describedby={entryIssue ? `${inputId}-error` : undefined} value={draft.amountTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`amountTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} onBlur={() => form.setValue(`amountTextByParticipant.${id}`, draft.amountTextByParticipant[id] ?? "", { shouldTouch: true, shouldValidate: true })} /> : draft.splitMethod === "percentage" ? <div className="relative"><Input id={inputId} disabled={financialLocked} inputMode="decimal" aria-label={`Percentage share for ${member?.displayName ?? id}`} aria-invalid={Boolean(entryIssue)} aria-describedby={entryIssue ? `${inputId}-error` : undefined} className="h-9 pr-8" value={draft.percentageTextByParticipant[id] ?? ""} onChange={(event) => form.setValue(`percentageTextByParticipant.${id}`, event.target.value, { shouldDirty: true })} onBlur={() => form.setValue(`percentageTextByParticipant.${id}`, draft.percentageTextByParticipant[id] ?? "", { shouldTouch: true, shouldValidate: true })} /><span className="absolute right-3 top-2 text-text-muted">%</span></div> : <span className="text-fine text-text-muted">Calculated equally</span>}<span className="financial-numerals text-xs font-semibold">{allocation ? formatBdt(allocation.share) : "—"}{preview.provisional && draft.splitMethod === "percentage" ? <small className="block text-warning">Provisional</small> : null}</span>{entryIssue ? <p id={`${inputId}-error`} className="text-caption text-danger">{entryIssue}</p> : null}</div>;
               })}
             </div>
-            {splitIssue ? <p className="text-sm text-danger" role="status">{splitIssue}</p> : null}
+            {splitIssue ? <p className="text-sm text-danger" role="alert">{splitIssue}</p> : null}
           </Surface>
 
           <Surface className="receipts-panel order-2 space-y-3" padding="canonical">
             <div><h2 className="panel-title">Receipts</h2><p className="compact-caption mt-0.5 text-text-muted">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p>{!original || original.expense.creatorId === currentUserId ? <p className="compact-caption mt-1 text-text-muted">{availableReceiptCount} of {MAX_AVAILABLE_RECEIPTS_PER_EXPENSE} available · {Math.floor(remainingUploaderReceiptBytes / (1024 * 1024))} MiB of your receipt quota remains</p> : null}<p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p></div>
-            {!original || original.expense.creatorId === currentUserId ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">Receipt details and management are private to the Expense creator.</p>}
+            {!original || original.expense.creatorId === currentUserId ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">Receipt details and management are private to the Expense creator.</p>}
             {receiptError ? <p className="text-sm text-danger" role="alert">{receiptError}</p> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {existingReceipts.filter(({ metadata }) => metadata.visibility === "attachment" || !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error }, index) => { if (metadata.visibility === "attachment") return <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Private receipt details are not available to other Household members or Leaders.</p></div>; const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 items-center justify-center rounded-lg bg-secondary"><Paperclip /><span className="sr-only">{error ? "Receipt preview unavailable" : "Loading receipt preview"}</span></div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemove ? <Button type="button" variant="ghost" size="sm" onClick={() => setRemovedReceiptIds((current) => [...current, metadata.receiptId])}><Trash2 /> Remove</Button> : null}</div>; })}
+              {existingReceipts.filter(({ metadata }) => metadata.visibility === "attachment" || !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error }, index) => { if (metadata.visibility === "attachment") return <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Private receipt details are not available to other Household members or Leaders.</p></div>; const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" />{error ? <><p className="text-xs font-medium">Preview unavailable</p><p className="compact-caption mt-1 text-text-muted">The stored image could not be displayed. Your file was not changed.</p></> : <span className="sr-only">Loading receipt preview</span>}</div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemove ? <Button type="button" variant="ghost" size="sm" onClick={() => stageExistingReceiptRemoval(metadata.receiptId)}><Trash2 /> Remove</Button> : null}</div>; })}
               {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={receipt.url} alt={receipt.file.name} fill sizes="240px" unoptimized /></span><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
             </div>
           </Surface>
         </div>
 
-        <aside aria-label="Expense summary and actions" className="flex self-stretch flex-col gap-[18px] min-[1400px]:min-h-[808px]">
+        <aside aria-label="Expense summary and actions" className="flex self-stretch flex-col gap-4 min-[1400px]:min-h-[808px]">
           <Surface className="min-h-[450px]" elevation="card" padding="canonical">
             <h2 className="panel-title">Summary</h2>
             <dl className="space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-text-secondary">Expense Total</dt><dd className="font-semibold tabular-nums">{preview.amount ? formatBdt(preview.amount) : "—"}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Allocated</dt><dd className="tabular-nums">{preview.allocated !== undefined ? formatBdt(preview.allocated) : "—"}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Your Share</dt><dd className="tabular-nums">{formatBdt(preview.yourShare)}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Participants</dt><dd>{preview.participantCount}</dd></div><div className="flex justify-between gap-4"><dt className="text-text-secondary">Payment Method</dt><dd className="capitalize">{draft.paymentMethod}</dd></div><div className="border-t pt-3"><dt className="text-text-secondary">Allocation Status</dt><dd className={preview.canPersist || financialLocked ? "mt-1 font-medium text-success" : "mt-1 font-medium text-warning"}>{financialLocked ? "Financial history preserved" : allocationStatus}</dd></div></dl>
-            {submitError ? <div className="mt-5 rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert" tabIndex={-1}>{submitError}</div> : null}
+            {submitError ? <div className="mt-5 rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert" tabIndex={-1} ref={submitErrorRef}>{submitError}</div> : null}
           </Surface>
           <Surface className="min-h-[104px]" padding="canonical"><div className="flex gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft"><ShieldCheck aria-hidden="true" className="size-4" /></span><div><h2 className="text-sm font-semibold">Privacy Note</h2><p className="compact-caption mt-1 text-text-muted">Private Card details remain visible only to the Card owner.</p></div></div></Surface>
-          <div className="mt-auto grid grid-cols-[116px_minmax(0,1fr)] gap-3"><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button><Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Saving…" : mode === "create" ? "Create Expense" : "Save Changes"}</Button></div>
+          <div className="mt-auto grid grid-cols-[116px_minmax(0,1fr)] gap-3"><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button><Button aria-busy={pendingSave} disabled={pendingSave} type="submit">{pendingSave ? <><Loader2 aria-hidden="true" className="size-4 animate-spin" /> Saving…</> : mode === "create" ? "Create Expense" : "Save Changes"}</Button></div>
         </aside>
       </form>
     </PageContainer>

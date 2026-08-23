@@ -17,7 +17,7 @@ import {
 interface ConfirmDialogProps {
   readonly trigger?: React.ReactNode;
   readonly title: string;
-  readonly description: string;
+  readonly description: React.ReactNode;
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
   readonly destructive?: boolean;

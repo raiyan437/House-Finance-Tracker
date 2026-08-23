@@ -20,6 +20,10 @@ export interface DevelopmentIdentityOption {
   readonly displayName: string;
 }
 
+export function useDevelopmentToolsActive(): boolean {
+  return useContext(DevelopmentToolsContext) !== undefined;
+}
+
 interface DevelopmentToolsContextValue {
   readonly identities: readonly DevelopmentIdentityOption[];
   readonly currentUserId?: UserId;

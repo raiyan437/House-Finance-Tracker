@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userId } from "@/domain/shared/identifiers";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
+import { ErrorState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
@@ -53,6 +54,7 @@ export function ExpensesPageClient() {
   const [query, setQuery] = useState<ExpenseListQuery>(() => defaultExpenseListQuery(initialMonth));
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [reloadTick, setReloadTick] = useState(0);
 
   const household = runtime.status === "ready" && (runtime.household.status === "active-member" || runtime.household.status === "active-leader") ? runtime.household.household : undefined;
 
@@ -69,7 +71,7 @@ export function ExpensesPageClient() {
       setStatus("ready");
     }).catch(() => active && setStatus("error"));
     return () => { active = false; };
-  }, [household, runtime]);
+  }, [household, reloadTick, runtime]);
 
   const memberById = useMemo(() => new Map(members.map((member) => [member.userId, member])), [members]);
   const rows = useMemo<readonly ExpenseListRow[]>(() => expenses.map(({ expense }) => {
@@ -101,7 +103,7 @@ export function ExpensesPageClient() {
   return (
     <PageContainer>
       <PageHeader
-        action={<Button asChild className="h-[46px] w-full rounded-[14px] sm:w-44"><Link href="/expenses/new"><Plus /> Add Expense</Link></Button>}
+        action={<Button asChild className="h-[46px] w-full rounded-xl sm:w-44"><Link href="/expenses/new"><Plus /> Add Expense</Link></Button>}
         description="Review household spending by the date it happened."
         title="Expenses"
       />
@@ -109,7 +111,7 @@ export function ExpensesPageClient() {
       <section aria-label="Expense filters" className="expense-filter-grid mt-[26px] grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="relative sm:col-span-2 lg:col-span-1">
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-text-muted" />
-          <Input aria-label="Search expenses by name" className="rounded-[12px] pl-10 text-[13px]" placeholder="Search by expense name" value={query.search} onChange={(event) => updateQuery((current) => ({ ...current, search: event.target.value }))} />
+          <Input aria-label="Search expenses by name" className="rounded-[12px] pl-10 text-row" placeholder="Search by expense name" value={query.search} onChange={(event) => updateQuery((current) => ({ ...current, search: event.target.value }))} />
         </div>
         <Select value={query.month} onValueChange={(value) => updateQuery((current) => ({ ...current, month: value as ExpenseListQuery["month"] }))}>
           <SelectTrigger aria-label="Month" size="compact"><SelectValue /></SelectTrigger>
@@ -127,17 +129,34 @@ export function ExpensesPageClient() {
           <SelectTrigger aria-label="Sort" size="compact"><SelectValue /></SelectTrigger>
           <SelectContent align="start"><SelectItem value="newest">Newest to Oldest</SelectItem><SelectItem value="oldest">Oldest to Newest</SelectItem></SelectContent>
         </Select>
-        <Button className="rounded-[12px] border bg-card text-[13px]" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
+        <Button className="rounded-[12px] border bg-card text-row" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
       </section>
 
       {status === "loading" ? <Surface className="mt-6"><p role="status" className="text-text-secondary">Loading expenses…</p></Surface> : null}
-      {status === "error" ? <Surface className="mt-6"><p role="alert" className="text-danger">Expenses could not be loaded.</p></Surface> : null}
-      {status === "ready" && visibleRows.length === 0 ? <Surface className="mt-6 py-12 text-center"><h2 className="panel-title">No matching expenses</h2><p className="mt-2 text-sm text-text-secondary">Try clearing the filters or add a household expense.</p></Surface> : null}
+      {status === "error" ? (
+        <Surface className="mt-6">
+          <ErrorState description="Your saved expenses were not changed." onRetry={() => { setStatus("loading"); setReloadTick((value) => value + 1); }} title="Expenses could not be loaded" />
+        </Surface>
+      ) : null}
+      {status === "ready" && rows.length === 0 ? (
+        <Surface className="mt-6 py-12 text-center">
+          <h2 className="panel-title">No expenses yet</h2>
+          <p className="mt-2 text-sm text-text-secondary">Record the first household expense to see it here.</p>
+          <Button asChild className="mt-5 w-full sm:w-fit"><Link href="/expenses/new"><Plus /> Add Expense</Link></Button>
+        </Surface>
+      ) : null}
+      {status === "ready" && rows.length > 0 && visibleRows.length === 0 ? (
+        <Surface className="mt-6 py-12 text-center">
+          <h2 className="panel-title">No matching expenses</h2>
+          <p className="mt-2 text-sm text-text-secondary">No expenses match the current search and filters.</p>
+          <Button className="mt-5 w-full rounded-xl sm:w-fit" variant="outline" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
+        </Surface>
+      ) : null}
 
       {status === "ready" && visibleRows.length > 0 ? (
         <Surface className="mt-6 overflow-hidden shadow-none" padding="none">
           <div className="flex min-h-[62px] items-center justify-between gap-4 border-b px-5">
-            <div><h2 aria-label="Monthly spending list" className="panel-title">{expenseListTitle(query.month)}</h2><p className="compact-caption mt-0.5 text-text-muted">{visibleRows.length} result{visibleRows.length === 1 ? "" : "s"}</p></div>
+            <div><h2 aria-label="Monthly spending list" className="panel-title">{expenseListTitle(query.month)}</h2><p aria-live="polite" className="compact-caption mt-0.5 text-text-muted">{visibleRows.length} result{visibleRows.length === 1 ? "" : "s"}</p></div>
             <p className="hidden compact-caption text-text-muted sm:block">Sorted {query.sort === "newest" ? "newest first" : "oldest first"}</p>
           </div>
           <div>
@@ -148,7 +167,7 @@ export function ExpensesPageClient() {
                   <Link aria-label={`Open ${row.name} expense details`} className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${row.expenseId}`} />
                   <div className="table-body grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 min-[900px]:grid-cols-[minmax(0,1.4fr)_104px_136px_100px_104px_100px] min-[900px]:items-center min-[900px]:px-5 min-[900px]:py-0 min-[1400px]:grid-cols-[minmax(0,1.6fr)_118px_160px_108px_120px_110px]">
                     <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:items-center min-[900px]:gap-3"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${expenseTileClass(row.expenseId)}`}><ReceiptText aria-hidden="true" className="size-4" /></span><div className="min-w-0"><p className="truncate font-semibold text-foreground">{row.name}</p><p className="mt-1 text-xs text-text-muted min-[900px]:hidden">{formatExpenseDate(row.expenseDate)} · {row.payer.displayName}</p><p className="mt-1 text-xs text-text-secondary min-[900px]:hidden">{row.paymentMethod === "cash" ? "Cash" : "Card"} · {splitLabel(row)}</p></div></div>
-                    <p className="hidden text-text-secondary min-[900px]:block">{formatExpenseDate(row.expenseDate)}</p>
+                    <p className="hidden text-text-secondary min-[900px]:block"><time dateTime={row.expenseDate}>{formatExpenseDate(row.expenseDate)}</time></p>
                     <div className="hidden min-w-0 items-center gap-2 min-[900px]:flex"><MemberAvatar className="size-7 shrink-0 [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={row.payer.displayName} /><p className="truncate text-text-secondary">{row.payer.displayName}{row.payer.former ? " · Former" : ""}</p></div>
                     <p className="hidden min-[900px]:block"><span className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${row.paymentMethod === "cash" ? "bg-secondary text-text-secondary" : "bg-brand-soft text-foreground"}`}>{row.paymentMethod === "cash" ? <Banknote aria-hidden="true" className="size-3.5" /> : <CreditCard aria-hidden="true" className="size-3.5" />}{row.paymentMethod === "cash" ? "Cash" : "Card"}</span></p>
                     <p className="hidden text-text-secondary min-[900px]:block">{splitLabel(row)}</p>

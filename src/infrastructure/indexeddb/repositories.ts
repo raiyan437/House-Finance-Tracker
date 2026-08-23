@@ -50,8 +50,8 @@ import {
 } from "./mappers";
 import { membershipKey, pendingSettlementPairKey } from "./keys";
 import type { HouseFinanceDatabase, ReceiptBlobRecordV1 } from "./records";
+import type { DatabaseSource } from "./database";
 
-type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
 
 function persistenceFailure(error: unknown): never {
   if (error instanceof ApplicationError || error instanceof DomainError) throw error;
@@ -104,9 +104,7 @@ export class IndexedDbUserProfileRepository implements UserProfileRepository {
   constructor(private readonly source: DatabaseSource) {}
   async getById(id: UserId) { const raw = await (await database(this.source)).get("userProfiles", id); return raw ? fromProfileRecord(raw, id) : undefined; }
   async getByIds(ids: readonly UserId[]) { return Promise.all(ids.map((id) => this.getById(id))).then((values) => values.filter((value) => value !== undefined)); }
-  async findByEmailKey(key: string) { const raw = await (await database(this.source)).getFromIndex("userProfiles", "emailKey", key); return raw ? fromProfileRecord(raw, raw.id) : undefined; }
   async create(value: Parameters<UserProfileRepository["create"]>[0]) { try { await (await database(this.source)).add("userProfiles", toProfileRecord(value)); } catch (error) { persistenceFailure(error); } }
-  async update(value: Parameters<UserProfileRepository["update"]>[0]) { try { const db = await database(this.source); if (!(await db.getKey("userProfiles", value.userId))) throw new ApplicationError("NOT_FOUND", "Profile not found."); await db.put("userProfiles", toProfileRecord(value)); } catch (error) { persistenceFailure(error); } }
 }
 
 export class IndexedDbHouseholdRepository implements HouseholdRepository {
@@ -114,9 +112,7 @@ export class IndexedDbHouseholdRepository implements HouseholdRepository {
   async getById(id: HouseholdId) { const raw = await (await database(this.source)).get("households", id); return raw ? fromHouseholdRecord(raw, id) : undefined; }
   async findByCode(code: string) { const raw = await (await database(this.source)).getFromIndex("households", "code", code); return raw ? fromHouseholdRecord(raw, raw.id) : undefined; }
   async create(value: Parameters<HouseholdRepository["create"]>[0]) { try { await (await database(this.source)).add("households", toHouseholdRecord(value)); } catch (error) { persistenceFailure(error); } }
-  async updateDetails(value: Parameters<HouseholdRepository["updateDetails"]>[0]) { await this.replace(value, false); }
-  async markDeleted(value: Parameters<HouseholdRepository["markDeleted"]>[0]) { await this.replace(value, true); }
-  private async replace(value: Parameters<HouseholdRepository["updateDetails"]>[0], mustBeDeleted: boolean) { try { if (mustBeDeleted !== Boolean(value.deletedAt)) throw new ApplicationError("CONFLICT", "Household deletion state does not match the operation."); const db = await database(this.source); if (!(await db.getKey("households", value.householdId))) throw new ApplicationError("NOT_FOUND", "Household not found."); await db.put("households", toHouseholdRecord(value)); } catch (error) { persistenceFailure(error); } }
+  async markDeleted(value: Parameters<HouseholdRepository["markDeleted"]>[0]) { try { if (!value.deletedAt) throw new ApplicationError("CONFLICT", "Household deletion state does not match the operation."); const db = await database(this.source); if (!(await db.getKey("households", value.householdId))) throw new ApplicationError("NOT_FOUND", "Household not found."); await db.put("households", toHouseholdRecord(value)); } catch (error) { persistenceFailure(error); } }
 }
 
 export class IndexedDbMembershipRepository implements MembershipRepository {
@@ -273,7 +269,7 @@ export class IndexedDbRepositories {
   readonly expenses: ExpenseRepository;
   readonly settlements: SettlementRepository;
   readonly cards: CardRepository;
-  readonly receipts: ReceiptRepository;
+  readonly receipts: ReceiptRepository & ReceiptRetentionRepository;
   readonly auditEvents: AuditEventRepository;
   readonly commandOutcomes: CommandOutcomeRepository;
 

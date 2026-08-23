@@ -114,3 +114,30 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - A full-width primary chart needs both the outer grid span and explicit `min-width: 0` on grid children; otherwise an inner chart minimum can still create a desktop scrollbar even when the parent appears fluid.
 - Supporting analytics cards need breakpoint-specific composition: two columns with the compact Payment Mix spanning below at tablet/laptop widths, then `1fr 1fr 0.8fr` on wide desktop. A compact legend should stack percentages under amounts when the payment card becomes narrow, preserving readable exact values without changing the analytics result.
 - Visual inspection exposed issues automated geometry alone missed, including clipped Payment Mix percentages and mobile tick collisions. Screenshot review plus bounding-box assertions are both needed for responsive financial cards.
+
+## 2026-08-22 - Attention badges, filter sizing, hydration resilience
+
+- Shell attention counts must derive from the household access projection at the shell boundary instead of one session counter hard-coded to one href; the frozen badge rule already covered leader join requests, and hard-coding silently dropped them. Generalize count/label per destination when adding badges.
+- Canonical fixed-pixel desktop tracks truncate variable-length financial labels while over-sizing short ones. Control rows should use content-driven `minmax()` tracks with an intrinsic (`auto`) action button so every control hugs its text.
+- This machine force-loads browser extensions into every Chromium instance (including Playwright's clean profile), which injects pre-hydration DOM attributes such as `style="translate: ..."` on fixed elements and `cz-shortcut-listen` on `<body>`. No app code can prevent this; the React-endorsed mitigation is a narrowly scoped `suppressHydrationWarning` on exactly the affected elements (mobile nav bar, root body), keeping all child checking intact.
+- A manually started dev server and tooling that assumes another origin (Playwright config uses `127.0.0.1`, default `next dev` serves `localhost`) collide: Next.js 16 blocks "cross-origin" dev chunks, pages render HTML but never hydrate, and every readiness-gated e2e test fails with the runtime stuck on `loading`. Let Playwright manage its own server or match hostnames exactly.
+
+## 2026-08-22 - Canonical frame heights vs dynamic form panels
+
+- Pinning variable-content panels to canonical-frame pixel `height`s reproduces the mock exactly for one state but fails every other state: shorter content leaves dead space inside the surface while taller content draws outside its border because overflow stays visible. Form panels whose children depend on user choices (payment method, receipt count, participant count) must size from content; treat Figma geometry as a breakpoint target, never as a fixed height.
+- Geometric regression checks catch this class deterministically: compare every descendant rect against its panel rect at the canonical width in both toggle states, and assert the panel height responds to state changes instead of asserting one snapshot value.
+- `rounded-xl` resolves to `--radius-card` (20px), which reads as a circle on small icon controls. Small controls need `rounded-md` (12px), which also matches the brand tile when a revealed control must adopt the logo's exact rectangle geometry in place.
+- Reveal interactions that animate scale or transform drift visually from their anchor. In-place hover/focus reveals over a fixed element should crossfade opacity only and share the anchor's box, so nothing appears to move; assert with computed styles (`transform`, offsets versus the anchor rect) rather than screenshots alone.
+
+## 2026-08-23 - Phase 12 re-hardening pass
+
+- Enter animations that lower opacity (`animate-in` + `fade-in-*`) make text fail WCAG contrast for their duration: an Axe snapshot racing a 300ms metric fade measured #cccccc-on-white at 1.6:1 on an otherwise AA palette. For text values, keep entrance motion transform-only (`slide-in-from-*` without `fade-in-*`, whose absence leaves enter opacity at 1); never treat "the animation finishes quickly" as compliance.
+- Post-checkpoint feature drift accumulates silently against frozen gates: one summary card missed the fixed-height-to-floor conversion because the conversion was applied per-edit rather than swept by selector. When a pass changes a mechanical pattern, enumerate all occurrences first (grep) instead of editing known instances.
+- Row-direction flex wrappers shrink block children to content width, silently breaking inner grid right-edge alignment (expense amounts). When converting a container to flex for centering, switch to `flex-col` so existing children keep stretching horizontally.
+
+## 2026-08-22 - Review-driven hardening corrections
+
+- Every mutating application service path must route through the atomic persistence port; even "simple" profile edits need transaction-time re-reads, OCC, and uniqueness checks because IndexedDB unique indexes alone surface raw ConstraintError instead of typed conflicts.
+- Error-code vocabulary is API surface: format-validation failures deserve their own typed code so callers can distinguish bad input from state conflicts without parsing English messages; when widening codes, sweep every test asserting the old generic code.
+- When an owner requests work that contradicts a documented lesson (Card audit omission), surface the lesson and obtain an explicit decision first; the reaffirmed skip is cheaper than unwinding a model change to the Household-scoped audit store.
+- A frozen "no browser-triggered cleanup" rule can be amended by owner approval into a narrow bootstrap sweep: keep the trigger inside privileged infrastructure, reuse the deterministic idempotent workflow unchanged, log failures non-fatally, and record the amendment in REQUIREMENTS.md before implementing.

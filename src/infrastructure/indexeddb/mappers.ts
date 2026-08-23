@@ -1,7 +1,7 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import { assertCommandOutcome, type CommandOutcome } from "@/application/idempotency/command-idempotency";
 import { expenseDate } from "@/domain/dates/expense-date";
-import { CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
+import { CARD_COLOR_IDS, LEGACY_CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { poisha, positivePoisha } from "@/domain/money/poisha";
 import { basisPoints } from "@/domain/money/basis-points";
@@ -250,7 +250,7 @@ export const fromExpenseRecord = (raw: unknown, key?: string): Expense => {
 };
 
 function migrateLegacyColor(value: string, store: "cards" | "expenseCardPrivateDetails"): CardColorId {
-  if ((CARD_COLOR_IDS as readonly string[]).includes(value)) return cardColorId(value);
+  if ((LEGACY_CARD_COLOR_IDS as readonly string[]).includes(value)) return cardColorId(value);
   if (value === "lime") return "mint";
   if (value === "blue") return "powder-blue";
   if (value === "gray") return "charcoal";

@@ -18,9 +18,11 @@ async function addCard(
   await expect(dialog.getByLabel("Card Name")).toBeFocused();
   await dialog.getByLabel("Card Name").fill(name);
   await dialog.getByRole("radio", { name: type }).click();
-  await dialog.getByRole("radio", { name: color }).click();
+  await dialog.getByRole("radio", { name: color, exact: true }).click();
   await dialog.getByRole("button", { name: "Add Card" }).click();
-  await expect(page.getByText(name.trim(), { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Your active Cards" }).getByText(name.trim(), { exact: true }),
+  ).toBeVisible();
 }
 
 test("creates, edits, persists, and physically deletes a private Card", async ({ page }) => {
@@ -30,7 +32,7 @@ test("creates, edits, persists, and physically deletes a private Card", async ({
 
   await page.goto("/cards");
   await expect(page.getByRole("heading", { name: "My Cards" })).toBeVisible();
-  await addCard(page, "  Travel Card  ", "Credit", "Soft Coral");
+  await addCard(page, "  Travel Card  ", "Credit", "Red");
 
   const travelMenu = page.getByRole("button", { name: /actions for travel card/i });
   await travelMenu.focus();
@@ -39,10 +41,14 @@ test("creates, edits, persists, and physically deletes a private Card", async ({
   const edit = page.getByRole("dialog", { name: "Edit Card" });
   await edit.getByLabel("Card Name").fill("Everyday Card");
   await edit.getByRole("radio", { name: "Debit" }).click();
-  await edit.getByRole("radio", { name: "Charcoal" }).click();
+  await edit.getByRole("radio", { name: "Black", exact: true }).click();
   await edit.getByRole("button", { name: "Save Changes" }).click();
-  await expect(page.getByText("Everyday Card", { exact: true })).toBeVisible();
-  await expect(page.getByText("Charcoal", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Your active Cards" }).getByText("Everyday Card", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Your active Cards" }).getByText("Raiyan", { exact: true }).first(),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByText("Everyday Card", { exact: true })).toBeVisible();
 
@@ -70,7 +76,7 @@ test("keeps Cards owner-private across identity changes and works without Househ
   await switchIdentity(page, "alex");
   await expect(page).toHaveURL(/\/cards$/);
   await expect(page.getByText("No cards yet")).toBeVisible();
-  await addCard(page, "Alex Private", "Debit", "Lavender");
+  await addCard(page, "Alex Private", "Debit", "Blue");
   await expect(page.getByText("Alex Private", { exact: true })).toBeVisible();
   await switchIdentity(page, "raiyan");
   await expect(page.getByText("Alex Private", { exact: true })).toHaveCount(0);
@@ -83,9 +89,11 @@ test("Card edits and archives never rewrite the owner's historical Expense snaps
   await page.getByRole("menuitem", { name: "Edit" }).click();
   const edit = page.getByRole("dialog", { name: "Edit Card" });
   await edit.getByLabel("Card Name").fill("Main Credit");
-  await edit.getByRole("radio", { name: "Warm Sand" }).click();
+  await edit.getByRole("radio", { name: "Green", exact: true }).click();
   await edit.getByRole("button", { name: "Save Changes" }).click();
-  await expect(page.getByText("Main Credit", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Your active Cards" }).getByText("Main Credit", { exact: true }),
+  ).toBeVisible();
 
   await page.goto("/expenses/expense-internet");
   await expect(page.getByText(/John Credit.*credit.*Powder Blue/)).toBeVisible();
@@ -126,7 +134,7 @@ test("mobile Cards controls remain usable and have no serious accessibility find
   await add.click();
   const dialog = page.getByRole("dialog", { name: "Add Card" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("radio", { name: "Mint" })).toHaveAttribute("aria-checked", "true");
+  await expect(dialog.getByRole("radio", { name: "Red", exact: true })).toHaveAttribute("aria-checked", "true");
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

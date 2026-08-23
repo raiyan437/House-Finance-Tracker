@@ -53,6 +53,11 @@ export function previousCalendarMonth(value: CalendarMonth): CalendarMonth {
   return month === 1 ? fromParts(year - 1, 12) : fromParts(year, month - 1);
 }
 
+export function nextCalendarMonth(value: CalendarMonth): CalendarMonth {
+  const { year, month } = parts(value);
+  return month === 12 ? fromParts(year + 1, 1) : fromParts(year, month + 1);
+}
+
 export function daysInCalendarMonth(value: CalendarMonth): number {
   const { year, month } = parts(value);
   if (month === 2) {

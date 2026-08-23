@@ -62,7 +62,7 @@ function source(): AnalyticsSourceSnapshot {
 
 describe("Dashboard analytics projection", () => {
   it("keeps current state separate from month metrics and suppresses Pending pairs", () => {
-    const view = buildDashboardPageView(source(), calendarMonth("2026-07"));
+    const view = buildDashboardPageView(source(), calendarMonth("2026-07"), calendarMonth("2026-08"));
     expect(view.spent).toBe(0);
     expect(view.outstanding).toEqual({ youOwe: 0, youAreOwed: 1_500 });
     expect(view.settlementHealth).toEqual({ outstandingCount: 1, pendingCount: 1 });
@@ -73,15 +73,60 @@ describe("Dashboard analytics projection", () => {
   });
 
   it("projects only generic Card information", () => {
-    const view = buildDashboardPageView(source(), calendarMonth("2026-08"));
+    const view = buildDashboardPageView(source(), calendarMonth("2026-08"), calendarMonth("2026-08"));
     expect(view.recentExpenses[0]).toMatchObject({ paymentMethod: "card", payer: { displayName: "Alex", isFormerMember: true } });
     expect(JSON.stringify(view.recentExpenses)).not.toContain("private-card-secret");
+  });
+
+  it("ranks selected-month member contributions by paid amount with stable identity ties", () => {
+    const snapshot: AnalyticsSourceSnapshot = {
+      ...source(),
+      expenses: [
+        ...source().expenses,
+        {
+        expenseId: expenseId("utilities"), householdId: house, creatorId: raiyan, payerId: raiyan,
+        name: "Utilities", amount: positivePoisha(2_500), expenseDate: expenseDate("2026-08-14"), splitMethod: "equal",
+        allocations: [{ participantId: raiyan, share: poisha(1_250) }, { participantId: john, share: poisha(1_250) }],
+        payment: { method: "cash" }, revision: 1, createdAt: instant, updatedAt: instant,
+      },
+      {
+        expenseId: expenseId("deleted-groceries"), householdId: house, creatorId: sarah, payerId: sarah,
+        name: "Deleted Groceries", amount: positivePoisha(9_000), expenseDate: expenseDate("2026-08-15"), splitMethod: "equal",
+        allocations: [{ participantId: sarah, share: poisha(9_000) }],
+        payment: { method: "cash" }, revision: 1, createdAt: instant, updatedAt: instant,
+        deletedAt: isoInstant("2026-08-16T00:00:00.000Z"),
+      },
+      ],
+    };
+    const view = buildDashboardPageView(snapshot, calendarMonth("2026-08"), calendarMonth("2026-08"));
+    expect(view.memberContributions.map((member) => [member.displayName, member.paid, member.isFormerMember])).toEqual([
+      ["Alex", 4_000, true],
+      ["Raiyan", 2_500, false],
+    ]);
+    expect(view.spent).toBe(6_500);
+  });
+
+  it("returns empty contributions for a month without spending and keeps them absent from other months' data", () => {
+    const view = buildDashboardPageView(source(), calendarMonth("2026-07"), calendarMonth("2026-08"));
+    expect(view.memberContributions).toEqual([]);
+  });
+
+  it("keeps the current calendar month selectable even when it has no expenses", () => {
+    // Regression: selecting July when August has no expenses used to drop
+    // August from the selector options entirely.
+    const view = buildDashboardPageView(source(), calendarMonth("2026-07"), calendarMonth("2026-08"));
+    expect(view.monthOptions).toEqual(["2026-08", "2026-07"]);
+  });
+
+  it("keeps the current calendar month selectable in the Monthly Report options", () => {
+    const view = buildMonthlyReportPageView(source(), calendarMonth("2026-06"), () => calendarMonth("2026-07"), calendarMonth("2026-08"));
+    expect(view.monthOptions).toEqual(["2026-08", "2026-07", "2026-06"]);
   });
 });
 
 describe("Monthly Report analytics projection", () => {
   it("includes former members who paid or participated and separates current position", () => {
-    const view = buildMonthlyReportPageView(source(), calendarMonth("2026-08"), () => calendarMonth("2026-08"));
+    const view = buildMonthlyReportPageView(source(), calendarMonth("2026-08"), () => calendarMonth("2026-08"), calendarMonth("2026-08"));
     expect(view.members.map((member) => ({ name: member.displayName, former: member.isFormerMember, paid: member.paid, share: member.share }))).toEqual([
       { name: "Alex", former: true, paid: 4_000, share: 1_500 },
       { name: "Raiyan", former: false, paid: 0, share: 2_500 },

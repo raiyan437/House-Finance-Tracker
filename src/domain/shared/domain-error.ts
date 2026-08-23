@@ -59,10 +59,12 @@ export type DomainErrorCode =
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
+  readonly details?: readonly string[];
 
-  constructor(code: DomainErrorCode, message: string) {
+  constructor(code: DomainErrorCode, message: string, details?: readonly string[]) {
     super(message);
     this.name = "DomainError";
     this.code = code;
+    this.details = details ? Object.freeze([...details]) : undefined;
   }
 }

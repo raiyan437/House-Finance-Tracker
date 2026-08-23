@@ -45,11 +45,3 @@ export function assertReceiptAdmission(
   if (projectBytes > policy.projectBudgetBytes) throw new ApplicationError("RECEIPT_PROJECT_CAPACITY_EXCEEDED", "Receipt storage is temporarily at capacity.");
   return Object.freeze({ projectWarningThresholdReached: projectBytes >= policy.projectWarningBytes });
 }
-
-export interface ReceiptStorageReservation {
-  readonly commandKey: string;
-  readonly expenseId: string;
-  readonly uploaderId: string;
-  readonly bytes: number;
-  readonly state: "reserved" | "committed" | "released";
-}

@@ -18,7 +18,7 @@ export default function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${inter.className} h-full`} data-scroll-behavior="smooth">
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased" suppressHydrationWarning>{children}</body>
     </html>
   );
 }

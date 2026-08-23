@@ -29,16 +29,13 @@ import type { CommandOutcome, IdempotencyDescriptor } from "@/application/idempo
 export interface UserProfileRepository {
   getById(userId: UserId): Promise<UserProfile | undefined>;
   getByIds(userIds: readonly UserId[]): Promise<readonly UserProfile[]>;
-  findByEmailKey(emailKey: string): Promise<UserProfile | undefined>;
   create(profile: UserProfile): Promise<void>;
-  update(profile: UserProfile): Promise<void>;
 }
 
 export interface HouseholdRepository {
   getById(householdId: HouseholdId): Promise<Household | undefined>;
   findByCode(code: string): Promise<Household | undefined>;
   create(household: Household): Promise<void>;
-  updateDetails(household: Household): Promise<void>;
   markDeleted(household: Household): Promise<void>;
 }
 
@@ -153,8 +150,15 @@ export interface DevelopmentIdentityController {
 }
 
 export interface AtomicApplicationPersistence {
+  updateCurrentProfile(input: Readonly<{ profile: UserProfile; expectedUpdatedAt: IsoInstant }>): Promise<void>;
+  renameHousehold(input: Readonly<{
+    householdId: HouseholdId;
+    actorId: UserId;
+    name: string;
+    occurredAt: IsoInstant;
+    auditEvent: AuditEvent;
+  }>): Promise<void>;
   createHousehold(input: Readonly<{ household: Household; leaderMembership: MembershipSnapshot; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
-  updateHousehold(input: Readonly<{ household: Household; auditEvent: AuditEvent }>): Promise<void>;
   createJoinRequest(input: Readonly<{ request: JoinRequest; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   acceptJoinRequest(input: Readonly<{
     joinRequestId: JoinRequestId;

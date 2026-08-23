@@ -151,7 +151,7 @@ async function financialContext(repositories: ApplicationRepositories, household
 export class ProfileApplicationService {
   constructor(private readonly deps: Dependencies) {}
   async getCurrentProfile(): Promise<UserProfile> { const actor = await this.deps.session.getCurrentUserId(); const profile = await this.deps.repositories.profiles.getById(actor); if (!profile) throw new ApplicationError("NOT_FOUND", "Profile not found."); return profile; }
-  async updateCurrentProfile(displayName: string, emailInput: string): Promise<UserProfile> { const current = await this.getCurrentProfile(); const email = normalizeEmail(emailInput); const updated: UserProfile = { ...current, displayName: displayName.trim(), ...email, updatedAt: this.deps.values.now() }; assertUserProfile(updated); const conflict = await this.deps.repositories.profiles.findByEmailKey(email.emailKey); if (conflict && conflict.userId !== current.userId) throw new ApplicationError("CONFLICT", "That local email is already in use."); await this.deps.repositories.profiles.update(updated); return updated; }
+  async updateCurrentProfile(displayName: string, emailInput: string): Promise<UserProfile> { const current = await this.getCurrentProfile(); const email = normalizeEmail(emailInput); const updated: UserProfile = { ...current, displayName: displayName.trim(), ...email, updatedAt: this.deps.values.now() }; assertUserProfile(updated); await this.deps.atomic.updateCurrentProfile({ profile: updated, expectedUpdatedAt: current.updatedAt }); return updated; }
 }
 
 export class HouseholdApplicationService {
@@ -260,16 +260,25 @@ export class HouseholdApplicationService {
     return Object.freeze({ household, memberships: await this.deps.repositories.memberships.listByHousehold(household.householdId) });
   }
 
-  async renameHousehold(householdIdValue: HouseholdId, name: string): Promise<Household> {
+  async renameHousehold(name: string): Promise<Household> {
     const actor = await this.deps.session.getCurrentUserId();
-    const membership = await requireActiveMembership(this.deps.repositories, householdIdValue, actor);
+    const membership = await this.currentActiveHousehold(actor);
     if (membership.role !== "leader") throw new ApplicationError("NOT_FOUND", "Household not found.");
-    const household = await this.deps.repositories.households.getById(householdIdValue);
+    const household = await this.deps.repositories.households.getById(membership.householdId);
     if (!household || household.deletedAt) throw new ApplicationError("NOT_FOUND", "Household not found.");
-    const updated: Household = { ...household, name: name.trim(), updatedAt: this.deps.values.now() };
-    assertHousehold(updated);
-    await this.deps.atomic.updateHousehold({ household: updated, auditEvent: event(this.deps.values, householdIdValue, actor, "household", householdIdValue, "renamed", ["name"]) });
-    return updated;
+    const trimmedName = name.trim();
+    assertHousehold({ ...household, name: trimmedName });
+    if (trimmedName === household.name) return household;
+    await this.deps.atomic.renameHousehold({
+      householdId: household.householdId,
+      actorId: actor,
+      name: trimmedName,
+      occurredAt: this.deps.values.now(),
+      auditEvent: event(this.deps.values, household.householdId, actor, "household", household.householdId, "renamed", ["name"]),
+    });
+    const committed = await this.deps.repositories.households.getById(household.householdId);
+    if (!committed || committed.deletedAt) throw new ApplicationError("NOT_FOUND", "Household not found.");
+    return committed;
   }
 
   async listJoinRequests(household: HouseholdId): Promise<readonly JoinRequest[]> {
@@ -332,7 +341,7 @@ export class HouseholdApplicationService {
 
   private assertHouseholdCode(code: string): void {
     if (!/^[0-9]{9}$/.test(code)) {
-      throw new ApplicationError("CONFLICT", "A household code must contain exactly nine digits.");
+      throw new ApplicationError("INVALID_HOUSEHOLD_CODE", "A household code must contain exactly nine digits.");
     }
   }
 

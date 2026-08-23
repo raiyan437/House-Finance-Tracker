@@ -205,9 +205,17 @@ describe("source dependency boundaries", () => {
         .map(() => relative(sourceRoot, file).replaceAll("\\", "/")),
     );
 
+    // The chart boundary is a pair: a lazy-loading wrapper plus the lazily
+    // imported Recharts implementation, keeping the library out of the
+    // initial Dashboard/Report route graphs.
     expect(imports).toEqual([
-      "presentation/analytics/analytics-charts.client.tsx",
+      "presentation/analytics/analytics-charts-recharts.client.tsx",
     ]);
+    const chartWrapper = readFileSync(
+      resolve(sourceRoot, "presentation/analytics/analytics-charts.client.tsx"),
+      "utf8",
+    );
+    expect(chartWrapper).toMatch(/dynamic\(\s*\(\)\s*=>\s*import\("\.\/analytics-charts-recharts\.client"\)/);
   });
 
   it("does not introduce persisted Dashboard or report aggregates", () => {

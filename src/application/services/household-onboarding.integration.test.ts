@@ -116,7 +116,7 @@ describe("Phase 6 household onboarding application flows", () => {
     await application.households.cancelJoinRequest(joinRequestId("join-alex-main"));
 
     for (const code of ["", "12345678", "1234567890", "12345x789", "১২৩৪৫৬৭৮৯"]) {
-      await expect(application.households.createHousehold("Alex House", code)).rejects.toMatchObject({ code: "CONFLICT" });
+      await expect(application.households.createHousehold("Alex House", code)).rejects.toMatchObject({ code: "INVALID_HOUSEHOLD_CODE" });
     }
     await expect(application.households.createHousehold("Alex House", "012345678")).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await repositories.memberships.findActiveByUser(SEEDED_USER_IDS.alex)).toBeUndefined();
@@ -149,7 +149,7 @@ describe("Phase 6 household onboarding application flows", () => {
     await session.switchIdentity(SEEDED_USER_IDS.alex);
     await application.households.cancelJoinRequest(joinRequestId("join-alex-main"));
 
-    await expect(application.households.findHouseholdForJoin("123")).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(application.households.findHouseholdForJoin("123")).rejects.toMatchObject({ code: "INVALID_HOUSEHOLD_CODE" });
     await expect(application.households.findHouseholdForJoin("999999999")).rejects.toMatchObject({ code: "NOT_FOUND" });
     const found = await application.households.findHouseholdForJoin("012345678");
     expect(found).toEqual({ householdId: SEEDED_HOUSEHOLD_ID, name: "Raiyan House", code: "012345678" });
@@ -240,5 +240,36 @@ describe("Phase 6 household onboarding application flows", () => {
     const replayedHousehold = await application.households.createHousehold("Retry House", "000000111", commandId("idem-household"));
     expect(replayedHousehold.householdId).toBe(firstHousehold.householdId);
     await expect(application.households.createHousehold("Changed House", "000000111", commandId("idem-household"))).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+  });
+
+  it("renames the Household as Leader only, with sanitized audit and unchanged-name suppression", async () => {
+    const auditsBefore = (await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).length;
+
+    const renamed = await application.households.renameHousehold("  Sunrise Villa  ");
+    expect(renamed.name).toBe("Sunrise Villa");
+    expect(renamed.updatedAt).toBe("2026-08-13T14:00:00.000Z");
+    expect((await repositories.households.getById(SEEDED_HOUSEHOLD_ID))?.name).toBe("Sunrise Villa");
+    const auditsAfterRename = await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID);
+    expect(auditsAfterRename).toHaveLength(auditsBefore + 1);
+    expect(auditsAfterRename.at(-1)).toMatchObject({
+      action: "renamed",
+      aggregateType: "household",
+      actorId: SEEDED_USER_IDS.raiyan,
+      changedFields: ["name"],
+    });
+    expect(JSON.stringify(auditsAfterRename.at(-1))).not.toMatch(/Raiyan House|Sunrise Villa/);
+
+    await application.households.renameHousehold("Sunrise Villa");
+    expect(await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).toHaveLength(auditsBefore + 1);
+
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    await expect(application.households.renameHousehold("Member Name")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await repositories.households.getById(SEEDED_HOUSEHOLD_ID))?.name).toBe("Sunrise Villa");
+
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    await expect(application.households.renameHousehold("   ")).rejects.toMatchObject({ code: "INVALID_HOUSEHOLD" });
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    await expect(application.households.renameHousehold("Outsider Name")).rejects.toMatchObject({ code: "HOUSEHOLD_STATE_CHANGED" });
+    expect((await repositories.households.getById(SEEDED_HOUSEHOLD_ID))?.name).toBe("Sunrise Villa");
   });
 });
