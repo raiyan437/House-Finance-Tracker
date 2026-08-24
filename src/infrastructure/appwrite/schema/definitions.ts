@@ -32,6 +32,7 @@ export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 export const SCHEMA_VERSION = 1;
+export const SCHEMA_METADATA_ROW_ID = "active";
 
 function iso(key: string, required: boolean): ColumnDefinition {
   return { key, kind: "datetime", required };

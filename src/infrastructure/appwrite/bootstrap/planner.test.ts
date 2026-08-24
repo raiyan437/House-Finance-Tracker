@@ -29,6 +29,7 @@ function readerFrom(state: {
     },
     getBucket: async () => (state.bucket ? { id: BUCKET.id } : undefined),
     getFunction: async () => (state.fn ? { id: MAINTENANCE_FUNCTION.id } : undefined),
+    getSchemaVersionRow: async () => (state.tables?.["schema_metadata"] ? { version: 1 } : undefined),
   };
 }
 
