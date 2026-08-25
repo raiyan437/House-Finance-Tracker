@@ -3,7 +3,7 @@ import type { HouseholdBalanceSheet } from "@/domain/balances/balance-types";
 import { hasPendingSettlementForPair } from "@/domain/settlements/pending-settlement-policy";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { poisha, poishaFromBigInt, type Poisha } from "@/domain/money/poisha";
-import type { Expense, UserProfile } from "@/domain/records/domain-records";
+import type { Expense, MemberIdentityView } from "@/domain/records/domain-records";
 import { compareUserIds, type HouseholdId, type UserId } from "@/domain/shared/identifiers";
 import type { IsoInstant } from "@/domain/shared/instant";
 import type { SettlementRecommendation, SettlementRecord } from "@/domain/settlements/settlement-types";
@@ -92,7 +92,7 @@ export interface AnalyticsSourceSnapshot {
   readonly householdId: HouseholdId;
   readonly actorId: UserId;
   readonly memberships: readonly MembershipSnapshot[];
-  readonly profiles: readonly UserProfile[];
+  readonly profiles: readonly MemberIdentityView[];
   readonly expenses: readonly Expense[];
   readonly settlements: readonly SettlementRecord[];
   readonly sheet: HouseholdBalanceSheet;
@@ -103,7 +103,7 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function profileMap(source: AnalyticsSourceSnapshot): Map<UserId, UserProfile> {
+function profileMap(source: AnalyticsSourceSnapshot): Map<UserId, MemberIdentityView> {
   return new Map(source.profiles.map((profile) => [profile.userId, profile]));
 }
 

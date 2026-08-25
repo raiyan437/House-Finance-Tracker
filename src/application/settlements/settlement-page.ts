@@ -2,7 +2,7 @@ import { ApplicationError } from "@/application/errors/application-error";
 import type { HouseholdBalanceSheet } from "@/domain/balances/balance-types";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { poisha, type Poisha, type PositivePoisha } from "@/domain/money/poisha";
-import type { UserProfile } from "@/domain/records/domain-records";
+import type { MemberIdentityView } from "@/domain/records/domain-records";
 import {
   hasPendingSettlementForPair,
 } from "@/domain/settlements/pending-settlement-policy";
@@ -84,7 +84,7 @@ interface ProjectionInput {
   readonly recommendations: readonly SettlementRecommendation[];
   readonly settlements: readonly SettlementRecord[];
   readonly memberships: readonly MembershipSnapshot[];
-  readonly profiles: readonly UserProfile[];
+  readonly profiles: readonly MemberIdentityView[];
 }
 
 function warningFor(

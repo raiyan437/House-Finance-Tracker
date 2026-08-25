@@ -118,7 +118,7 @@ export type HouseholdAccessState =
       joinRequests: readonly LeaderJoinRequestView[];
     }>;
 
-interface Dependencies {
+export interface Dependencies {
   readonly repositories: ApplicationRepositories;
   readonly atomic: AtomicApplicationPersistence;
   readonly session: CurrentSession;

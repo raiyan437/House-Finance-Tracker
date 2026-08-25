@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocalApplicationRuntime } from "@/app/_providers/local-application-runtime.client";
-import { ProductionSessionProvider } from "@/app/_providers/production-session-provider.client";
+import { ProductionApplicationRuntime } from "@/app/_providers/production-application-runtime.client";
 import { AppShell } from "@/presentation/shell/app-shell";
 
 const composition = process.env.APP_COMPOSITION ?? "local";
@@ -10,7 +10,7 @@ export default function ProductLayout({ children }: Readonly<{ children: ReactNo
   if (composition === "appwrite") {
     return (
       <TooltipProvider delayDuration={300}>
-        <ProductionSessionProvider />
+        <ProductionApplicationRuntime>{children}</ProductionApplicationRuntime>
       </TooltipProvider>
     );
   }

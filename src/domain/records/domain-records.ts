@@ -42,6 +42,16 @@ export interface UserProfile {
   readonly updatedAt: IsoInstant;
 }
 
+/**
+ * Privacy-safe member identity projection: the only member fields application
+ * views may consume about *other* users. Contact data (email) exists solely on
+ * the authenticated user's own full profile.
+ */
+export interface MemberIdentityView {
+  readonly userId: UserId;
+  readonly displayName: string;
+}
+
 export interface Household {
   readonly householdId: HouseholdId;
   readonly name: string;

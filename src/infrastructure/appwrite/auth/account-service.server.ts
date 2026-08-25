@@ -45,6 +45,8 @@ export const AUTH_THROTTLE_RULES = {
   login: { scope: "auth-login", limit: 10, windowSeconds: 900 },
   recovery: { scope: "auth-recovery", limit: 3, windowSeconds: 3600 },
   reset: { scope: "auth-reset", limit: 5, windowSeconds: 900 },
+  /** Approved with the Phase 13 rate-limit table; shared by lookup and generation reads. */
+  houseCodeLookup: { scope: "house-code", limit: 10, windowSeconds: 3600 },
 } as const;
 
 function normalizeEmail(raw: string): string {

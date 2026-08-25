@@ -97,10 +97,32 @@ describe("Appwrite infrastructure containment", () => {
   });
 
   it("keeps production composition free of local DEV identity and IndexedDB runtime tooling", () => {
-    const productionProvider = read(join(SRC, "app", "_providers", "production-session-provider.client.tsx"));
-    expect(productionProvider).not.toMatch(/LocalApplicationRuntime|DevelopmentTools|indexedDB|IndexedDb/);
+    const providersDir = join(SRC, "app", "_providers");
+    const productionSources = sourceFiles(providersDir)
+      .filter((file) => file.includes("production"))
+      .map(read);
+    expect(productionSources.length).toBeGreaterThan(0);
+    for (const source of productionSources) {
+      expect(source).not.toMatch(/LocalApplicationRuntime|DevelopmentIdentity|indexedDB|IndexedDb|indexeddb\/|local-runtime/);
+    }
     const productLayout = read(join(SRC, "app", "(product)", "layout.tsx"));
-    expect(productLayout).toMatch(/composition === "appwrite"[\s\S]*<ProductionSessionProvider \/>/);
+    expect(productLayout).toMatch(/composition === "appwrite"[\s\S]*<ProductionApplicationRuntime>/);
+  });
+
+  it("keeps the Appwrite browser boundary free of server SDK and server modules", () => {
+    const violations = sourceFiles(join(SRC, "app", "_providers"))
+      .filter((file) => file.includes("production"))
+      .map((file) => ({ file: relative(ROOT, file).replaceAll("\\", "/"), source: read(file) }))
+      .filter(({ source }) => /node-appwrite|\.server["']/.test(source))
+      .map(({ file }) => file);
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps every Appwrite adapter module server-only", () => {
+    const violations = sourceFiles(join(SRC, "infrastructure", "appwrite"))
+      .filter((file) => !file.endsWith(".test.ts") && read(file).startsWith('"use client"'))
+      .map((file) => relative(ROOT, file));
+    expect(violations).toEqual([]);
   });
 
   it("contains no active verification or production-email-edit implementation", () => {

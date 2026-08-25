@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -80,6 +81,7 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
   };
   const runtime: ApplicationRuntimeState = {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session: {
       userId: alice,
       displayName: "Alice",

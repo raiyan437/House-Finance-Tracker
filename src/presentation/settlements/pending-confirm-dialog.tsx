@@ -21,12 +21,14 @@ interface PendingConfirmDialogProps {
   readonly settlement: PendingSettlementView;
   readonly loadPreview: () => Promise<PendingSettlementView>;
   readonly onConfirm: () => Promise<void>;
+  readonly disabled?: boolean;
 }
 
 export function PendingConfirmDialog({
   settlement,
   loadPreview,
   onConfirm,
+  disabled = false,
 }: PendingConfirmDialogProps) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<PendingSettlementView>();
@@ -73,7 +75,7 @@ export function PendingConfirmDialog({
         else setPreview(undefined);
       }}
     >
-      <AlertDialogTrigger asChild>
+      <AlertDialogTrigger asChild disabled={disabled}>
         <Button
           aria-label={`Confirm receipt of payment from ${settlement.sender.displayName}`}
           className="w-full sm:w-auto"

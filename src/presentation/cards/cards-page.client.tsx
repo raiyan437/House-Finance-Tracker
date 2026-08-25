@@ -17,6 +17,7 @@ import {
   useApplicationRuntime,
   type CardApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import type { UserId } from "@/domain/shared/identifiers";
 import { CardActionsMenu } from "./card-actions-menu";
@@ -47,6 +48,7 @@ function CardTile({
   count,
   onEdit,
   onRemove,
+  menuDisabled = false,
 }: Readonly<{
   card: MyCardSummaryView;
   holderName: string;
@@ -54,6 +56,7 @@ function CardTile({
   count: number;
   onEdit: (card: MyCardSummaryView, trigger: RefObject<HTMLButtonElement | null>) => void;
   onRemove: (card: MyCardSummaryView, trigger: RefObject<HTMLButtonElement | null>) => void;
+  menuDisabled?: boolean;
 }>) {
   const option = getCardPaletteOption(card.colorId);
 
@@ -64,6 +67,7 @@ function CardTile({
         <CardActionsMenu
           card={card}
           count={count}
+          disabled={menuDisabled}
           onEdit={(trigger) => onEdit(card, trigger)}
           onRemove={(trigger) => onRemove(card, trigger)}
           position={position}
@@ -86,6 +90,7 @@ function OwnedCardsPage({
   const headerAddRef = useRef<HTMLButtonElement>(null);
   const emptyAddRef = useRef<HTMLButtonElement>(null);
   const createCommand = useIdempotentCommand();
+  const canMutateCards = useCapability("cardMutations");
 
   const reload = useCallback(async () => {
     const request = ++requestRef.current;
@@ -197,10 +202,13 @@ function OwnedCardsPage({
     <PageContainer className="space-y-6">
       <PageHeader
         action={(
-          <Button className="w-full sm:w-auto" onClick={() => openAdd(headerAddRef)} ref={headerAddRef}>
-            <Plus aria-hidden="true" data-icon="inline-start" />
-            Add Card
-          </Button>
+          <div className="grid justify-items-end gap-1">
+            <Button className="w-full sm:w-auto" disabled={!canMutateCards} onClick={() => openAdd(headerAddRef)} ref={headerAddRef}>
+              <Plus aria-hidden="true" data-icon="inline-start" />
+              Add Card
+            </Button>
+            <CapabilityNotice active={!canMutateCards} />
+          </div>
         )}
         description="Private card labels are visible only to you. Never add card numbers or banking credentials."
         title="My Cards"
@@ -209,10 +217,13 @@ function OwnedCardsPage({
       {cards.length === 0 ? (
         <EmptyState
           action={(
-            <Button onClick={() => openAdd(emptyAddRef)} ref={emptyAddRef}>
-              <Plus aria-hidden="true" data-icon="inline-start" />
-              Add Card
-            </Button>
+            <div className="grid justify-items-center gap-2">
+              <Button disabled={!canMutateCards} onClick={() => openAdd(emptyAddRef)} ref={emptyAddRef}>
+                <Plus aria-hidden="true" data-icon="inline-start" />
+                Add Card
+              </Button>
+              <CapabilityNotice active={!canMutateCards} />
+            </div>
           )}
           description="Create a private card label to remember which real-world card you used."
           icon={CreditCard}
@@ -226,6 +237,7 @@ function OwnedCardsPage({
                 card={card}
                 count={cards.length}
                 holderName={ownerName}
+                menuDisabled={!canMutateCards}
                 onEdit={(selected, trigger) => setFormTarget({ card: selected, restoreFocusRef: trigger })}
                 onRemove={(selected, trigger) => void openRemoval(selected, trigger)}
                 position={index + 1}

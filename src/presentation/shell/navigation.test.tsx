@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +23,7 @@ function renderWithRuntime(
     <ApplicationRuntimeProvider
       value={{
         status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
         session: {
           userId: userId("user-raiyan"),
           displayName: "Raiyan Uddin",

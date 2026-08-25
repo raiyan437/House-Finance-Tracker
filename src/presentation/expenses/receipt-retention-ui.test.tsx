@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +125,7 @@ function expenseActions(overrides: Partial<ExpenseApplicationActions> = {}): Exp
 function readyState(actions: ExpenseApplicationActions): Extract<ApplicationRuntimeState, { status: "ready" }> {
   return {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session: {
       userId: SEEDED_USER_IDS.raiyan,
       displayName: "Raiyan",

@@ -114,6 +114,10 @@ describe("source dependency boundaries", () => {
     "app/api/session/route.ts",
     "app/api/auth/password/forgot/route.ts",
     "app/api/auth/password/reset/route.ts",
+    // R1 production read plane (trusted same-origin read endpoints).
+    ...sourceFiles(resolve(sourceRoot, "app/api/app"))
+      .map((file) => relative(sourceRoot, file).replaceAll("\\", "/"))
+      .filter((file) => file.endsWith("route.ts")),
   ];
 
   it("server App Router modules do not import browser infrastructure", () => {

@@ -93,7 +93,10 @@ describe("receipt content validation", () => {
     })).toThrowError(expect.objectContaining({ code: "RECEIPT_CONTENT_MISMATCH" }));
   });
 
-  it("accepts the exact 10 MiB boundary and rejects one byte over", () => {
+  // Generating and scanning two ~10 MiB JPEG fixtures can exceed the default
+  // 5 s budget on a cold, single-file-parallelism run; the assertion itself is
+  // fast once the fixtures exist.
+  it("accepts the exact 10 MiB boundary and rejects one byte over", { timeout: 20_000 }, () => {
     const maximum = jpegAtSize(fixtures["image/jpeg"], MAX_RECEIPT_BYTES);
     expect(maximum).toHaveLength(MAX_RECEIPT_BYTES);
     expect(() => assertReceiptContentStructure(content("image/jpeg", maximum))).not.toThrow();

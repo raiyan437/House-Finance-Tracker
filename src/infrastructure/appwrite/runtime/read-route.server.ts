@@ -1,0 +1,125 @@
+import "server-only";
+import { cookies } from "next/headers";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { ApplicationError } from "@/application/errors/application-error";
+import { serializeWithBigInt } from "@/application/transport/json-bigint";
+import { DomainError } from "@/domain/shared/domain-error";
+import { AuthError } from "../auth/auth-errors.server";
+import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
+import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
+import { buildProductRequestContext, requireActor, resolveTrustedActor, type ProductRequestContext } from "./context.server";
+
+const NO_STORE_HEADERS = { "cache-control": "no-store" } as const;
+
+export function mapReadError(error: unknown): { status: number; body: Record<string, unknown> } | undefined {
+  if (error instanceof ActorRequiredError) {
+    return { status: 401, body: { error: "Sign in to continue." } };
+  }
+  if (error instanceof AuthError) {
+    return error.code === "RATE_LIMITED"
+      ? { status: 429, body: { error: error.message } }
+      : { status: 400, body: { error: error.message } };
+  }
+  if (error instanceof ApplicationError || error instanceof DomainError) {
+    switch (error.code) {
+      case "NOT_FOUND":
+        return { status: 404, body: { error: "Not found." } };
+      case "CONFLICT":
+      case "HOUSEHOLD_STATE_CHANGED":
+      case "EXPENSE_VERSION_CONFLICT":
+      case "IDEMPOTENCY_KEY_REUSED":
+      case "IDEMPOTENCY_IN_PROGRESS":
+        return { status: 409, body: { error: error.message } };
+      case "INVALID_HOUSEHOLD_CODE":
+      case "INVALID_INPUT":
+      case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":
+        return { status: 400, body: { error: error.message } };
+      case "MALFORMED_PERSISTED_DATA":
+        return { status: 500, body: { error: "Stored data could not be interpreted." } };
+      case "PERSISTENCE_FAILURE":
+        return { status: 503, body: { error: "The production data plane is temporarily unavailable." } };
+      default:
+        return { status: 400, body: { error: error.message } };
+    }
+  }
+  return undefined;
+}
+
+async function currentSessionSecret(): Promise<string | undefined> {
+  const store = await cookies();
+  return store.get(SESSION_COOKIE_NAME)?.value || undefined;
+}
+
+export async function resolveReadContext(): Promise<
+  { status: "ok"; context: ProductRequestContext } | { status: Response }
+> {
+  let resolution: TrustedActorResolution;
+  try {
+    resolution = await resolveTrustedActor(await currentSessionSecret());
+  } catch {
+    resolution = { status: "provider-unavailable" };
+  }
+  if (resolution.status === "provider-unavailable") {
+    return { status: new NextResponse(JSON.stringify({ error: "The service is temporarily unavailable." }), { status: 503, headers: NO_STORE_HEADERS }) };
+  }
+  try {
+    return { status: "ok", context: buildProductRequestContext(requireActor(resolution)) };
+  } catch (error) {
+    const mapped = mapReadError(error);
+    if (mapped) return { status: new NextResponse(JSON.stringify(mapped.body), { status: mapped.status, headers: NO_STORE_HEADERS }) };
+    throw error;
+  }
+}
+
+/**
+ * Trusted same-origin envelope for every production read endpoint: identical
+ * session verification, sanitized error mapping, and no-store caching.
+ */
+export async function runProductRead<T>(request: NextRequest, handler: (context: ProductRequestContext) => Promise<T>): Promise<NextResponse> {
+  const origin = request.headers.get("origin");
+  if (origin && !assertSameOrigin(origin, request.headers.get("host"))) {
+    return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
+  }
+  try {
+    const resolved = await resolveReadContext();
+    if (resolved.status !== "ok") return resolved.status as NextResponse;
+    const data = await handler(resolved.context);
+    return new NextResponse(serializeWithBigInt({ data }), {
+      status: 200,
+      headers: { ...NO_STORE_HEADERS, "content-type": "application/json" },
+    });
+  } catch (error) {
+    const mapped = mapReadError(error);
+    if (mapped) return NextResponse.json(mapped.body, { status: mapped.status, headers: NO_STORE_HEADERS });
+    console.error("[product-read]", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "The service is temporarily unavailable." }, { status: 503, headers: NO_STORE_HEADERS });
+  }
+}
+
+function assertSameOrigin(origin: string, host: string | null): boolean {
+  if (!host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+/** Shared strict query/JSON input schemas for the read surface. */
+export const readInput = {
+  id: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._:-]+$/, "A valid identifier is required."),
+  householdId: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._:-]+$/, "A valid household identifier is required."),
+  month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, "A calendar month uses YYYY-MM."),
+  includeDeleted: z.enum(["true", "false"]).default("false"),
+  code: z.string().regex(/^\d{9}$/, "A household code must contain exactly nine digits."),
+} as const;
+
+export function parseSearch(request: NextRequest, schema: z.ZodRawShape): Record<string, unknown> {
+  const params = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const parsed = z.object(schema).safeParse(params);
+  if (!parsed.success) {
+    throw new ApplicationError("INVALID_INPUT", "The request parameters are invalid.");
+  }
+  return parsed.data;
+}

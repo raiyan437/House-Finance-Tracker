@@ -13,10 +13,6 @@ import { useApplicationRuntime } from "@/presentation/runtime/application-runtim
 import { Brand } from "./brand";
 import { desktopNavigationItems } from "./navigation-items";
 
-function preventUnavailableAction(event: React.SyntheticEvent) {
-  event.preventDefault();
-}
-
 interface DesktopSidebarProps {
   readonly collapsed?: boolean;
   readonly onToggle?: () => void;
@@ -65,6 +61,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
   const isControlled = collapsed !== undefined;
   const isCollapsed = isControlled ? collapsed : internalCollapsed;
   const developmentToolsActive = useDevelopmentToolsActive();
+  const canSignOut = runtime.status === "ready" && typeof runtime.signOut === "function";
   const joinRequestCount = runtime.status === "ready" && runtime.household.status === "active-leader"
     ? runtime.household.joinRequests.length
     : 0;
@@ -227,16 +224,15 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           </div>
         )}
         <Button
-          aria-describedby="logout-unavailable-description"
-          aria-disabled="true"
+          aria-describedby={canSignOut ? undefined : "logout-unavailable-description"}
+          aria-disabled={!canSignOut}
           aria-label="Log Out"
           className={cn(
             "mt-4 h-10 w-full justify-center rounded-xl bg-foreground text-row font-semibold text-white transition-[gap,padding] hover:bg-foreground/90 aria-disabled:cursor-not-allowed aria-disabled:opacity-100",
             isCollapsed ? "gap-0 px-0" : "gap-2",
           )}
-          onClick={preventUnavailableAction}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") preventUnavailableAction(event);
+          onClick={() => {
+            if (canSignOut) void runtime.signOut?.();
           }}
           title={isCollapsed ? "Log Out" : undefined}
           variant="default"

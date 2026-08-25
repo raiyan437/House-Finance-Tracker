@@ -19,12 +19,12 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      testMatch: /(cross-browser-smoke|auth-live)\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous)\.spec\.ts/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      testMatch: /(cross-browser-smoke|auth-live)\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],

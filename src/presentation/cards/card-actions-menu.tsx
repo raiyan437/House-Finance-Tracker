@@ -19,16 +19,17 @@ interface CardActionsMenuProps {
   readonly count: number;
   readonly onEdit: (trigger: RefObject<HTMLButtonElement | null>) => void;
   readonly onRemove: (trigger: RefObject<HTMLButtonElement | null>) => void;
+  readonly disabled?: boolean;
 }
 
-export function CardActionsMenu({ card, position, count, onEdit, onRemove }: CardActionsMenuProps) {
+export function CardActionsMenu({ card, position, count, onEdit, onRemove, disabled = false }: CardActionsMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const palette = getCardPaletteOption(card.colorId);
   const context = `${card.name}, ${card.type}, ${palette.label}, Card ${position} of ${count}`;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <Button aria-label={`Actions for ${context}`} ref={triggerRef} size="icon" variant="ghost">
           <MoreHorizontal aria-hidden="true" />
         </Button>

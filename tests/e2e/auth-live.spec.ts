@@ -84,11 +84,12 @@ test.describe("live Appwrite authentication", () => {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign In" }).click();
-    await expect(page.getByText("Household features are being migrated")).toBeVisible();
+    // R1: the temporary milestone is gone; the real product shell renders.
+    await page.waitForSelector('[data-slot="app-shell"]', { timeout: 20000 });
     await page.setExtraHTTPHeaders({});
   }
 
-  test("login reaches the auth-only milestone with hardened session cookie", async ({ page, browserName }) => {
+  test("login reaches the real product surface with hardened session cookie", async ({ page, browserName }) => {
     await page.goto("/login");
     const axeResults = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(axeResults.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
@@ -116,19 +117,26 @@ test.describe("live Appwrite authentication", () => {
     expect(sessionCookie?.expires).toBeGreaterThan(Date.now() / 1000 + 60 * 60 * 24 * 30);
 
     await page.goto("/dashboard");
-    await expect(page.getByText("Signed in as", { exact: false })).toBeVisible();
+    await expect(page.locator('[data-slot="app-shell"]')).toBeVisible();
+    // Frozen HouseholdAccessGate: with no household membership, protected
+    // routes land in the real onboarding state.
+    await expect(page).toHaveURL(/\/household$/);
+    await expect(page.getByRole("heading", { name: "Create a Household" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open development tools" })).toHaveCount(0);
+    const productionDatabases = await page.evaluate(() => indexedDB.databases().then((entries) => entries.map((entry) => entry.name)));
+    expect(productionDatabases.some((name) => typeof name === "string" && name.toLowerCase().includes("finance"))).toBe(false);
   });
 
   test("restores the session on reload and in a new tab without client-supplied identity", async ({ page, context }) => {
     await page.goto("/login");
     await login(page);
     await page.reload();
-    await expect(page.getByText("Household features are being migrated")).toBeVisible();
+    await expect(page.locator('[data-slot="app-shell"]')).toBeVisible();
 
     const secondTab = await context.newPage();
-    await secondTab.goto("/dashboard");
-    await expect(secondTab.getByText("Household features are being migrated")).toBeVisible();
+    await secondTab.goto("/household");
+    await expect(secondTab.locator('[data-slot="app-shell"]')).toBeVisible();
+    await expect(secondTab.getByRole("heading", { name: "Create a Household" })).toBeVisible();
 
     const databases = await secondTab.evaluate(() => indexedDB.databases().then((entries) => entries.map((entry) => entry.name)));
     expect(databases.some((name) => typeof name === "string" && name.toLowerCase().includes("finance"))).toBe(false);
@@ -191,7 +199,7 @@ test.describe("live Appwrite authentication", () => {
     if (!priorSession) throw new Error("Expected a session cookie before logout.");
 
     await page.getByRole("button", { name: "Log Out" }).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login$/, { timeout: 20000 });
     const cookies = await page.context().cookies();
     expect(cookies.some((cookie) => cookie.name === "hft_session" && cookie.value.length > 0)).toBe(false);
 

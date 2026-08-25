@@ -5,6 +5,7 @@ import type {
   ExpenseCardPrivateSnapshot,
   Household,
   JoinRequest,
+  MemberIdentityView,
   ReceiptMetadata,
   ReceiptMimeType,
   UserProfile,
@@ -28,7 +29,8 @@ import type { CommandOutcome, IdempotencyDescriptor } from "@/application/idempo
 
 export interface UserProfileRepository {
   getById(userId: UserId): Promise<UserProfile | undefined>;
-  getByIds(userIds: readonly UserId[]): Promise<readonly UserProfile[]>;
+  /** Batch identity lookup returns the privacy-safe display projection only. */
+  getByIds(userIds: readonly UserId[]): Promise<readonly MemberIdentityView[]>;
   create(profile: UserProfile): Promise<void>;
 }
 

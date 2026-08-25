@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -29,6 +30,7 @@ function runtimeFor(
 ): ApplicationRuntimeState {
   return {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session: {
       userId: ownerId,
       displayName: ownerId === alice ? "Alice" : "Bob",
