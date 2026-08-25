@@ -4,7 +4,7 @@
 
 This file consolidates the approved product, business, UX, visual, architecture, and quality context supplied on 2026-08-12. It is the repository source of truth for implementation planning. Requirements are frozen: contradictions, security issues, missing financial rules, and behavior changes must be raised before inventing a solution.
 
-Product discovery, business rules, UX architecture, visual direction, design system, wireframes, and canonical desktop UI are complete. The local/provider-independent application is complete through the approved pre-production hardening checkpoint. Production backend integration and deployment have not started; Appwrite is not implemented.
+Product discovery, business rules, UX architecture, visual direction, design system, wireframes, and canonical desktop UI are complete. The local/provider-independent application is complete through the approved pre-production hardening checkpoint. Phase 13A Appwrite foundation/schema work is complete; Phase 13B authentication/session work is implemented but remains uncommitted and separately gated from Phase 13C.
 
 ## Product boundary
 
@@ -24,7 +24,12 @@ Out of scope: categories, recurring expenses, budgets, multiple currencies, mult
 
 ## Accounts and households
 
-- Account identity uses email/password and display name. Eventual flows include register, login/logout, verification, forgot/reset password.
+- Production identity uses Appwrite Auth email/password, with Appwrite Auth email authoritative and no independently writable Profile email.
+- Production supports at most four approved accounts. `ALLOWED_ACCOUNT_EMAILS` is the sole server-side approved-account configuration: missing, empty, malformed, or more than four normalized unique emails fails closed; one to four valid normalized unique emails enables exactly that approved set.
+- Self-service registration and production email editing are unsupported. `/register` is informational only and no public route or command can create an account. Email verification is not used and `emailVerified` never gates product access.
+- **Unresolved requirement change (2026-08-26):** the owner now prefers eventual self-service account creation plus password recovery, superseding admin pre-provisioning as the intended long-term UX. Implementation remains deferred because self-registration without email verification creates an unresolved account-ownership/squatting problem. Until a dedicated decision is approved, the current pre-provisioned model and registration lockdown remain authoritative; `/api/auth/register` must not be restored and email verification must not be introduced implicitly.
+- Production accounts are pre-provisioned only through the admin CLI using a temporary `APPWRITE_PROVISIONING_API_KEY` restricted to `users.read` and `users.write`. It is separate from runtime and bootstrap credentials, never enters application/browser code, and is revoked after authorized provisioning.
+- The provisioning process supplies only a generated bootstrap password that is never printed, logged, returned, or stored by the application. The household member establishes first password ownership through Appwrite password recovery; recovery also remains the supported password-change path. Login, recovery, and reset completion retain proportional HMAC-opaque throttling.
 - A user belongs to at most one household. If not a member, they may create one or submit one non-conflicting active join request.
 - Household creation requires a name and globally unique nine-digit code stored as a string; leading zeroes are valid. Creator becomes leader.
 - Join flow: find by code -> request -> pending -> leader accepts/rejects. Requester may cancel and sees no private household data before acceptance.

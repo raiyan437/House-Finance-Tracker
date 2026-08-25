@@ -14,7 +14,8 @@
     "test:architecture": "vitest run src/architecture/architecture.test.ts",
     "test:e2e": "playwright test",
     "appwrite:plan": "tsx src/infrastructure/appwrite/bootstrap/cli.ts plan",
-    "appwrite:apply": "tsx src/infrastructure/appwrite/bootstrap/cli.ts apply"
+    "appwrite:apply": "tsx src/infrastructure/appwrite/bootstrap/cli.ts apply",
+    "appwrite:provision": "tsx scripts/appwrite-provision.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

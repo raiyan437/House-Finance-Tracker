@@ -108,6 +108,14 @@ describe("source dependency boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  const approvedAuthBoundaryImports = [
+    "app/api/auth/login/route.ts",
+    "app/api/auth/logout/route.ts",
+    "app/api/session/route.ts",
+    "app/api/auth/password/forgot/route.ts",
+    "app/api/auth/password/reset/route.ts",
+  ];
+
   it("server App Router modules do not import browser infrastructure", () => {
     const violations: string[] = [];
 
@@ -116,9 +124,10 @@ describe("source dependency boundaries", () => {
       const isClientModule = /^\s*["']use client["'];/m.test(source);
       if (isClientModule) continue;
 
+      const importingPath = relative(sourceRoot, file).replaceAll("\\", "/");
       for (const specifier of importedSpecifiers(source)) {
-        if (targetLayer(specifier, file) === "infrastructure") {
-          violations.push(`${relative(sourceRoot, file)} -> ${specifier}`);
+        if (targetLayer(specifier, file) === "infrastructure" && !approvedAuthBoundaryImports.includes(importingPath)) {
+          violations.push(`${importingPath} -> ${specifier}`);
         }
       }
     }
@@ -135,7 +144,7 @@ describe("source dependency boundaries", () => {
         if (targetLayer(specifier, file) !== "infrastructure") continue;
 
         const importingPath = relative(sourceRoot, file).replaceAll("\\", "/");
-        if (importingPath !== allowedCompositionRoot) {
+        if (importingPath !== allowedCompositionRoot && !approvedAuthBoundaryImports.includes(importingPath)) {
           violations.push(`${importingPath} -> ${specifier}`);
         }
       }

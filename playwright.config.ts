@@ -6,6 +6,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   expect: { timeout: 15_000 },
   use: {
     baseURL: "http://127.0.0.1:3000",
@@ -14,16 +15,16 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], launchOptions: { args: ["--disable-gpu"] } },
     },
     {
       name: "firefox",
-      testMatch: /cross-browser-smoke\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live)\.spec\.ts/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      testMatch: /cross-browser-smoke\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],

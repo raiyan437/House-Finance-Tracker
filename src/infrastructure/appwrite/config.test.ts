@@ -2,33 +2,39 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadAppwriteServerConfig, mergeDotEnvFile, validateRegistrationAllowlist, MAX_ALLOWLIST_ENTRIES } from "./config";
+import {
+  loadAppwriteProvisioningConfig,
+  loadAppwriteServerConfig,
+  MAX_APPROVED_ACCOUNT_EMAILS,
+  mergeDotEnvFile,
+  validateAccountEmails,
+} from "./config";
 
-describe("registration allowlist (fail-closed)", () => {
-  it("disables registration when the configuration is missing or blank", () => {
-    expect(validateRegistrationAllowlist(undefined)).toEqual({ status: "disabled", reason: "missing" });
-    expect(validateRegistrationAllowlist("   ")).toEqual({ status: "disabled", reason: "empty" });
+describe("approved account email configuration (fail-closed)", () => {
+  it("disables approved-account access when the configuration is missing or blank", () => {
+    expect(validateAccountEmails(undefined)).toEqual({ status: "disabled", reason: "missing" });
+    expect(validateAccountEmails("   ")).toEqual({ status: "disabled", reason: "empty" });
   });
 
-  it("never opens registration because of a configuration failure mode", () => {
-    const results = ["not-an-email", "a@b.com,bad,"].map((raw) => validateRegistrationAllowlist(raw));
+  it("never enables accounts because of a configuration failure mode", () => {
+    const results = ["not-an-email", "a@b.com,bad,"].map((raw) => validateAccountEmails(raw));
     for (const result of results) {
       expect(result.status).toBe("disabled");
-      if (result.status !== "disabled") throw new Error("Expected fail-closed registration.");
+      if (result.status !== "disabled") throw new Error("Expected fail-closed approved-account configuration.");
     }
-    const tooManyDistinct = validateRegistrationAllowlist("a@b.co,c@d.co,e@f.co,g@h.co,i@j.co");
+    const tooManyDistinct = validateAccountEmails("a@b.co,c@d.co,e@f.co,g@h.co,i@j.co");
     expect(tooManyDistinct).toEqual({ status: "disabled", reason: "too_many_entries" });
   });
 
-  it("collapses duplicate allowlist entries before applying the four-seat cap", () => {
-    expect(validateRegistrationAllowlist("a@b.io,a@b.io,a@b.io")).toEqual({ status: "allowlisted", emails: ["a@b.io"] });
+  it("collapses duplicate approved-account entries before applying the four-seat cap", () => {
+    expect(validateAccountEmails("a@b.io,a@b.io,a@b.io")).toEqual({ status: "enabled", emails: ["a@b.io"] });
   });
 
   it("accepts at most four normalized unique emails", () => {
-    const result = validateRegistrationAllowlist(" Raiyan@Test.IO , john@test.io , sarah@test.io , kim@test.io ");
-    expect(result).toEqual({ status: "allowlisted", emails: ["raiyan@test.io", "john@test.io", "sarah@test.io", "kim@test.io"] });
-    expect(MAX_ALLOWLIST_ENTRIES).toBe(4);
-    expect(validateRegistrationAllowlist("a@b.co,c@d.co,e@f.co,g@h.co,i@j.co").status).toBe("disabled");
+    const result = validateAccountEmails(" Raiyan@Test.IO , john@test.io , sarah@test.io , kim@test.io ");
+    expect(result).toEqual({ status: "enabled", emails: ["raiyan@test.io", "john@test.io", "sarah@test.io", "kim@test.io"] });
+    expect(MAX_APPROVED_ACCOUNT_EMAILS).toBe(4);
+    expect(validateAccountEmails("a@b.co,c@d.co,e@f.co,g@h.co,i@j.co").status).toBe("disabled");
   });
 });
 
@@ -52,24 +58,60 @@ describe("server config loading", () => {
       APPWRITE_PROJECT_ID: "hft-prod",
       APPWRITE_RUNTIME_API_KEY: "runtime-secret",
       APPWRITE_BOOTSTRAP_API_KEY: "bootstrap-secret",
-      APPWRITE_REGISTRATION_ALLOWLIST: "raiyan@test.io",
+      ALLOWED_ACCOUNT_EMAILS: "raiyan@test.io",
     });
     expect(result.ok).toBe(true);
     expect(result.value?.runtimeApiKey).toBe("runtime-secret");
     expect(result.value?.bootstrapApiKey).toBe("bootstrap-secret");
-    expect(result.value?.registration).toEqual({ status: "allowlisted", emails: ["raiyan@test.io"] });
+    expect(result.value?.accountEmails).toEqual({ status: "enabled", emails: ["raiyan@test.io"] });
   });
 
   it("keeps bootstrap and runtime keys optional at load time so plan mode works without secrets", () => {
     const result = loadAppwriteServerConfig({
       APPWRITE_ENDPOINT: "https://syd.cloud.appwrite.io/v1",
       APPWRITE_PROJECT_ID: "hft-prod",
-      APPWRITE_REGISTRATION_ALLOWLIST: "",
+      ALLOWED_ACCOUNT_EMAILS: "",
     });
     expect(result.ok).toBe(true);
     expect(result.value?.bootstrapApiKey).toBeUndefined();
     expect(result.value?.runtimeApiKey).toBeUndefined();
-    expect(result.value?.registration.status).toBe("disabled");
+    expect(result.value?.accountEmails.status).toBe("disabled");
+  });
+
+  it("keeps the temporary provisioning key out of normal runtime configuration", () => {
+    const result = loadAppwriteServerConfig({
+      APPWRITE_ENDPOINT: "https://syd.cloud.appwrite.io/v1",
+      APPWRITE_PROJECT_ID: "hft-prod",
+      APPWRITE_RUNTIME_API_KEY: "runtime-secret",
+      APPWRITE_BOOTSTRAP_API_KEY: "bootstrap-secret",
+      APPWRITE_PROVISIONING_API_KEY: "provisioning-secret",
+      ALLOWED_ACCOUNT_EMAILS: "member@test.io",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.value).not.toHaveProperty("provisioningApiKey");
+  });
+
+  it("loads the provisioning key only through the dedicated fail-closed configuration", () => {
+    const missing = loadAppwriteProvisioningConfig({
+      APPWRITE_ENDPOINT: "https://syd.cloud.appwrite.io/v1",
+      APPWRITE_PROJECT_ID: "hft-prod",
+      ALLOWED_ACCOUNT_EMAILS: "member@test.io",
+    });
+    expect(missing.ok).toBe(false);
+    expect(missing.errors?.join(" ")).toContain("APPWRITE_PROVISIONING_API_KEY");
+
+    const loaded = loadAppwriteProvisioningConfig({
+      APPWRITE_ENDPOINT: "https://syd.cloud.appwrite.io/v1",
+      APPWRITE_PROJECT_ID: "hft-prod",
+      APPWRITE_RUNTIME_API_KEY: "runtime-secret",
+      APPWRITE_BOOTSTRAP_API_KEY: "bootstrap-secret",
+      APPWRITE_PROVISIONING_API_KEY: "provisioning-secret",
+      ALLOWED_ACCOUNT_EMAILS: "member@test.io",
+    });
+    expect(loaded.ok).toBe(true);
+    expect(loaded.value?.provisioningApiKey).toBe("provisioning-secret");
+    expect(loaded.value).not.toHaveProperty("runtimeApiKey");
+    expect(loaded.value).not.toHaveProperty("bootstrapApiKey");
   });
 });
 
