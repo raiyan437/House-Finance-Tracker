@@ -39,6 +39,10 @@ All four approved accounts can log in; the single production Household operates 
 
 ## R2 - Trusted command core: tenancy and identity
 
+**Status (2026-08-26): PLANNING COMPLETE in `R2_PLAN.md`; implementation NOT authorized.** Planning-only output covers the owner-mandated areas A-M: trusted boundary, server time, guard design, OCC, idempotency, member cap, frozen `M + J <= 4` join bound, deletion transaction math (12-15 ops worst-case vs 100 limit), backup/restore with drill prerequisite, single-flag capability flip gated on full-command green, zero UI redesign, adversarial matrix, local parity extension, live two-account acceptance, additive schema v2 columns (the four R1-discovered gaps plus receipt filename), and the blocking provider-transaction semantics spike.
+
+## R2 - Trusted command core: tenancy and identity
+
 **Goal:** make household life possible on production — onboarding, membership management, and profile — on top of the trusted command machinery.
 
 **Includes:** slices **13D** (trusted commands: server Clock instants, ID injection, coordination-guard writes, house-code generation/lookup hardening), **13E** (cross-device OCC semantics and idempotent protected creates over `command_outcomes` + unique indexes), **13F** (household create/rename/leave/remove/leadership-transfer/delete, join-request send/cancel/accept/reject with guard-based uniqueness and member-cap enforcement), and the profile display-name command (atomic `updateCurrentProfile` equivalent with transaction-time uniqueness/OCC). Command Route Handlers extend `/api/app/**` behind the same session boundary; interim pending responses are retired action-by-action.

@@ -33,13 +33,13 @@ The product is a shared household expense tracker with a local/mock MVP, exact i
 
 ## Current gate
 
-**LOCAL MVP = FROZEN. PHASE 13A/13B = COMPLETE (13B checkpointed as `bed70e3`). R1 = OWNER-APPROVED RELEASE CHECKPOINT (implementation + automated/static/read verification complete; authenticated first-login smoke DEFERRED BY OWNER). R2 = NEXT (planning only authorized).**
+**LOCAL MVP = FROZEN (tag `local-mvp-v1` untouched). PHASE 13A/13B = COMPLETE (`bed70e3`). R1 = OWNER-APPROVED RELEASE CHECKPOINT `5fed47f` "feat: connect Appwrite production read data plane" (automated/static/read verification complete; authenticated first-login smoke DEFERRED BY OWNER). R2 = NEXT — PLANNING COMPLETE in `R2_PLAN.md`; IMPLEMENTATION NOT AUTHORIZED.**
 
 The complete local application remains the authoritative Local MVP baseline and is untouched. R1 reconnects the frozen product to Appwrite for reads only: strict provider mappers, read-only repositories behind the unchanged application/domain layers, a trusted same-origin `/api/app/*` read surface, a typed production capability model that disables all write families with restrained notices, server-authoritative Asia/Dhaka business date, and composition separation proven by amended architecture guards. Provider-parity tests prove Appwrite-read projections are numerically identical to local projections (including BigInt month-change basis points). Strict mappers exposed four additive schema-column gaps required by future writers (`expenses.deletedByUserId`, `households.deletedByUserId`, `join_requests.resolvedByUserId`, `receipt_metadata.contentRemovedByUserId` + optional `originalFilename`); mappers fail closed today and these are R2 planning inputs.
 
 ## Next safe action
 
-Commit the owner-approved R1 checkpoint, then perform R2 **planning only** (`R2_PLAN.md`). The authenticated first-login live smoke remains deferred by owner decision — never represent it as passed. Do not implement any production write command (R2 code) or start R3/R4 without explicit authorization.
+Owner review of `R2_PLAN.md`. Do not implement any R2 command, run the R2a provider-transaction spike, apply schema v2, or start R3/R4 without explicit authorization. The authenticated first-login live smoke remains deferred by owner decision and must never be represented as passed; it may piggyback on the future authorized R2d live-acceptance window.
 
 ## Pre-Production Business Logic Hardening status (2026-08-22)
 

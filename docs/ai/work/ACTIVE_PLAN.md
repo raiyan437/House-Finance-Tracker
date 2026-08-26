@@ -217,7 +217,7 @@ Complete responsive behavior, accessibility audit, empty/loading/error/success s
 
 ### Phase 13 - Appwrite architecture and integration
 
-**Plan status (2026-08-26): Phase 13A complete; Phase 13B implemented with the new-user first-login smoke deferred; slice 13C planning is complete in `PHASE_13C_PLAN.md` and implementation awaits separate owner authorization.** The owner-directed five-phase production release consolidation of slices 13C-13M plus Phases 14-15 is recorded in `PRODUCTION_RELEASE_PLAN.md` (R1-R5, each separately gated); that umbrella authorizes no work by itself.
+**Plan status (2026-08-26): Phases 13A/13B complete (`bed70e3`); R1 production read data plane OWNER-APPROVED and checkpointed as `5fed47f` ("feat: connect Appwrite production read data plane"); authenticated first-login smoke DEFERRED BY OWNER; R2 planning complete in `R2_PLAN.md` and implementation awaits separate authorization.** The owner-directed five-phase production release consolidation of slices 13C-13M plus Phases 14-15 is recorded in `PRODUCTION_RELEASE_PLAN.md` (R1-R5, each separately gated); that umbrella authorizes no work by itself.
 
 #### R1 execution result - production read data plane (2026-08-26): IMPLEMENTED AND VERIFIED, UNCOMMITTED
 
