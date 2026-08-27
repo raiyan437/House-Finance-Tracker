@@ -1,6 +1,6 @@
 # R2 Plan - Trusted Household Command Core (13D + 13E + 13F)
 
-**Status:** COMPLETE and ready for owner review 2026-08-27 (uncommitted; R3/R4 remain unauthorized). Baseline: R1 checkpoint `5fed47f`.
+**Status:** COMPLETE and checkpointed at `9ecd4d3` on 2026-08-27. Baseline: R1 checkpoint `5fed47f`. R3 was subsequently authorized; R4 remains unauthorized.
 
 ## Implementation progress (2026-08-26)
 

@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B and the R1 Appwrite read plane are committed, and R2 Household command implementation is authorized and in progress. R3-R5 remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
+The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B, R1, and R2 are committed. R3 Cards -> Expenses -> Settlements is owner-approved for implementation in the exact slices recorded in `R3_PLAN.md`; R4-R5 remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
 
 ## Reconciliation findings
 
@@ -217,7 +217,7 @@ Complete responsive behavior, accessibility audit, empty/loading/error/success s
 
 ### Phase 13 - Appwrite architecture and integration
 
-**Plan status (2026-08-27): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 is COMPLETE and ready for owner review in the uncommitted working tree. Schema V3 is live and clean at version 3 after an external verified backup and in-place `households.name` capacity widening 64 → 16,383. Product validation is trim + non-empty with no approved maximum. All ten Household commands use the production browser transport and the Household-only capability is enabled; R3/R4 mutation families remain disabled. Focused R2, lost-response/changed-intent, full Vitest, architecture, lint, TypeScript, production build, audit, diff-check, client-secret scan, Chromium/Firefox/WebKit smoke, Axe, and the real two-account Create → Join → Accept journey with reload persistence are green. STOP before R3.** The owner-directed five-phase production release consolidation is recorded in `PRODUCTION_RELEASE_PLAN.md`; it authorizes no later phase by itself.
+**Plan status (2026-08-27): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 checkpointed as `9ecd4d3`. R3 is owner-approved for implementation in the order Schema V4/shared foundation -> Cards -> Expense Create -> Expense Edit/Delete -> Settlements -> live two-account/regression. The exact scope and stop boundary are recorded in `R3_PLAN.md`. Schema V3 is live and clean at entry; Household production workflows remain enabled while Card, Expense, Settlement, and Receipt mutations remain disabled until their respective gates. R4 remains unauthorized.**
 
 #### R2 SIMPLIFICATION - Owner Decision (2026-08-26)
 

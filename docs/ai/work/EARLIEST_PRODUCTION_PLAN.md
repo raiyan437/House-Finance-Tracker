@@ -2,12 +2,12 @@
 
 **Prepared:** 2026-08-26
 **Target:** the complete frozen production release defined in `PRODUCTION_RELEASE_PLAN.md`
-**Current phase:** R2 — COMPLETE and ready for owner review; R3 not authorized
-**Planning status:** this is the concise owner-facing critical path. It does not authorize R3, R4, or R5 implementation.
+**Current phase:** R3 — APPROVED for implementation after R2 checkpoint `9ecd4d3`
+**Planning status:** R3 is authorized only in the scope and order recorded in `R3_PLAN.md`; R4 and R5 remain unauthorized.
 
 ## Executive position
 
-The Local MVP is frozen and thoroughly verified; Appwrite authentication and the complete production read plane are committed. Production Schema V3 is live and clean, provider transaction behavior has been proven, and the ten R2 Household commands now reach the transaction kernel through the production browser transport in the uncommitted working tree.
+The Local MVP is frozen and thoroughly verified; Appwrite authentication, the production read plane, and R2 Household workflows are committed. Production Schema V3 is live and clean, provider transaction behavior has been proven, and the ten R2 Household commands reach the transaction kernel through the production browser transport.
 
 The fastest credible route to production is:
 
@@ -27,7 +27,7 @@ No local-data migration, self-registration, new product feature, UI redesign, ca
 - Appwrite foundation/auth/session at `bed70e3`.
 - R1 production read data plane at `5fed47f`.
 - Live Appwrite Schema V3, minimal business data, verified external rows backup/checksum, and verified TablesDB transactions.
-- R2 command kernel, coordination guards, idempotency envelope, ten command Route Handlers, and rows-only backup/export/verification tooling in the current uncommitted tree.
+- R2 command kernel, coordination guards, idempotency envelope, ten command Route Handlers, and rows-only backup/export/verification tooling checkpointed at `9ecd4d3`.
 - Existing CI runs lint, typecheck, Vitest/architecture tests, build, dependency audit, and pull-request whitespace checks.
 
 ### R2 acceptance result
