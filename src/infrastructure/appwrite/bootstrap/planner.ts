@@ -3,6 +3,7 @@ import {
   BUCKET,
   DATABASE_ID,
   MAINTENANCE_FUNCTION,
+  SAFE_STRING_CAPACITY_INCREASES,
   SCHEMA_METADATA_ROW_ID,
   SCHEMA_VERSION,
   TABLES,
@@ -14,6 +15,11 @@ import {
 export interface ExistingColumn {
   readonly key: string;
   readonly status?: string;
+  readonly kind?: string;
+  readonly format?: string;
+  readonly elements?: readonly string[];
+  readonly size?: number;
+  readonly required?: boolean;
 }
 
 export interface ExistingIndex {
@@ -56,8 +62,16 @@ export function appwriteSchemaReader(clients: Readonly<{ tablesDB: TablesDB; sto
         (table) => ({ id: table.$id }),
       ),
     listColumns: async (databaseId, tableId) =>
-      ((await listOrEmpty(() => clients.tablesDB.listColumns({ databaseId, tableId }), { columns: [], total: 0 })) as { columns: { key: string; status?: string }[] }).columns.map(
-        (column) => ({ key: column.key, status: column.status }),
+      ((await listOrEmpty(() => clients.tablesDB.listColumns({ databaseId, tableId }), { columns: [], total: 0 })) as { columns: { key: string; status?: string; type?: string; format?: string; elements?: string[]; size?: number; required?: boolean }[] }).columns.map(
+        (column) => ({
+          key: column.key,
+          status: column.status,
+          kind: column.type,
+          format: column.format,
+          elements: column.elements,
+          size: column.size,
+          required: column.required,
+        }),
       ),
     listIndexes: async (databaseId, tableId) =>
       ((await listOrEmpty(() => clients.tablesDB.listIndexes({ databaseId, tableId }), { indexes: [], total: 0 })) as { indexes: { key: string; status?: string }[] }).indexes.map(
@@ -84,8 +98,41 @@ export interface PlannedTable {
   readonly indexes: readonly IndexDefinition[];
 }
 
+export interface SafeStringCapacityIncrease {
+  readonly tableId: string;
+  readonly columnKey: string;
+  readonly fromSize: number;
+  readonly toSize: number;
+  readonly required: boolean;
+}
+
 const PROVISIONING_STATUSES = ["processing"];
 const FATAL_PROVISIONING_STATUSES = ["failed", "stuck", "deleting"];
+
+function enumElementsMatch(existing: readonly string[] | undefined, desired: readonly string[] | undefined): boolean {
+  return existing !== undefined && desired !== undefined &&
+    existing.length === desired.length &&
+    existing.every((element, index) => element === desired[index]);
+}
+
+function columnTypeDrift(existing: ExistingColumn, desired: ColumnDefinition): string | undefined {
+  if (desired.kind === "enum") {
+    if (existing.kind !== "string" || existing.format !== "enum" || !Array.isArray(existing.elements)) {
+      return `provider type '${existing.kind ?? "unknown"}' format '${existing.format ?? "none"}' does not identify the column as enum`;
+    }
+    if (!enumElementsMatch(existing.elements, desired.elements)) {
+      return `provider enum elements do not exactly match the desired enum elements`;
+    }
+    return undefined;
+  }
+  if (existing.kind !== undefined && existing.kind !== desired.kind) {
+    return `type is '${existing.kind}', expected '${desired.kind}'`;
+  }
+  if (existing.format === "enum" || existing.elements !== undefined) {
+    return `provider enum metadata is incompatible with desired type '${desired.kind}'`;
+  }
+  return undefined;
+}
 
 export interface SchemaPlan {
   readonly databaseExists: boolean;
@@ -101,12 +148,14 @@ export interface SchemaPlan {
   readonly provisioning: readonly string[];
   readonly errors: readonly string[];
   readonly drifts: readonly string[];
+  readonly safeStringCapacityIncreases: readonly SafeStringCapacityIncrease[];
 }
 
 export async function planSchemaApplication(reader: AppwriteSchemaReader): Promise<SchemaPlan> {
   const drifts: string[] = [];
   const errors: string[] = [];
   const provisioning: string[] = [];
+  const safeStringCapacityIncreases: SafeStringCapacityIncrease[] = [];
   const database = await reader.getDatabase(DATABASE_ID);
   if (database && database.id !== DATABASE_ID) drifts.push(`Database identifier mismatch: ${database.id}.`);
   const existingTables = new Set((await reader.listTables(DATABASE_ID)).map((table) => table.id));
@@ -127,9 +176,43 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
       (existing) => existing.key !== "$id" && !definition.columns.some((column) => column.key === existing.key),
     );
     for (const column of definition.columns) {
-      const state = existingColumns.find((existing) => existing.key === column.key)?.status;
+      const existing = existingColumns.find((candidate) => candidate.key === column.key);
+      const state = existing?.status;
       if (state !== undefined && PROVISIONING_STATUSES.includes(state)) provisioning.push(`${definition.id}.column:${column.key}`);
       if (state !== undefined && FATAL_PROVISIONING_STATUSES.includes(state)) errors.push(`Column ${definition.id}.${column.key} is in provider state '${state}'.`);
+      if (!existing) continue;
+      const typeDrift = columnTypeDrift(existing, column);
+      if (typeDrift) {
+        drifts.push(`Column ${definition.id}.${column.key} ${typeDrift}; type changes are refused.`);
+        continue;
+      }
+      if (existing.required !== undefined && existing.required !== column.required) {
+        drifts.push(`Column ${definition.id}.${column.key} required=${existing.required}, expected ${column.required}; required-state changes are refused.`);
+      }
+      if (column.kind !== "string" || column.size === undefined || existing.size === undefined || existing.size === column.size) continue;
+      if (existing.size > column.size) {
+        drifts.push(`Column ${definition.id}.${column.key} capacity ${existing.size} exceeds desired ${column.size}; capacity decreases are refused.`);
+        continue;
+      }
+      const approved = SAFE_STRING_CAPACITY_INCREASES.some(
+        (migration) =>
+          migration.tableId === definition.id &&
+          migration.columnKey === column.key &&
+          migration.fromSize === existing.size &&
+          migration.toSize === column.size &&
+          migration.schemaVersion === SCHEMA_VERSION,
+      );
+      if (!approved) {
+        drifts.push(`Column ${definition.id}.${column.key} capacity increase ${existing.size} -> ${column.size} is not explicitly approved.`);
+        continue;
+      }
+      safeStringCapacityIncreases.push({
+        tableId: definition.id,
+        columnKey: column.key,
+        fromSize: existing.size,
+        toSize: column.size,
+        required: column.required,
+      });
     }
     for (const index of definition.indexes) {
       const state = existingIndexes.find((existing) => existing.key === index.key)?.status;
@@ -146,6 +229,8 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
       missingColumns.length === 0 &&
       missingIndexes.length === 0 &&
       unexpectedColumns.length === 0 &&
+      !safeStringCapacityIncreases.some((operation) => operation.tableId === definition.id) &&
+      !drifts.some((entry) => entry.startsWith(`Column ${definition.id}.`) || entry.startsWith(`Table ${definition.id} `)) &&
       !provisioning.some((resource) => resource.startsWith(`${definition.id}.`)) &&
       !errors.some((entry) => entry.startsWith(`Column ${definition.id}.`) || entry.startsWith(`Index ${definition.id}.`));
     if (fullyCorrect) complete.push(definition.id);
@@ -165,6 +250,7 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
     functionExists: Boolean(maintenance),
     bucketExists: Boolean(bucket),
     metadataRowVersion: metadataRow?.version,
+    safeStringCapacityIncreases,
     tables: plannedTables,
   };
 }

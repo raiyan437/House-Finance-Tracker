@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUCKET,
+  HOUSEHOLD_NAME_STORAGE_CAPACITY,
   MAINTENANCE_FUNCTION,
   RECEIPT_MAX_FILE_BYTES,
   SCHEMA_VERSION,
@@ -13,7 +14,7 @@ function columns(table: TableDefinition): Map<string, string> {
   return new Map(table.columns.map((column) => [column.key, column.kind]));
 }
 
-describe("Appwrite schema definitions (approved Rev 2 + corrections)", () => {
+describe("Appwrite schema definitions (approved Rev 3 + corrections)", () => {
   it("stores every exact monetary value in a bigint column", () => {
     expect(columns(tableById("expenses")!).get("amountPoisha")).toBe("bigint");
     const settlements = columns(tableById("settlements")!);
@@ -69,8 +70,18 @@ describe("Appwrite schema definitions (approved Rev 2 + corrections)", () => {
   });
 
   it("exposes a stable schema version and lookup helper", () => {
-    expect(SCHEMA_VERSION).toBe(1);
+    expect(SCHEMA_VERSION).toBe(3);
     expect(TABLES.every((table) => table.id.length <= 36 && /^[a-z_]+$/.test(table.id))).toBe(true);
     expect(tableById("missing")).toBeUndefined();
+  });
+
+  it("treats Household-name length as provider capacity rather than a product maximum", () => {
+    const name = tableById("households")!.columns.find((column) => column.key === "name");
+    expect(name).toEqual(expect.objectContaining({
+      kind: "string",
+      size: HOUSEHOLD_NAME_STORAGE_CAPACITY,
+      required: true,
+    }));
+    expect(HOUSEHOLD_NAME_STORAGE_CAPACITY).toBe(16_383);
   });
 });

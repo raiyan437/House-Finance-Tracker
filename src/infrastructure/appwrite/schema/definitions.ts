@@ -31,8 +31,26 @@ export const RECEIPT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
-export const SCHEMA_VERSION = 1;
+/**
+ * v3 (R2): non-destructively widens the existing required households.name
+ * provider column from 64 to 16,383 characters. This is storage capacity, not
+ * a product validation rule; Household names remain trimmed and non-empty with
+ * no approved product maximum.
+ */
+export const SCHEMA_VERSION = 3;
 export const SCHEMA_METADATA_ROW_ID = "active";
+export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
+
+/** Explicitly authorized non-destructive provider migrations only. */
+export const SAFE_STRING_CAPACITY_INCREASES = Object.freeze([
+  Object.freeze({
+    tableId: "households",
+    columnKey: "name",
+    fromSize: 64,
+    toSize: HOUSEHOLD_NAME_STORAGE_CAPACITY,
+    schemaVersion: 3,
+  }),
+]);
 
 function iso(key: string, required: boolean): ColumnDefinition {
   return { key, kind: "datetime", required };
@@ -67,9 +85,10 @@ export const TABLES: readonly TableDefinition[] = [
     id: "households",
     name: "Households",
     columns: [
-      text("name", 64, true),
+      text("name", HOUSEHOLD_NAME_STORAGE_CAPACITY, true),
       text("code", 9, true),
       iso("deletedAt", false),
+      text("deletedByUserId", 64, false),
       integer("version", true),
       iso("createdAt", true),
       iso("updatedAt", true),
@@ -105,6 +124,7 @@ export const TABLES: readonly TableDefinition[] = [
       text("requesterDisplayName", 64, false),
       iso("createdAt", true),
       iso("resolvedAt", false),
+      text("resolvedByUserId", 64, false),
     ],
     indexes: [
       { key: "by_household_status", type: "key", columns: ["householdId", "status"] },
@@ -130,6 +150,7 @@ export const TABLES: readonly TableDefinition[] = [
       iso("createdAt", true),
       iso("updatedAt", true),
       iso("deletedAt", false),
+      text("deletedByUserId", 64, false),
     ],
     indexes: [
       { key: "by_household_expense_date", type: "key", columns: ["householdId", "expenseDate"] },
@@ -195,6 +216,8 @@ export const TABLES: readonly TableDefinition[] = [
       integer("sizeBytes", true),
       enumeration("contentState", ["available", "user-deleted", "retention-expired"], true),
       iso("contentRemovedAt", false),
+      text("contentRemovedByUserId", 64, false),
+      text("originalFilename", 200, false),
       text("checksum", 64, true),
       iso("createdAt", true),
     ],

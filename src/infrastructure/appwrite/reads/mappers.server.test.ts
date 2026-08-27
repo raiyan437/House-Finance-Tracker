@@ -36,6 +36,16 @@ describe("strict provider row mappers", () => {
     expect(profile.displayName).toBe("Raiyan");
   });
 
+  it("normalizes Appwrite timezone offsets and fractional precision to canonical UTC instants", () => {
+    const providerInstant = "2026-08-20T16:15:30.123456+06:00";
+    const profile = mapCurrentProfile(
+      row("user_1", { displayName: "Raiyan", version: 1, createdAt: providerInstant, updatedAt: providerInstant }),
+      "r@test.io",
+    );
+    expect(profile.createdAt).toBe(INSTANT);
+    expect(profile.updatedAt).toBe(INSTANT);
+  });
+
   it("rejects malformed profiles fail-closed", () => {
     expect(() => mapCurrentProfile(row("user_1", { displayName: " ", version: 1, createdAt: INSTANT, updatedAt: INSTANT }), "r@t.io")).toThrow();
     expect(() => mapCurrentProfile(row("user_1", { displayName: "X", version: 0, createdAt: INSTANT, updatedAt: INSTANT }), "r@t.io")).toThrow();

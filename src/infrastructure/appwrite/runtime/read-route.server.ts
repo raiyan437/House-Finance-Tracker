@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ApplicationError } from "@/application/errors/application-error";
 import { serializeWithBigInt } from "@/application/transport/json-bigint";
 import { DomainError } from "@/domain/shared/domain-error";
+import { TransactionFailure } from "./tx-errors.server";
 import { AuthError } from "../auth/auth-errors.server";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
@@ -36,6 +37,7 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
       case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":
         return { status: 400, body: { error: error.message } };
       case "MALFORMED_PERSISTED_DATA":
+        console.error("[product-read] malformed persisted data", { store: error.context?.store ?? "unknown" });
         return { status: 500, body: { error: "Stored data could not be interpreted." } };
       case "PERSISTENCE_FAILURE":
         return { status: 503, body: { error: "The production data plane is temporarily unavailable." } };
@@ -106,6 +108,61 @@ function assertSameOrigin(origin: string, host: string | null): boolean {
   }
 }
 
+/**
+ * Trusted same-origin envelope for production commands (R2). POST-only with
+ * the identical session verification; provider transaction failures map per
+ * the frozen Gate A semantics:
+ * - conflict  -> 409 typed stale-state conflict
+ * - expired   -> 503 sanitized busy (fresh transaction on retry)
+ * - limit     -> 503 internal invariant failure (never partially continued)
+ */
+export async function runTrustedCommand<T>(
+  request: NextRequest,
+  schema: z.ZodType,
+  handler: (context: ProductRequestContext, input: Record<string, unknown>) => Promise<T>,
+): Promise<NextResponse> {
+  const origin = request.headers.get("origin");
+  if (!assertSameOrigin(origin ?? "", request.headers.get("host"))) {
+    return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
+  }
+  let body: Record<string, unknown> = {};
+  try {
+    const parsedBody = await request.json();
+    if (parsedBody !== null && typeof parsedBody === "object") body = parsedBody as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "The command payload is invalid." }, { status: 400, headers: NO_STORE_HEADERS });
+  }
+  try {
+    const resolved = await resolveReadContext();
+    if (resolved.status !== "ok") return resolved.status as NextResponse;
+    const data = await handler(resolved.context, parsed.data as Record<string, unknown>);
+    return new NextResponse(serializeWithBigInt({ data }), {
+      status: 200,
+      headers: { ...NO_STORE_HEADERS, "content-type": "application/json" },
+    });
+  } catch (error) {
+    if (error instanceof TransactionFailure) {
+      const statusByKind = { conflict: 409, expired: 503, limit: 503 } as const;
+      const messageByKind: Record<TransactionFailure["kind"], string> = {
+        conflict: "The household state changed concurrently. Review the current state and retry.",
+        expired: "The service is temporarily busy. Please retry shortly.",
+        limit: "The service could not complete this operation safely.",
+      };
+      return NextResponse.json(
+        { error: messageByKind[error.kind], kind: error.kind },
+        { status: statusByKind[error.kind], headers: NO_STORE_HEADERS },
+      );
+    }
+    const mapped = mapReadError(error);
+    if (mapped) return NextResponse.json(mapped.body, { status: mapped.status, headers: NO_STORE_HEADERS });
+    console.error("[product-command]", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "The service is temporarily unavailable." }, { status: 503, headers: NO_STORE_HEADERS });
+  }
+}
 /** Shared strict query/JSON input schemas for the read surface. */
 export const readInput = {
   id: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._:-]+$/, "A valid identifier is required."),

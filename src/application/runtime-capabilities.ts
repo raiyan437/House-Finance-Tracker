@@ -39,3 +39,14 @@ export const PRODUCTION_READ_ONLY_CAPABILITIES: ProductCapabilities = Object.fre
   receiptContentReads: false,
   profileMutations: false,
 });
+
+/** R2 production plane: Household commands are complete; later mutation families remain disabled. */
+export const PRODUCTION_R2_CAPABILITIES: ProductCapabilities = Object.freeze({
+  householdMutations: true,
+  expenseMutations: false,
+  settlementMutations: false,
+  cardMutations: false,
+  receiptMutations: false,
+  receiptContentReads: false,
+  profileMutations: false,
+});

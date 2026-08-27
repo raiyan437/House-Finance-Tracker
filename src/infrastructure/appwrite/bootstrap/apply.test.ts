@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Functions, Storage, TablesDB } from "node-appwrite";
 import { BUCKET, DATABASE_ID, MAINTENANCE_FUNCTION, SCHEMA_METADATA_ROW_ID, SCHEMA_VERSION, TABLES } from "../schema/definitions";
-import { planSchemaApplication, type AppwriteSchemaReader } from "./planner";
+import { planSchemaApplication, type AppwriteSchemaReader, type SchemaPlan } from "./planner";
 import { applySchemaPlan, type AppwriteBootstrapClients } from "./apply";
 
 function emptyReader(): AppwriteSchemaReader {
@@ -16,10 +16,13 @@ function emptyReader(): AppwriteSchemaReader {
   };
 }
 
-function recordingClients(): AppwriteBootstrapClients & { calls: string[] } {
+function recordingClients(
+  initialColumns: { tableId: string; key: string; status: string; size?: number; type?: string; required?: boolean }[] = [],
+  initialIndexes: { tableId: string; key: string; status: string }[] = [],
+): AppwriteBootstrapClients & { calls: string[] } {
   const calls: string[] = [];
-  const columns: { tableId: string; key: string; status: string }[] = [];
-  const indexes: { tableId: string; key: string; status: string }[] = [];
+  const columns = structuredClone(initialColumns);
+  const indexes = structuredClone(initialIndexes);
   const tablesDB = {
     create: async ({ databaseId }: { databaseId: string }) => {
       calls.push(`db:${databaseId}`);
@@ -28,16 +31,16 @@ function recordingClients(): AppwriteBootstrapClients & { calls: string[] } {
       calls.push(`table:${tableId}`);
     },
     listColumns: async ({ tableId }: { tableId: string }) => ({
-      columns: columns.filter((column) => column.tableId === tableId).map(({ key, status }) => ({ key, status })),
+      columns: columns.filter((column) => column.tableId === tableId).map(({ key, status, size, type, required }) => ({ key, status, size, type, required })),
       total: 0,
     }),
     listIndexes: async ({ tableId }: { tableId: string }) => ({
       indexes: indexes.filter((index) => index.tableId === tableId).map(({ key, status }) => ({ key, status })),
       total: 0,
     }),
-    createStringColumn: async ({ tableId, key }: { tableId: string; key: string }) => {
+    createStringColumn: async ({ tableId, key, size, required }: { tableId: string; key: string; size: number; required: boolean }) => {
       calls.push(`col:str:${tableId}.${key}`);
-      columns.push({ tableId, key, status: "available" });
+      columns.push({ tableId, key, status: "available", size, type: "string", required });
     },
     createBigIntColumn: async ({ tableId, key }: { tableId: string; key: string }) => {
       calls.push(`col:bigint:${tableId}.${key}`);
@@ -59,6 +62,14 @@ function recordingClients(): AppwriteBootstrapClients & { calls: string[] } {
       calls.push(`index:${tableId}.${key}`);
       indexes.push({ tableId, key, status: "available" });
     },
+    updateStringColumn: async ({ tableId, key, size, required, xdefault }: { tableId: string; key: string; size: number; required: boolean; xdefault: string | null }) => {
+      calls.push(`col:widen:${tableId}.${key}:${size}:${String(xdefault)}`);
+      const column = columns.find((candidate) => candidate.tableId === tableId && candidate.key === key);
+      if (!column) throw new Error("missing column");
+      column.size = size;
+      column.required = required;
+      column.status = "available";
+    },
     upsertRow: async ({ rowId }: { rowId: string }) => {
       calls.push(`row:${rowId}`);
     },
@@ -74,6 +85,25 @@ function recordingClients(): AppwriteBootstrapClients & { calls: string[] } {
     },
   } as unknown as Functions;
   return { tablesDB, storage, functions, calls };
+}
+
+function completeColumnsWithLegacyHouseholdName() {
+  return TABLES.flatMap((table) => table.columns.map((column) => ({
+    tableId: table.id,
+    key: column.key,
+    status: "available",
+    size: table.id === "households" && column.key === "name" ? 64 : column.size,
+    type: column.kind,
+    required: column.required,
+  })));
+}
+
+function completeIndexes() {
+  return TABLES.flatMap((table) => table.indexes.map((index) => ({
+    tableId: table.id,
+    key: index.key,
+    status: "available",
+  })));
 }
 
 describe("schema bootstrap applier", () => {
@@ -98,5 +128,42 @@ describe("schema bootstrap applier", () => {
     expect(clients.calls.indexOf(`fn:${MAINTENANCE_FUNCTION.id}`)).toBeLessThan(clients.calls.indexOf(`row:${SCHEMA_METADATA_ROW_ID}`));
     expect(clients.calls.at(-1)).toBe(`row:${SCHEMA_METADATA_ROW_ID}`);
     expect(clients.calls.filter((call) => call.startsWith("bucket:"))).toEqual([`bucket:${BUCKET.id}`]);
+  });
+
+  it("widens an approved string column, verifies readiness, then writes metadata last", async () => {
+    const clients = recordingClients(completeColumnsWithLegacyHouseholdName(), completeIndexes());
+    const plan: SchemaPlan = {
+      databaseExists: true,
+      createDatabase: false,
+      tables: [],
+      existingCompleteTables: [],
+      bucketExists: true,
+      createBucket: false,
+      functionExists: true,
+      createFunction: false,
+      metadataRowVersion: 2,
+      createMetadataRow: true,
+      provisioning: [],
+      errors: [],
+      drifts: [],
+      safeStringCapacityIncreases: [{ tableId: "households", columnKey: "name", fromSize: 64, toSize: 16_383, required: true }],
+    };
+    await applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 50 });
+    expect(clients.calls).toContain("col:widen:households.name:16383:null");
+    expect(clients.calls.at(-1)).toBe(`row:${SCHEMA_METADATA_ROW_ID}`);
+  });
+
+  it("withholds metadata when an approved widening fails", async () => {
+    const clients = recordingClients(completeColumnsWithLegacyHouseholdName(), completeIndexes());
+    const tablesDB = clients.tablesDB as unknown as { updateStringColumn: () => Promise<void> };
+    tablesDB.updateStringColumn = async () => { throw new Error("provider rejected widening"); };
+    const plan: SchemaPlan = {
+      databaseExists: true, createDatabase: false, tables: [], existingCompleteTables: [],
+      bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
+      metadataRowVersion: 2, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
+      safeStringCapacityIncreases: [{ tableId: "households", columnKey: "name", fromSize: 64, toSize: 16_383, required: true }],
+    };
+    await expect(applySchemaPlan(plan, clients, { dryRun: false })).rejects.toThrow(/provider rejected widening/);
+    expect(clients.calls).not.toContain(`row:${SCHEMA_METADATA_ROW_ID}`);
   });
 });

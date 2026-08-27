@@ -9,6 +9,11 @@ const FAST = { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 250 };
 interface FakeColumnState {
   key: string;
   status?: string;
+  kind?: string;
+  format?: string;
+  elements?: readonly string[];
+  size?: number;
+  required?: boolean;
 }
 
 interface FakeIndexState {
@@ -18,12 +23,24 @@ interface FakeIndexState {
 
 type FakeTables = Record<string, { columns: FakeColumnState[]; indexes: FakeIndexState[] }>;
 
+function availableColumns(table: (typeof TABLES)[number]): FakeColumnState[] {
+  return table.columns.map((column) => ({
+    key: column.key,
+    status: "available",
+    kind: column.kind === "enum" ? "string" : column.kind,
+    format: column.kind === "enum" ? "enum" : undefined,
+    elements: column.elements,
+    size: column.size,
+    required: column.required,
+  }));
+}
+
 function allAvailable(): FakeTables {
   return Object.fromEntries(
     TABLES.map((table) => [
       table.id,
       {
-        columns: table.columns.map((column) => ({ key: column.key, status: "available" })),
+        columns: availableColumns(table),
         indexes: table.indexes.map((index) => ({ key: index.key, status: "available" })),
       },
     ]),
@@ -113,7 +130,7 @@ function readerFrom(backend: Readonly<{ database: boolean; tables: Record<string
     getDatabase: async () => (backend.database ? { id: "hft" } : undefined),
     listTables: async () => Object.keys(backend.tables).map((id) => ({ id })),
     listColumns: async (_db, tableId) =>
-      (backend.tables[tableId]?.columns ?? []).map((column) => ({ key: column.key, status: column.status })),
+      (backend.tables[tableId]?.columns ?? []).map((column) => ({ ...column })),
     listIndexes: async (_db, tableId) =>
       (backend.tables[tableId]?.indexes ?? []).map((index) => ({ key: index.key, status: index.status })),
     getBucket: async () => undefined,
@@ -210,7 +227,7 @@ describe("provider-readiness provisioning", () => {
     const partial: FakeTables = {};
     for (const id of ["profiles", "households"] as const) partial[id] = available[id];
     partial.memberships = {
-      columns: TABLES.find((table) => table.id === "memberships")!.columns.map((column) => ({ key: column.key, status: "available" })),
+      columns: availableColumns(TABLES.find((table) => table.id === "memberships")!),
       indexes: [{ key: "by_household_status", status: "available" }],
     };
     const fake = makeFakeBackend(partial);

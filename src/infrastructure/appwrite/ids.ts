@@ -31,6 +31,11 @@ export function commandOutcomeRowId(descriptor: Readonly<{ actorId: string; comm
   return derivePrefixedId("c_", JSON.stringify([descriptor.actorId, descriptor.commandType, descriptor.commandId]));
 }
 
+/** Deterministic membership row id (membership composite key hashed into provider charset). */
+export function membershipRowId(householdId: string, userId: string): string {
+  return derivePrefixedId("m_", JSON.stringify([householdId, userId]));
+}
+
 export interface GuardRowIdentity {
   readonly id: string;
   readonly logicalKey: string;

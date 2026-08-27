@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. All local/provider-independent work through H1-H8, including Phase 11, UI parity/stabilization corrections, Receipt Retention Foundation, and Confirmed Settlement Financial Lock, is complete and approved at the `pre-appwrite-local-v1` checkpoint. Post-checkpoint owner-approved work has since landed on top of that checkpoint (see "Post-checkpoint record" below): review-driven hardening corrections, the House name rename feature, the Dashboard month-selector completeness fix, and the pre-Appwrite code-health/performance optimization pass. Appwrite/Phase 13 and later phases remain separately gated.
+The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B and the R1 Appwrite read plane are committed, and R2 Household command implementation is authorized and in progress. R3-R5 remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
 
 ## Reconciliation findings
 
@@ -217,7 +217,37 @@ Complete responsive behavior, accessibility audit, empty/loading/error/success s
 
 ### Phase 13 - Appwrite architecture and integration
 
-**Plan status (2026-08-26): Phases 13A/13B complete (`bed70e3`); R1 production read data plane OWNER-APPROVED and checkpointed as `5fed47f` ("feat: connect Appwrite production read data plane"); authenticated first-login smoke DEFERRED BY OWNER; R2 planning complete in `R2_PLAN.md` and implementation awaits separate authorization.** The owner-directed five-phase production release consolidation of slices 13C-13M plus Phases 14-15 is recorded in `PRODUCTION_RELEASE_PLAN.md` (R1-R5, each separately gated); that umbrella authorizes no work by itself.
+**Plan status (2026-08-27): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 is COMPLETE and ready for owner review in the uncommitted working tree. Schema V3 is live and clean at version 3 after an external verified backup and in-place `households.name` capacity widening 64 → 16,383. Product validation is trim + non-empty with no approved maximum. All ten Household commands use the production browser transport and the Household-only capability is enabled; R3/R4 mutation families remain disabled. Focused R2, lost-response/changed-intent, full Vitest, architecture, lint, TypeScript, production build, audit, diff-check, client-secret scan, Chromium/Firefox/WebKit smoke, Axe, and the real two-account Create → Join → Accept journey with reload persistence are green. STOP before R3.** The owner-directed five-phase production release consolidation is recorded in `PRODUCTION_RELEASE_PLAN.md`; it authorizes no later phase by itself.
+
+#### R2 SIMPLIFICATION - Owner Decision (2026-08-26)
+
+**Owner-directed simplification of R2 execution gates:**
+
+1. **Gate C second-project requirement REMOVED** — No disposable Appwrite project required. No `.env.gate-c.local` required. No second-project restore drill required. Backup/restore tooling remains as operational tooling (not a gate).
+
+2. **Existing Appwrite project is authoritative** — Continue using `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_RUNTIME_API_KEY`, `APPWRITE_BOOTSTRAP_API_KEY`. No synchronization, staging/production replication, or multi-environment infrastructure.
+
+3. **Current project safe for controlled testing** — Business state is effectively empty (sanitized counts verified: households=0, memberships=0, join_requests=0, expenses=0, settlements=0, cards=0, receipt_metadata=0). Controlled R2 testing authorized.
+
+4. **Backup tooling kept, gate simplified** — Before destructive tests: run backup, verify manifest/checksums, store outside repo via `APPWRITE_BACKUP_DIR`. R2 backup = database rows only (receipt binary backup = R4). No full backup → destroy → restore drill required.
+
+5. **Proceed with real R2 command plane** — Finish ten Household commands using trusted actor, server Clock, Appwrite transactions, coordination guards, OCC, idempotency, four-member limit, frozen financial gates. No business rule weakening.
+
+6. **Wire existing Household UI** — Replace R1 disabled actions with real R2 endpoints as verified. No UI redesign. Local IndexedDB mode unchanged.
+
+7. **Real-project acceptance journey** — Primary: existing user → Create Household → persist → reload → verify. Secondary (if second user ready): Join → Pending → Accept → Member → reload both → verify roles.
+
+8. **Test delete using temporary/empty Household only** — Create controlled Household (balances=0, pending settlements=0), backup+verify, exercise deleteHousehold, verify tombstone/former/closed/audit/idempotency. No destructive deletion after meaningful financial data exists.
+
+9. **Restore tooling does not block R2** — backup/verify/restore fully tested with unit/integration/stub coverage. Live restore drill deferred.
+
+10. **Enable Household capabilities** — After each command path green, enable corresponding capability. By R2 completion, Household feature genuinely functional in Appwrite mode.
+
+11. **Final R2 verification** — command-kernel, parity, adversarial, full Vitest, architecture guards, ESLint, TypeScript, production build, dependency audit, git diff --check, secret/client-bundle audit, Chromium, Firefox/WebKit smoke, Axe. Then real-project Household journey.
+
+12. **Update release plan** — Record: separate project NOT REQUIRED, existing project = single production backend, backup verified before controlled destructive test, live restore drill = deferred operational procedure.
+
+13. **STOP BOUNDARY** — Complete R2 only. Do not start R3 (Expense production mutations, Settlement production mutations, Card production mutations, Receipt production mutations). Leave R2 uncommitted for final review.
 
 #### R1 execution result - production read data plane (2026-08-26): IMPLEMENTED AND VERIFIED, UNCOMMITTED
 

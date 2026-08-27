@@ -1,15 +1,18 @@
-﻿import "server-only";
-import { randomUUID } from "node:crypto";
-import type { ApplicationRepositories, AtomicApplicationPersistence, CurrentSession } from "@/application/repositories";
-import { PRODUCTION_READ_ONLY_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
+import "server-only";
+
+
+import type { ApplicationRepositories, CurrentSession } from "@/application/repositories";
+import { PRODUCTION_R2_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication, type ApplicationValues, type Dependencies, type GeneratedIdKind } from "@/application/services/application-services";
 import { userId, type UserId } from "@/domain/shared/identifiers";
 import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
+import { AppwriteCommandPersistence } from "./command-persistence.server";
 import { ensureProfile, AUTH_THROTTLE_RULES } from "../auth/account-service.server";
 import { enforceAuthThrottle } from "../auth/throttle.server";
 import { AuthError } from "../auth/auth-errors.server";
 import { createAppwriteAuthClients } from "../auth/clients.server";
 import { loadAppwriteServerConfig } from "../config";
+
 import { createAppwriteReadRepositories, createTablesReader, type AppwriteReadRepositories } from "../reads/read-repositories.server";
 import type { TablesReader } from "../reads/tables.server";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
@@ -37,10 +40,37 @@ export interface ProductRequestContext {
   enforceHouseCodeThrottle(identityParts: readonly string[]): Promise<void>;
 }
 
+const COMPACT_ID_PREFIX: Record<GeneratedIdKind, string> = {
+  user: "u",
+  household: "h",
+  "join-request": "j",
+  expense: "e",
+  settlement: "s",
+  card: "c",
+  receipt: "r",
+  audit: "a",
+  command: "k",
+};
+
+/**
+ * Production identifiers stay within provider row-id constraints (<=36 chars,
+ * [A-Za-z0-9._-]) while remaining opaque and collision-resistant.
+ */
+function nextCompactId(kind: GeneratedIdKind): string {
+  const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+  let suffix = "";
+  for (let index = 0; index < 20; index += 1) {
+    const bytes = new Uint32Array(1);
+    crypto.getRandomValues(bytes);
+    suffix += alphabet[(bytes[0] ?? 0) % alphabet.length];
+  }
+  return `${COMPACT_ID_PREFIX[kind]}${suffix}`;
+}
+
 function serverApplicationValues(): ApplicationValues {
   return {
     now: (): IsoInstant => isoInstant(new Date().toISOString()),
-    nextId: (kind: GeneratedIdKind): string => `${kind}-${randomUUID()}`,
+    nextId: nextCompactId,
     nextHouseholdCodeCandidate: (): string => {
       const bytes = new Uint32Array(1);
       crypto.getRandomValues(bytes);
@@ -51,18 +81,6 @@ function serverApplicationValues(): ApplicationValues {
     },
   };
 }
-
-/** Compile-time completeness only: read-plane handlers never invoke atomic writes (R2 replaces this seam). */
-const READ_PLANE_ATOMIC_PLACEHOLDER: AtomicApplicationPersistence = new Proxy(
-  Object.freeze({}) as AtomicApplicationPersistence,
-  {
-    get() {
-      return () => {
-        throw new Error("Production business writes are owned by later authorized slices (R2+).");
-      };
-    },
-  },
-);
 
 class TrustedSession implements CurrentSession {
   constructor(private readonly actorId: UserId) {}
@@ -104,6 +122,10 @@ export async function resolveTrustedActor(sessionSecret: string | undefined): Pr
       candidate?.type === "user_not_found" ||
       (typeof candidate?.code === "number" && (candidate.code === 401 || candidate.code === 403));
     if (unauthorized) return Object.freeze({ status: "anonymous" });
+    console.error("[trusted-actor] provider failure", {
+      code: typeof candidate?.code === "number" ? candidate.code : "unknown",
+      type: typeof candidate?.type === "string" ? candidate.type : "unknown",
+    });
     return Object.freeze({ status: "provider-unavailable" });
   }
 }
@@ -116,10 +138,11 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
   const clients = createAppwriteAuthClients(config.value);
   const tablesDB = clients.tablesDB();
   const tables = createTablesReader(tablesDB);
+  const commandPersistence = new AppwriteCommandPersistence(tablesDB);
   const repositories = createAppwriteReadRepositories(tables, actor.userId, actor.email);
   const dependencies: Dependencies = {
     repositories: repositories as unknown as ApplicationRepositories,
-    atomic: READ_PLANE_ATOMIC_PLACEHOLDER,
+    atomic: commandPersistence,
     session: new TrustedSession(actor.userId),
     values: serverApplicationValues(),
   };
@@ -131,7 +154,7 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
     tables,
     dependencies,
     application,
-    capabilities: PRODUCTION_READ_ONLY_CAPABILITIES,
+    capabilities: PRODUCTION_R2_CAPABILITIES,
     enforceHouseCodeThrottle: async (identityParts: readonly string[]) => {
       if (!authSecret) {
         throw new AuthError("PROVIDER_UNAVAILABLE", "The service is temporarily unavailable.");

@@ -16,12 +16,17 @@ export interface TablesReader {
   listRows(tableId: string, queries?: readonly string[]): Promise<readonly AppwriteRow[]>;
 }
 
+export interface TablesReaderOptions {
+  /** Provider transaction scope: staged writes of this transaction are visible. */
+  readonly transactionId?: string;
+}
+
 class ProviderTablesReader implements TablesReader {
-  constructor(private readonly tablesDB: TablesDB) {}
+  constructor(private readonly tablesDB: TablesDB, private readonly options: TablesReaderOptions = {}) {}
 
   async getRow(tableId: string, rowId: string): Promise<AppwriteRow | undefined> {
     try {
-      return (await this.tablesDB.getRow({ databaseId: DATABASE_ID, tableId, rowId })) as AppwriteRow;
+      return (await this.tablesDB.getRow({ databaseId: DATABASE_ID, tableId, rowId, transactionId: this.options.transactionId })) as AppwriteRow;
     } catch (error) {
       if (isProviderNotFound(error)) return undefined;
       throw normalizedProviderFailure(error);
@@ -52,6 +57,6 @@ class ProviderTablesReader implements TablesReader {
   }
 }
 
-export function createTablesReader(tablesDB: TablesDB): TablesReader {
-  return new ProviderTablesReader(tablesDB);
+export function createTablesReader(tablesDB: TablesDB, options?: TablesReaderOptions): TablesReader {
+  return new ProviderTablesReader(tablesDB, options);
 }

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { BUCKET, DATABASE_ID, MAINTENANCE_FUNCTION, TABLES } from "../schema/definitions";
-import { planSchemaApplication, type AppwriteSchemaReader } from "./planner";
+import { BUCKET, DATABASE_ID, HOUSEHOLD_NAME_STORAGE_CAPACITY, MAINTENANCE_FUNCTION, TABLES } from "../schema/definitions";
+import { planSchemaApplication, type AppwriteSchemaReader, type ExistingColumn } from "./planner";
 
 function readerFrom(state: {
   database?: boolean;
-  tables?: Partial<Record<string, { columns?: string[]; indexes?: string[]; extraColumns?: string[] }>>;
+  tables?: Partial<Record<string, { columns?: string[]; indexes?: string[]; extraColumns?: string[]; columnOverrides?: Record<string, Partial<ExistingColumn>> }>>;
   bucket?: boolean;
   fn?: boolean;
+  schemaVersion?: number;
 }): AppwriteSchemaReader {
   return {
     getDatabase: async () => (state.database ? { id: DATABASE_ID } : undefined),
@@ -16,7 +17,18 @@ function readerFrom(state: {
       if (!entry) throw new Error(`unexpected table probe ${tableId}`);
       const definition = TABLES.find((table) => table.id === tableId)!;
       const known = entry.columns ?? definition.columns.map((column) => column.key);
-      return [...known.map((key) => ({ key })), ...(entry.extraColumns ?? []).map((key) => ({ key }))].filter(
+      return [...known.map((key) => {
+        const desired = definition.columns.find((column) => column.key === key);
+        return {
+          key,
+          kind: desired?.kind === "enum" ? "string" : desired?.kind,
+          format: desired?.kind === "enum" ? "enum" : undefined,
+          elements: desired?.elements,
+          size: desired?.size,
+          required: desired?.required,
+          ...entry.columnOverrides?.[key],
+        };
+      }), ...(entry.extraColumns ?? []).map((key) => ({ key }))].filter(
         (column) => column.key !== "$id",
       );
     },
@@ -29,7 +41,7 @@ function readerFrom(state: {
     },
     getBucket: async () => (state.bucket ? { id: BUCKET.id } : undefined),
     getFunction: async () => (state.fn ? { id: MAINTENANCE_FUNCTION.id } : undefined),
-    getSchemaVersionRow: async () => (state.tables?.["schema_metadata"] ? { version: 1 } : undefined),
+    getSchemaVersionRow: async () => (state.tables?.["schema_metadata"] ? { version: state.schemaVersion ?? 1 } : undefined),
   };
 }
 
@@ -47,7 +59,7 @@ describe("schema bootstrap planner", () => {
     expect(expenses.columns.map((column) => column.kind)).toContain("bigint");
   });
 
-  it("stages only missing pieces for a partially applied project and never mutates existing columns", async () => {
+  it("stages only missing pieces for a partially applied project and leaves correct existing columns unchanged", async () => {
     const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables: { households: {} } }));
     expect(plan.createDatabase).toBe(false);
     expect(plan.createBucket).toBe(false);
@@ -55,6 +67,85 @@ describe("schema bootstrap planner", () => {
     expect(plan.tables.map((entry) => entry.table.id)).toEqual(TABLES.map((table) => table.id).filter((id) => id !== "households"));
     expect(plan.tables.find((entry) => entry.table.id === "households")).toBeUndefined();
     expect(plan.existingCompleteTables).toContain("households");
+  });
+
+  it("plans only the explicitly approved households.name 64 -> 16383 widening", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.households = { columnOverrides: { name: { size: 64 } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 2 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([{
+      tableId: "households",
+      columnKey: "name",
+      fromSize: 64,
+      toSize: HOUSEHOLD_NAME_STORAGE_CAPACITY,
+      required: true,
+    }]);
+    expect(plan.tables).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.createMetadataRow).toBe(true);
+  });
+
+  it("is idempotent after the approved capacity is present", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("refuses capacity decreases and unrelated capacity increases", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.households = { columnOverrides: { name: { size: HOUSEHOLD_NAME_STORAGE_CAPACITY + 1 } } };
+    tables.profiles = { columnOverrides: { displayName: { size: 32 } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 2 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts.join(" ")).toMatch(/capacity decreases are refused/);
+    expect(plan.drifts.join(" ")).toMatch(/profiles\.displayName.*not explicitly approved/);
+  });
+
+  it("refuses column type drift without planning a mutation", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.households = { columnOverrides: { name: { kind: "longtext" } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 2 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts.join(" ")).toMatch(/type.*longtext.*expected.*string.*refused/);
+  });
+
+  it("normalizes provider string columns with matching enum metadata as already correct", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.drifts).toEqual([]);
+    expect(plan.tables).toEqual([]);
+    expect(plan.existingCompleteTables).toEqual(TABLES.map((table) => table.id));
+  });
+
+  it("fails closed when a desired enum lacks provider enum metadata", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.memberships = { columnOverrides: { role: { format: undefined, elements: undefined } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.drifts.join(" ")).toMatch(/memberships\.role.*does not identify.*enum.*refused/);
+  });
+
+  it.each([
+    ["different", ["leader", "owner"]],
+    ["missing", ["leader"]],
+    ["extra", ["leader", "member", "owner"]],
+  ])("fails closed for %s provider enum elements", async (_case, elements) => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.memberships = { columnOverrides: { role: { elements } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.drifts.join(" ")).toMatch(/memberships\.role.*elements do not exactly match.*refused/);
+  });
+
+  it("fails closed for a different provider enum base type or format", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.memberships = { columnOverrides: {
+      role: { kind: "integer" },
+      status: { format: "text" },
+    } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.drifts.join(" ")).toMatch(/memberships\.role.*does not identify.*enum.*refused/);
+    expect(plan.drifts.join(" ")).toMatch(/memberships\.status.*does not identify.*enum.*refused/);
   });
 
   it("reports unmanaged columns as report-only drift without planning destructive operations", async () => {

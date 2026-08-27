@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PRODUCTION_READ_ONLY_CAPABILITIES } from "@/application/runtime-capabilities";
+import { PRODUCTION_R2_CAPABILITIES } from "@/application/runtime-capabilities";
+import { commandId, householdId, joinRequestId, userId } from "@/domain/shared/identifiers";
+import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 
 const replace = vi.fn();
 let currentPathname = "/household";
@@ -23,7 +25,7 @@ function bootstrapPayload() {
         settlementActionCount: 0,
       },
       household: { status: "no-household" },
-      capabilities: PRODUCTION_READ_ONLY_CAPABILITIES,
+      capabilities: PRODUCTION_R2_CAPABILITIES,
       businessDate: "2026-08-27",
     },
   };
@@ -95,7 +97,60 @@ describe("production application runtime composition", () => {
     fireEventClickRetry();
     await waitFor(() => expect(screen.queryByText("Service temporarily unavailable")).toBeNull());
   });
+
+  it("delivers all ten Household actions to their same-origin command routes and refreshes", async () => {
+    currentPathname = "/household";
+    const commands: Array<{ path: string; body: Record<string, unknown> }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const path = String(input);
+      if (path === "/api/app/bootstrap") return new Response(JSON.stringify(bootstrapPayload()), { status: 200 });
+      commands.push({ path, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      return new Response(JSON.stringify({ data: null }), { status: 200 });
+    });
+    render(<ProductionApplicationRuntime><HouseholdCommandProbe /></ProductionApplicationRuntime>);
+    expect(await screen.findByRole("button", { name: "create" })).toBeEnabled();
+
+    let expectedCount = 0;
+    for (const name of ["create", "request", "cancel", "accept", "reject", "leave", "remove", "transfer", "rename", "delete"]) {
+      screen.getByRole("button", { name }).click();
+      expectedCount += 1;
+      await waitFor(() => expect(commands).toHaveLength(expectedCount));
+    }
+    await waitFor(() => expect(commands).toHaveLength(10));
+    expect(commands.map((entry) => entry.path)).toEqual([
+      "/api/app/household-create",
+      "/api/app/household-request-join",
+      "/api/app/household-cancel-request",
+      "/api/app/household-accept-request",
+      "/api/app/household-reject-request",
+      "/api/app/household-leave",
+      "/api/app/household-remove-member",
+      "/api/app/household-transfer-leadership",
+      "/api/app/household-rename",
+      "/api/app/household-delete",
+    ]);
+    expect(commands.every((entry) => typeof entry.body.commandId === "string")).toBe(true);
+  });
 });
+
+function HouseholdCommandProbe() {
+  const runtime = useApplicationRuntime();
+  if (runtime.status !== "ready") return null;
+  const actions = runtime.householdActions;
+  const invoke = (work: () => Promise<void>) => () => { void work().catch(() => undefined); };
+  return <div>
+    <button onClick={invoke(() => actions.createHousehold("Home", "000000001", commandId("create-command")))}>create</button>
+    <button onClick={invoke(() => actions.requestToJoin(householdId("h1"), commandId("join-command")))}>request</button>
+    <button onClick={invoke(() => actions.cancelJoinRequest(joinRequestId("j1")))}>cancel</button>
+    <button onClick={invoke(() => actions.acceptJoinRequest(joinRequestId("j1")))}>accept</button>
+    <button onClick={invoke(() => actions.rejectJoinRequest(joinRequestId("j1")))}>reject</button>
+    <button onClick={invoke(() => actions.leaveHousehold())}>leave</button>
+    <button onClick={invoke(() => actions.removeMember(userId("u2")))}>remove</button>
+    <button onClick={invoke(() => actions.transferLeadership(userId("u2")))}>transfer</button>
+    <button onClick={invoke(() => actions.renameHousehold("Renamed"))}>rename</button>
+    <button onClick={invoke(() => actions.deleteHousehold())}>delete</button>
+  </div>;
+}
 
 function fireEventClickRetry(): void {
   const retry = screen.getByRole("button", { name: "Retry" });

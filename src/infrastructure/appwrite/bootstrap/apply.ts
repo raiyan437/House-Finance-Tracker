@@ -75,6 +75,9 @@ export async function applySchemaPlan(
   ];
   if (options.dryRun) {
     if (plan.createDatabase) performed.push(`database:create ${DATABASE_ID}`);
+    for (const operation of plan.safeStringCapacityIncreases) {
+      performed.push(`column:widen ${operation.tableId}.${operation.columnKey} (string ${operation.fromSize} -> ${operation.toSize})`);
+    }
     for (const entry of plan.tables) {
       performed.push(`table:create ${entry.table.id} (${entry.columns.length} columns, ${entry.indexes.length} indexes)`);
       for (const column of entry.columns) performed.push(`column:create ${entry.table.id}.${column.key} (${column.kind})`);
@@ -87,6 +90,9 @@ export async function applySchemaPlan(
   }
 
   if (plan.errors.length > 0) throw new BootstrapFatalProvisioningError(plan.errors);
+  if (plan.drifts.length > 0) {
+    throw new BootstrapFatalProvisioningError(plan.drifts.map((drift) => `Refused schema drift: ${drift}`));
+  }
 
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -126,6 +132,27 @@ export async function applySchemaPlan(
     );
   }
 
+  async function stringCapacityBarrier(tableId: string, columnKey: string, expectedSize: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastStatus: string | undefined;
+    let lastSize: number | undefined;
+    while (Date.now() < deadline) {
+      const response = (await clients.tablesDB.listColumns({ databaseId: DATABASE_ID, tableId })) as {
+        columns: { key: string; status?: string; size?: number }[];
+      };
+      const column = response.columns.find((candidate) => candidate.key === columnKey);
+      lastStatus = column?.status;
+      lastSize = column?.size;
+      assertNotFatal("column", `${tableId}.${columnKey}`, lastStatus);
+      if (lastStatus === COLUMN_AVAILABLE && lastSize === expectedSize) return;
+      await wait(intervalMs);
+    }
+    throw new BootstrapProvisioningTimeoutError("string-capacity", `${tableId}.${columnKey}`, {
+      status: lastStatus,
+      size: lastSize === undefined ? undefined : String(lastSize),
+    });
+  }
+
   async function listOrEmpty<T>(call: () => Promise<T>, empty: T): Promise<T> {
     try {
       return await call();
@@ -138,6 +165,18 @@ export async function applySchemaPlan(
   if (plan.createDatabase) {
     await clients.tablesDB.create({ databaseId: DATABASE_ID, name: "House Finance Tracker" });
     performed.push(`database:create ${DATABASE_ID}`);
+  }
+  for (const operation of plan.safeStringCapacityIncreases) {
+    await clients.tablesDB.updateStringColumn({
+      databaseId: DATABASE_ID,
+      tableId: operation.tableId,
+      key: operation.columnKey,
+      required: operation.required,
+      xdefault: null,
+      size: operation.toSize,
+    });
+    performed.push(`column:widen ${operation.tableId}.${operation.columnKey} (${operation.fromSize} -> ${operation.toSize})`);
+    await stringCapacityBarrier(operation.tableId, operation.columnKey, operation.toSize);
   }
   for (const entry of plan.tables) {
     if (!entry.tableExists) {

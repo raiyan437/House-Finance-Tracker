@@ -1,6 +1,6 @@
 # Production Release Plan - five gated phases (R1-R5)
 
-**Status:** Owner-directed consolidation created 2026-08-26. This document maps all remaining work — slices 13C through 13M plus roadmap Phases 14-15 — into exactly five releasable phases. It changes no approved decision; where a detail was never decided, it is listed under Open decisions rather than invented. Each phase requires separate owner authorization; completing one phase never authorizes the next. Slice-level detail for R1 lives in `PHASE_13C_PLAN.md`; later phases get their own detailed plan documents before implementation, produced under this umbrella.
+**Status:** Owner-directed consolidation created 2026-08-26. R1 is committed and accepted; R2 is authorized and in progress in the uncommitted working tree. This document maps the release contract into exactly five phases. The concise fastest-path execution view is `EARLIEST_PRODUCTION_PLAN.md`. Each phase still requires separate owner authorization; completing one phase never authorizes the next.
 
 ## Release definition (what "production release" means here)
 
@@ -12,9 +12,9 @@ All four approved accounts can log in; the single production Household operates 
 
 ## Entry state (today)
 
-- 13A committed and applied (schema v1, empty business tables). 13B implemented, locally green, **uncommitted**; new-user first-login bootstrap proof explicitly deferred.
-- 13C planned (`PHASE_13C_PLAN.md`), awaiting three owner decisions and implementation authorization.
-- Architecture guards enforce current boundaries; local composition remains the frozen MVP baseline.
+- 13A/13B and R1 are committed; schema v2 is applied and the business tables were verified empty.
+- R2 provider semantics and command kernel are implemented in the uncommitted tree; browser transport, capability enablement, complete surface/adversarial coverage, and live acceptance remain open.
+- Architecture guards enforce current boundaries; local composition remains the frozen MVP baseline. The current worktree has green lint and focused command/architecture tests (46/46), but typecheck is blocked by `scripts/appwrite-restore.mts:33` until its optional argument is guarded before use.
 
 ---
 
@@ -39,7 +39,17 @@ All four approved accounts can log in; the single production Household operates 
 
 ## R2 - Trusted command core: tenancy and identity
 
-**Status (2026-08-26): PLANNING COMPLETE in `R2_PLAN.md`; implementation NOT authorized.** Planning-only output covers the owner-mandated areas A-M: trusted boundary, server time, guard design, OCC, idempotency, member cap, frozen `M + J <= 4` join bound, deletion transaction math (12-15 ops worst-case vs 100 limit), backup/restore with drill prerequisite, single-flag capability flip gated on full-command green, zero UI redesign, adversarial matrix, local parity extension, live two-account acceptance, additive schema v2 columns (the four R1-discovered gaps plus receipt filename), and the blocking provider-transaction semantics spike.
+**Status (2026-08-26): PLANNING COMPLETE in `R2_PLAN.md`; implementation AUTHORIZED with SIMPLIFIED GATES per owner decision.** Planning-only output covers the owner-mandated areas A-M: trusted boundary, server time, guard design, OCC, idempotency, member cap, frozen `M + J <= 4` join bound, deletion transaction math (12-15 ops worst-case vs 100 limit), backup/restore tooling (drill prerequisite REMOVED), single-flag capability flip gated on full-command green, zero UI redesign, adversarial matrix, local parity extension, live two-account acceptance, additive schema v2 columns (the four R1-discovered gaps plus receipt filename), and the blocking provider-transaction semantics spike.
+
+**Owner Decision (2026-08-26) — Gate C Simplification:**
+- Separate disposable Appwrite project = NOT REQUIRED
+- Existing Appwrite project = single production backend
+- `.env.gate-c.local` = NOT REQUIRED
+- Second-project restore drill = NOT REQUIRED (deferred operational procedure)
+- Backup tooling retained as operational tooling (unit/integration/stub tested)
+- Controlled destructive tests authorized against existing project after backup+verify
+- Sanitized row counts verified before any destructive test
+- `APPWRITE_BACKUP_DIR` used for external backup storage
 
 ## R2 - Trusted command core: tenancy and identity
 
@@ -51,9 +61,18 @@ All four approved accounts can log in; the single production Household operates 
 
 **Entry criteria:** R1 accepted; owner authorizes R2; confirmation that the production Household will be created through the real UI by the owner-designated Leader account.
 
-**Exit gates:** shared contract suites extended to cover every command against both providers (fake-indexeddb vs stubbed/live TablesDB); concurrency proofs (double-submit replays idempotently, stale OCC rejected, guard conflicts safe); deletion math bounded as planned (<=15 staged operations); adversarial authorization tests (member-vs-leader, outsider 404s); full local matrix green; live smoke of the full household lifecycle by two test accounts; docs updated.
+**Exit gates:** shared contract suites extended to cover every command against both providers (fake-indexeddb vs stubbed/live TablesDB); concurrency proofs (double-submit replays idempotently, stale OCC rejected, guard conflicts safe); deletion math bounded as planned (<=15 staged operations); adversarial authorization tests (member-vs-leader, outsider 404s); full local matrix green; live smoke of the full household lifecycle by two test accounts; backup verified before controlled destructive test; docs updated.
 
 **User-visible result:** both existing accounts can form the Household, manage membership and join requests, and edit display names on production.
+
+**Gate C Simplification Applied (Owner Decision 2026-08-26):**
+- No second disposable Appwrite project required
+- No `.env.gate-c.local` required
+- No second-project restore drill required before R2
+- Backup tooling remains fully tested (unit/integration/provider-stub) as operational tooling
+- Live restore drill deferred to explicit owner operation
+- Controlled R2 testing authorized against existing project (sanitized empty business state verified)
+- `APPWRITE_BACKUP_DIR` used for backup storage outside repository
 
 ## R3 - Financial feature commands: expenses, cards, settlements
 
@@ -61,7 +80,7 @@ All four approved accounts can log in; the single production Household operates 
 
 **Includes:** slices **13I** (private Card CRUD + archive/delete consent flow), **13G** (Expense create/edit/delete: exact-poisha persistence, future-date/business-date enforcement via server Clock, backdated challenge with server-signed tokens, confirmed-settlement financial lock derived at commit, revision OCC, creator/leader permission rechecks in-transaction, audit events), **13H** (Settlement mark-paid/confirm/reject/cancel: exact-current-recommendation validation, Pending pair uniqueness via guards, immutable terminal history, stale warnings computed fresh). Sequence inside the phase: Cards -> Expenses -> Settlements (card selection depends on Cards; settlement locking depends on Expenses).
 
-**Entry criteria:** R2 accepted **and** its backup tooling proven by a successful verify-restore exercise; owner authorizes R3.
+**Entry criteria:** R2 accepted; its rows backup and manifest/checksum verification proven before the controlled destructive test; owner authorizes R3. The live restore drill is a deferred operational procedure under the 2026-08-26 Gate C simplification and does not block R3.
 
 **Exit gates:** property/integration parity for balances, allocations, remainders, basis points between providers; race matrix (concurrent edits, settlement-confirm vs expense-edit, double confirm) proving rollback completeness; privacy probes (leader cannot read private card data anywhere on the wire; non-creator receipt metadata projection opaque); idempotent replay isolation for protected creates; full multi-browser Playwright over intercepted fixtures plus a scripted live two-account scenario (create household members' expenses, settle, confirm, verify locks); docs updated.
 
@@ -118,11 +137,9 @@ All four approved accounts can log in; the single production Household operates 
 
 ## Open decisions carried (blocking or shaping)
 
-1. **13C decisions (block R1):** interim mutation affordance (Option B recommended); server-authoritative business date; live-read smoke timing.
-2. **13B commit authorization (blocks R1):** the reviewed 13B tree still awaits an explicit commit approval.
-3. **Hosting choice for Phase 15 (shapes R5):** must satisfy the zero-cost rule; decide no later than R4 exit so runbook/deployment rehearsals land in R5 cleanly.
-4. **Self-service registration (Decision B follow-up, post-release track):** remains unresolved and out of scope for R1-R5; requires a dedicated design for account ownership without email verification before any implementation.
-5. **Production Household bootstrap ritual (shapes R2 exit):** which account creates the Household and when member accounts join.
+1. **Hosting choice (shapes R5):** Appwrite Sites SSR is the recommended fastest zero-cost default; confirm before R4 upload proof so the real 10 MiB path is tested on the launch host.
+2. **Self-service registration (post-release track):** remains unresolved and out of scope for R1-R5; requires a dedicated design for account ownership without email verification before any implementation.
+3. **Production Household bootstrap ritual (shapes R2 exit):** which approved account creates the Household and when member accounts join.
 
 ## Risk register (top items)
 

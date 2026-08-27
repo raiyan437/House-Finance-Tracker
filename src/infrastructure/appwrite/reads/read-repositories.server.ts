@@ -3,6 +3,7 @@ import { Query } from "node-appwrite";
 import type {
   AuditEventRepository,
   CardRepository,
+  CommandOutcomeRepository,
   ExpenseRepository,
   HouseholdRepository,
   JoinRequestRepository,
@@ -11,9 +12,12 @@ import type {
   SettlementRepository,
   UserProfileRepository,
 } from "@/application/repositories";
+import { assertCommandOutcome, type CommandOutcome } from "@/application/idempotency/command-idempotency";
+import { commandOutcomeRowId } from "../ids";
 import type { CardRemovalAction } from "@/domain/cards/card-lifecycle";
 import type { UserId, CardId, ExpenseId, HouseholdId, JoinRequestId, ReceiptId, SettlementId } from "@/domain/shared/identifiers";
-import { compareUserIds } from "@/domain/shared/identifiers";
+import { compareUserIds, userId, commandId } from "@/domain/shared/identifiers";
+import { isoInstant } from "@/domain/shared/instant";
 import {
   mapAuditEvent,
   mapCard,
@@ -40,6 +44,7 @@ const TABLE = {
   cards: "cards",
   receiptMetadata: "receipt_metadata",
   auditEvents: "audit_events",
+  commandOutcomes: "command_outcomes",
 } as const;
 
 /**
@@ -237,8 +242,32 @@ class AppwriteAuditEventRepository implements AuditEventRepository {
   }
 }
 
+class AppwriteCommandOutcomeRepository implements CommandOutcomeRepository {
+  constructor(private readonly tables: TablesReader) {}
+  /** Replay lookup by derived deterministic row id; digest verification is upstream. */
+  async get(descriptor: Parameters<CommandOutcomeRepository["get"]>[0]): Promise<CommandOutcome | undefined> {
+    const rowId = commandOutcomeRowId({
+      actorId: String(descriptor.actorId),
+      commandType: descriptor.commandType,
+      commandId: String(descriptor.commandId),
+    });
+    const row = await this.tables.getRow(TABLE.commandOutcomes, rowId);
+    if (!row) return undefined;
+    const outcome = {
+      actorId: userId(String(row.actorId)),
+      commandType: row.commandType as Parameters<CommandOutcomeRepository["get"]>[0]["commandType"],
+      commandId: commandId(String(row.commandId)),
+      intentDigest: String(row.intentDigest),
+      resourceId: String(row.resourceId),
+      completedAt: isoInstant(String(row.completedAt)),
+    } satisfies CommandOutcome;
+    assertCommandOutcome(outcome);
+    return Object.freeze(outcome);
+  }
+}
 export interface AppwriteReadRepositories {
   readonly profiles: UserProfileRepository;
+  readonly commandOutcomes: CommandOutcomeRepository;
   readonly households: HouseholdRepository;
   readonly memberships: MembershipRepository;
   readonly joinRequests: JoinRequestRepository;
@@ -251,6 +280,7 @@ export interface AppwriteReadRepositories {
 
 export function createAppwriteReadRepositories(tables: TablesReader, actorId: UserId, actorEmail: string): AppwriteReadRepositories {
   return Object.freeze({
+    commandOutcomes: new AppwriteCommandOutcomeRepository(tables),
     profiles: new AppwriteUserProfileRepository(tables, actorId, actorEmail),
     households: new AppwriteHouseholdRepository(tables),
     memberships: new AppwriteMembershipRepository(tables),

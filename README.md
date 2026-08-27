@@ -4,7 +4,7 @@ Local-first shared household expense tracking with exact integer-poisha financia
 
 ## Current status
 
-The complete local application is finished and verified at the `pre-appwrite-local-v1` checkpoint: simulated development identities, household onboarding and management, expenses with receipts, settlements, private cards, dashboard/analytics/monthly reports, receipt retention, settled-history locks, OCC/idempotency hardening, and a responsive accessible UI. Production backend integration (Appwrite), real authentication, scheduled server-side retention, and deployment are intentionally not implemented and remain separately gated phases.
+The complete local application is frozen at tag `local-mvp-v1`. Appwrite foundation, production authentication/session, and the read-only production data plane are committed on `feature/phase-13-appwrite`; live schema v2 and provider transaction semantics are verified. The authorized R2 Household command core is in progress in the uncommitted working tree. Financial writes, receipt Storage/retention, final security QA, and deployment remain gated R3-R5 work. See [`docs/ai/work/EARLIEST_PRODUCTION_PLAN.md`](docs/ai/work/EARLIEST_PRODUCTION_PLAN.md) for the current critical path.
 
 ## Commands
 
@@ -37,6 +37,6 @@ Presentation -> Application -> Domain
 
 Charts are isolated to a single lazily loaded boundary (`presentation/analytics/analytics-charts*.client.tsx`); Recharts never enters the initial Dashboard/Report route graphs.
 
-Appwrite is prohibited until Phase 13 is separately authorized.
+Appwrite work is restricted to the currently authorized release phase; completing one release phase does not authorize the next.
 
 Project decisions and phase authorization live in [`docs/ai`](docs/ai/README.md).

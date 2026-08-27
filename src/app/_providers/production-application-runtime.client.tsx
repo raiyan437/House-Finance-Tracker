@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ApplicationError } from "@/application/errors/application-error";
@@ -30,7 +30,7 @@ import type {
   ReceiptView,
 } from "@/application/services/application-services";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
-import type { CardId, ExpenseId, HouseholdId, SettlementId } from "@/domain/shared/identifiers";
+import type { CardId, CommandId, ExpenseId, HouseholdId, JoinRequestId, SettlementId, UserId } from "@/domain/shared/identifiers";
 import { Surface } from "@/presentation/components/surface";
 import {
   ApplicationRuntimeProvider,
@@ -123,8 +123,26 @@ function UnavailableScreen({ onRetry }: Readonly<{ onRetry: () => void }>) {
 function buildReadyState(
   bootstrap: ProductionBootstrapPayload,
   signOut: () => Promise<void>,
+  refresh: () => Promise<void>,
 ): ApplicationRuntimeState {
   const { session, household, capabilities, businessDate } = bootstrap;
+
+  const retryCommandIds = new Map<string, string>();
+  const postCommand = async (path: string, body: Record<string, unknown>): Promise<void> => {
+    await requestJson(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await refresh();
+  };
+  const postGeneratedCommand = async (path: string, intent: Record<string, unknown>): Promise<void> => {
+    const retryKey = `${path}:${JSON.stringify(intent)}`;
+    const commandId = retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+    retryCommandIds.set(retryKey, commandId);
+    await postCommand(path, { ...intent, commandId });
+    retryCommandIds.delete(retryKey);
+  };
 
   const householdActions: HouseholdApplicationActions = Object.freeze({
     generateCode: () => requestJson<string>("/api/app/household-code-candidate"),
@@ -134,17 +152,17 @@ function buildReadyState(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code }),
       }),
-    createHousehold: () => commandUnavailable(),
-    requestToJoin: () => commandUnavailable(),
-    cancelJoinRequest: () => commandUnavailable(),
-    acceptJoinRequest: () => commandUnavailable(),
-    rejectJoinRequest: () => commandUnavailable(),
-    leaveHousehold: () => commandUnavailable(),
-    renameHousehold: () => commandUnavailable(),
-    removeMember: () => commandUnavailable(),
-    transferLeadership: () => commandUnavailable(),
-    deleteHousehold: () => commandUnavailable(),
-    refresh: async () => undefined,
+    createHousehold: (name: string, code: string, commandId: CommandId) => postCommand("/api/app/household-create", { name, code, commandId }),
+    requestToJoin: (householdId: HouseholdId, commandId: CommandId) => postCommand("/api/app/household-request-join", { householdId, commandId }),
+    cancelJoinRequest: (joinRequestId: JoinRequestId) => postGeneratedCommand("/api/app/household-cancel-request", { joinRequestId }),
+    acceptJoinRequest: (joinRequestId: JoinRequestId) => postGeneratedCommand("/api/app/household-accept-request", { joinRequestId }),
+    rejectJoinRequest: (joinRequestId: JoinRequestId) => postGeneratedCommand("/api/app/household-reject-request", { joinRequestId }),
+    leaveHousehold: () => postGeneratedCommand("/api/app/household-leave", {}),
+    renameHousehold: (name: string) => postGeneratedCommand("/api/app/household-rename", { name }),
+    removeMember: (memberId: UserId) => postGeneratedCommand("/api/app/household-remove-member", { memberId }),
+    transferLeadership: (memberId: UserId) => postGeneratedCommand("/api/app/household-transfer-leadership", { memberId }),
+    deleteHousehold: () => postGeneratedCommand("/api/app/household-delete", {}),
+    refresh,
   });
 
   const expenseActions: ExpenseApplicationActions = Object.freeze({
@@ -215,6 +233,7 @@ function buildReadyState(
 export function ProductionApplicationRuntime({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<ApplicationRuntimeState>({ status: "loading" });
   const [anonymous, setAnonymous] = useState(false);
+  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
 
   const refresh = useCallback(async () => {
     try {
@@ -227,15 +246,19 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
         }
         setAnonymous(true);
       };
-      setState(buildReadyState(bootstrap, signOut));
+      setState(buildReadyState(bootstrap, signOut, () => refreshRef.current()));
     } catch (error) {
       if (isStatusFailure(error) && (error.status === 401 || error.status === 403)) {
         setAnonymous(true);
         return;
       }
-      setState({ status: "error", message: "Your data could not be loaded right now.", retry: () => void refresh() });
+      setState({ status: "error", message: "Your data could not be loaded right now.", retry: () => void refreshRef.current() });
     }
   }, []);
+
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   useEffect(() => {
     void refresh();
