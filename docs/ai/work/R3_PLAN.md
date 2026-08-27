@@ -1,6 +1,6 @@
 # R3 Plan - Production Financial Commands (Cards -> Expenses -> Settlements)
 
-**Status:** APPROVED for implementation on 2026-08-27. Baseline: R2 checkpoint `9ecd4d3`. R4 remains unauthorized.
+**Status:** IMPLEMENTED and verified on 2026-08-27; uncommitted for owner review. Baseline: R2 checkpoint `9ecd4d3`; planning checkpoint `42590b64d9c8ad7c3628dbdd08d94783d298b6a8`. R4 remains unauthorized.
 
 ## Objective and order
 
@@ -104,3 +104,12 @@ The retained live journey uses the existing Leader/Member Household and real app
 ## Stop boundary
 
 At R3 completion, update verified release/AIDOS evidence and leave all R3 implementation changes uncommitted for owner review. Do not implement R4 receipts, deploy, merge to `main`, or modify `local-mvp-v1`.
+
+## R3 implementation evidence (2026-08-27)
+
+- Schema V4's live dry-run contained only the approved two safe string widenings and one optional private-snapshot column create. The external row backup and checksums verified before apply; readiness completed before metadata changed from 3 to 4. The post-apply plan is clean with zero create, drift, provisioning, or errors.
+- Ten production financial routes are active: Card Create/Edit/Remove; Expense Create/Edit/Delete; Settlement Create/Confirm/Reject/Cancel. The browser uses the R2 same-origin trusted command envelope; Card, Expense, and Settlement capabilities are enabled while both Receipt capabilities remain disabled.
+- Every external mutation is protected by command ID plus SHA-256 canonical intent, with same-intent lost-response replay and changed-intent rejection. Expense revision OCC, Card version/OCC, the shared Household financial guard, stable Card-guard ordering, and unordered Pending-pair guards are exercised by focused rollback/race coverage.
+- Measured staged-operation maxima are Card Create/Edit/Remove 3; Expense Create 6 with a Card snapshot (4 Cash), Expense Edit 7 for Card A -> Card B, Expense Delete 5 with a Card association; Settlement Create/Confirm/Reject/Cancel 5. The R3 maximum is 7, well below the provider ceiling of 100.
+- The retained live journey passed with the existing Leader and Member: owner-private Card creation and cross-user invisibility; a Card-paid BDT 10.01 Equal Expense split as BDT 5.01/5.00; exact BDT 5.00 recommendation; Pending with zero balance effect; receiver confirmation to zero balances; financial edit blocked after confirmation; name-only edit accepted; all states persisted after reload.
+- Automated evidence: focused command-kernel operation-count suite 28/28; full Vitest 662/662 across 81 files at unchanged per-test timeouts; architecture boundaries 28/28. TypeScript, ESLint, production build, dependency audit, client-secret audit, and diff-check are green. Chromium R3 workflows and Axe passed; Firefox and WebKit smoke passed; the production anonymous cross-browser/Axe matrix passed 9/9.

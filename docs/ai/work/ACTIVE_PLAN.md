@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B, R1, and R2 are committed. R3 Cards -> Expenses -> Settlements is owner-approved for implementation in the exact slices recorded in `R3_PLAN.md`; R4-R5 remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
+The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B, R1, and R2 are committed. R3 Cards -> Expenses -> Settlements is implemented and verified in the exact slices recorded in `R3_PLAN.md`, and remains uncommitted for owner review. R4-R5 remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
 
 ## Reconciliation findings
 
@@ -217,7 +217,7 @@ Complete responsive behavior, accessibility audit, empty/loading/error/success s
 
 ### Phase 13 - Appwrite architecture and integration
 
-**Plan status (2026-08-27): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 checkpointed as `9ecd4d3`. R3 is owner-approved for implementation in the order Schema V4/shared foundation -> Cards -> Expense Create -> Expense Edit/Delete -> Settlements -> live two-account/regression. The exact scope and stop boundary are recorded in `R3_PLAN.md`. Schema V3 is live and clean at entry; Household production workflows remain enabled while Card, Expense, Settlement, and Receipt mutations remain disabled until their respective gates. R4 remains unauthorized.**
+**Plan status (2026-08-27): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 checkpointed as `9ecd4d3`; R3 planning checkpointed as `42590b64d9c8ad7c3628dbdd08d94783d298b6a8`. R3 Schema V4/shared foundation, Cards, Expense Create, Expense Edit/Delete, Settlements, and live two-account/regression are implemented and verified. Live Schema V4 is clean; Household, Card, Expense, and Settlement mutations are enabled while Receipt mutations/content reads remain disabled. R3 implementation remains uncommitted for owner review. R4 remains unauthorized.**
 
 #### R2 SIMPLIFICATION - Owner Decision (2026-08-26)
 

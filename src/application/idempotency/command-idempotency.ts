@@ -10,6 +10,14 @@ export const COMMAND_TYPES = [
   "create-pending-settlement",
   "upload-receipt",
   "create-card",
+  // R3 financial delivery: every externally submitted mutation is replay-safe.
+  "edit-card",
+  "remove-card",
+  "edit-expense",
+  "delete-expense",
+  "confirm-settlement",
+  "reject-settlement",
+  "cancel-settlement",
   // R2 household lifecycle delivery (lost-response safety for every external mutation).
   "cancel-join-request",
   "accept-join-request",

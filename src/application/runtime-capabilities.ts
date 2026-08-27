@@ -50,3 +50,21 @@ export const PRODUCTION_R2_CAPABILITIES: ProductCapabilities = Object.freeze({
   receiptContentReads: false,
   profileMutations: false,
 });
+
+/** R3B production plane: Cards are complete; financial Household writes remain gated. */
+export const PRODUCTION_R3_CARD_CAPABILITIES: ProductCapabilities = Object.freeze({
+  ...PRODUCTION_R2_CAPABILITIES,
+  cardMutations: true,
+});
+
+/** R3C/D production plane: Cards and Expenses are complete; Settlement writes remain gated. */
+export const PRODUCTION_R3_EXPENSE_CAPABILITIES: ProductCapabilities = Object.freeze({
+  ...PRODUCTION_R3_CARD_CAPABILITIES,
+  expenseMutations: true,
+});
+
+/** R3E production plane: all approved financial commands are complete; R4 Receipt actions remain gated. */
+export const PRODUCTION_R3_CAPABILITIES: ProductCapabilities = Object.freeze({
+  ...PRODUCTION_R3_EXPENSE_CAPABILITIES,
+  settlementMutations: true,
+});

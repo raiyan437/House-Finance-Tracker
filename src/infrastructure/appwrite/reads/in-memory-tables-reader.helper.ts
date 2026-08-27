@@ -164,6 +164,28 @@ export class InMemoryTablesReader implements TablesReader {
     Object.assign(row, data);
   }
 
+  stageUpsertRow(_databaseId: string, tableId: string, rowId: string, data: Record<string, unknown>, txId?: string): void {
+    const current = txId
+      ? this.overlay(txId)?.get(tableId)?.get(rowId) ?? this.table(tableId).find((row) => row.$id === rowId)
+      : this.table(tableId).find((row) => row.$id === rowId);
+    const row = {
+      ...(current && current !== DELETED ? current : {}),
+      $id: rowId,
+      ...(data as Record<string, unknown>),
+    } as AppwriteRow;
+    if (txId) {
+      this.stage(txId, tableId, rowId, row);
+      return;
+    }
+    const rows = this.table(tableId);
+    const index = rows.findIndex((entry) => entry.$id === rowId);
+    if (index >= 0) rows[index] = row;
+    else {
+      this.assertUniqueOnSet(tableId, [row]);
+      rows.push(row);
+    }
+  }
+
   stageDeleteRow(_databaseId: string, tableId: string, rowId: string, txId?: string): void {
     if (txId) {
       this.stage(txId, tableId, rowId, DELETED);
@@ -273,6 +295,10 @@ export function createInMemoryTablesDB(reader: InMemoryTablesReader) {
       },
       async updateRow(input: { databaseId: string; tableId: string; rowId: string; data: Record<string, unknown>; transactionId?: string }) {
         reader.stageUpdateRow(input.databaseId, input.tableId, input.rowId, input.data, input.transactionId);
+        return { $id: input.rowId };
+      },
+      async upsertRow(input: { databaseId: string; tableId: string; rowId: string; data: Record<string, unknown>; transactionId?: string }) {
+        reader.stageUpsertRow(input.databaseId, input.tableId, input.rowId, input.data, input.transactionId);
         return { $id: input.rowId };
       },
       async deleteRow(input: { databaseId: string; tableId: string; rowId: string; transactionId?: string }) {

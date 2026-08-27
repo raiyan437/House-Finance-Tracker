@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { BUCKET, DATABASE_ID, HOUSEHOLD_NAME_STORAGE_CAPACITY, MAINTENANCE_FUNCTION, TABLES } from "../schema/definitions";
+import {
+  BUCKET,
+  CARD_NAME_STORAGE_CAPACITY,
+  DATABASE_ID,
+  EXPENSE_NAME_STORAGE_CAPACITY,
+  HOUSEHOLD_NAME_STORAGE_CAPACITY,
+  MAINTENANCE_FUNCTION,
+  TABLES,
+} from "../schema/definitions";
 import { planSchemaApplication, type AppwriteSchemaReader, type ExistingColumn } from "./planner";
 
 function readerFrom(state: {
@@ -87,8 +95,45 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved capacity is present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("plans exactly the approved Schema V4 delta from a clean Schema V3 project", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.cards = { columnOverrides: { name: { size: 64 } } };
+    tables.expenses = { columnOverrides: { name: { size: 64 } } };
+    tables.expense_card_private_details = {
+      columns: TABLES.find((table) => table.id === "expense_card_private_details")!.columns
+        .map((column) => column.key)
+        .filter((key) => key !== "cardName"),
+    };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 3 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([
+      { tableId: "expenses", columnKey: "name", fromSize: 64, toSize: EXPENSE_NAME_STORAGE_CAPACITY, required: true },
+      { tableId: "cards", columnKey: "name", fromSize: 64, toSize: CARD_NAME_STORAGE_CAPACITY, required: true },
+    ]);
+    expect(plan.tables).toHaveLength(1);
+    expect(plan.tables[0]).toMatchObject({
+      tableExists: true,
+      table: { id: "expense_card_private_details" },
+      columns: [{ key: "cardName", kind: "string", size: 16_383, required: false }],
+      indexes: [],
+    });
+    expect(plan.drifts).toEqual([]);
+    expect(plan.provisioning).toEqual([]);
+    expect(plan.errors).toEqual([]);
+    expect(plan.createMetadataRow).toBe(true);
+    expect(plan.metadataRowVersion).toBe(3);
+  });
+
+  it("is idempotent after the approved Schema V4 capacities and private column are present", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
   });

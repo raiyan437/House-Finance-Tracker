@@ -133,10 +133,17 @@ export function mapExpense(raw: unknown): Expense {
 
 export function mapPrivateExpenseCard(raw: unknown): ExpenseCardPrivateSnapshot {
   return malformed("expense_card_private_details", () => {
-    const value = z.object({ ownerId: trimmed, cardId: trimmed, snapshotJson: z.string(), createdAt: z.string() }).passthrough().parse(raw);
+    const value = z.object({ ownerId: trimmed, cardId: trimmed, cardName: z.string().optional().nullable(), snapshotJson: z.string(), createdAt: z.string() }).passthrough().parse(raw);
     providerInstant(value.createdAt);
-    const snapshot = json(value.snapshotJson, z.object({ cardName: trimmed, cardType: z.enum(["debit", "credit"]), colorId: trimmed }).strict());
-    const result = { expenseId: expenseId(rowId(raw)), ownerId: userId(value.ownerId), cardId: cardId(value.cardId), cardName: snapshot.cardName, cardType: snapshot.cardType, colorId: cardColorId(snapshot.colorId) };
+    const snapshot = json(value.snapshotJson, z.union([
+      z.object({ cardType: z.enum(["debit", "credit"]), colorId: trimmed }).strict(),
+      z.object({ cardName: trimmed, cardType: z.enum(["debit", "credit"]), colorId: trimmed }).strict(),
+    ]));
+    const separateName = value.cardName?.trim();
+    const legacyName = "cardName" in snapshot ? snapshot.cardName : undefined;
+    const cardName = separateName || legacyName;
+    if (!cardName) throw new Error("Private Card snapshot name is missing.");
+    const result = { expenseId: expenseId(rowId(raw)), ownerId: userId(value.ownerId), cardId: cardId(value.cardId), cardName, cardType: snapshot.cardType, colorId: cardColorId(snapshot.colorId) };
     assertExpenseCardPrivateSnapshot(result); return Object.freeze(result);
   }) as ExpenseCardPrivateSnapshot;
 }

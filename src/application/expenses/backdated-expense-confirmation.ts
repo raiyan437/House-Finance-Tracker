@@ -15,6 +15,11 @@ export interface BackdatedExpenseConfirmationPayload {
   readonly qualifyingSettlementResolvedAt: IsoInstant;
 }
 
+export interface BackdatedExpenseConfirmationAuthority {
+  issue(payload: BackdatedExpenseConfirmationPayload): string;
+  verify(token: string, payload: BackdatedExpenseConfirmationPayload): boolean;
+}
+
 function localOpaqueDigest(value: string): string {
   let hash = BigInt("14695981039346656037");
   const prime = BigInt("1099511628211");
@@ -44,3 +49,8 @@ export function localBackdatedConfirmationToken(
 ): string {
   return `local-backdated-v1.${localOpaqueDigest(canonicalIntent(payload))}`;
 }
+
+export const LOCAL_BACKDATED_CONFIRMATION_AUTHORITY: BackdatedExpenseConfirmationAuthority = Object.freeze({
+  issue: localBackdatedConfirmationToken,
+  verify: (token: string, payload: BackdatedExpenseConfirmationPayload) => token === localBackdatedConfirmationToken(payload),
+});

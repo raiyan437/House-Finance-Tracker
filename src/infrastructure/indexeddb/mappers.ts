@@ -1,5 +1,5 @@
 import { ApplicationError } from "@/application/errors/application-error";
-import { assertCommandOutcome, type CommandOutcome } from "@/application/idempotency/command-idempotency";
+import { assertCommandOutcome, COMMAND_TYPES, type CommandOutcome } from "@/application/idempotency/command-idempotency";
 import { expenseDate } from "@/domain/dates/expense-date";
 import { CARD_COLOR_IDS, LEGACY_CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
@@ -129,7 +129,7 @@ const cardSchema = z.object({ recordVersion: cardRecordVersion, id: idText, owne
 const receiptSchemaV1 = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
 const receiptSchema = z.object({ recordVersion: z.literal(2), id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, contentStatus: z.enum(["available", "user-deleted", "retention-expired"]), contentRemovedAt: instantText.optional(), contentRemovedByUserId: idText.optional() }).strict();
 const auditSchema = z.object({ recordVersion, id: idText, householdId: idText, actorId: idText, aggregateType: z.enum(["household", "membership", "join-request", "expense", "settlement", "card", "receipt"]), aggregateId: trimmed, action: trimmed, occurredAt: instantText, changedFields: z.array(trimmed) }).strict();
-const commandOutcomeSchema = z.object({ recordVersion, key: trimmed, actorId: idText, commandType: z.enum(["create-expense", "create-household", "send-join-request", "create-pending-settlement", "upload-receipt", "create-card"]), commandId: idText, intentDigest: trimmed, resourceId: idText, completedAt: instantText }).strict();
+const commandOutcomeSchema = z.object({ recordVersion, key: trimmed, actorId: idText, commandType: z.enum(COMMAND_TYPES), commandId: idText, intentDigest: trimmed, resourceId: idText, completedAt: instantText }).strict();
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown, store: string, key?: string): T {
   const result = schema.safeParse(value);

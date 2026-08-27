@@ -1,6 +1,6 @@
 # Production Release Plan - five gated phases (R1-R5)
 
-**Status:** Owner-directed consolidation created 2026-08-26. R1 is committed and accepted; R2 is authorized and in progress in the uncommitted working tree. This document maps the release contract into exactly five phases. The concise fastest-path execution view is `EARLIEST_PRODUCTION_PLAN.md`. Each phase still requires separate owner authorization; completing one phase never authorizes the next.
+**Status:** R1 and R2 are committed and accepted. R3 Cards -> Expenses -> Settlements is implemented, verified, and uncommitted for owner review. R4 and R5 remain unauthorized. This document maps the release contract into exactly five phases. The concise fastest-path execution view is `EARLIEST_PRODUCTION_PLAN.md`. Each phase still requires separate owner authorization; completing one phase never authorizes the next.
 
 ## Release definition (what "production release" means here)
 
@@ -12,9 +12,9 @@ All four approved accounts can log in; the single production Household operates 
 
 ## Entry state (today)
 
-- 13A/13B and R1 are committed; schema v2 is applied and the business tables were verified empty.
-- R2 provider semantics and command kernel are implemented in the uncommitted tree; browser transport, capability enablement, complete surface/adversarial coverage, and live acceptance remain open.
-- Architecture guards enforce current boundaries; local composition remains the frozen MVP baseline. The current worktree has green lint and focused command/architecture tests (46/46), but typecheck is blocked by `scripts/appwrite-restore.mts:33` until its optional argument is guarded before use.
+- 13A/13B, R1, and R2 are committed; R3 planning is checkpointed at `42590b64d9c8ad7c3628dbdd08d94783d298b6a8`.
+- Live Schema V4 is applied and clean. R3 Card, Expense, and Settlement command/browser surfaces are enabled and verified; Receipt mutations/content reads remain disabled.
+- Architecture guards enforce the established boundaries; the frozen local composition remains unchanged. R3 implementation and evidence are intentionally uncommitted for owner review.
 
 ---
 
@@ -75,6 +75,8 @@ All four approved accounts can log in; the single production Household operates 
 - `APPWRITE_BACKUP_DIR` used for backup storage outside repository
 
 ## R3 - Financial feature commands: expenses, cards, settlements
+
+**Status (2026-08-27): IMPLEMENTED and verified; uncommitted for owner review.** Live Schema V4 is clean, all three R3 capability families are enabled, the retained two-account journey passed, and R4 remains unauthorized.
 
 **Goal:** turn the read-only financial screens into working workflows without weakening a single frozen rule.
 

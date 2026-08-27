@@ -200,7 +200,7 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
           migration.columnKey === column.key &&
           migration.fromSize === existing.size &&
           migration.toSize === column.size &&
-          migration.schemaVersion === SCHEMA_VERSION,
+          migration.schemaVersion <= SCHEMA_VERSION,
       );
       if (!approved) {
         drifts.push(`Column ${definition.id}.${column.key} capacity increase ${existing.size} -> ${column.size} is not explicitly approved.`);

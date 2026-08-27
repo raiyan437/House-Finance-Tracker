@@ -32,14 +32,15 @@ export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 /**
- * v3 (R2): non-destructively widens the existing required households.name
- * provider column from 64 to 16,383 characters. This is storage capacity, not
- * a product validation rule; Household names remain trimmed and non-empty with
- * no approved product maximum.
+ * v4 (R3): non-destructively widens the existing required Card and Expense
+ * name columns and adds separate capacity for the private historical Card name.
+ * These values are provider storage capacities, never product validation rules.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export const SCHEMA_METADATA_ROW_ID = "active";
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
+export const CARD_NAME_STORAGE_CAPACITY = 16_383;
+export const EXPENSE_NAME_STORAGE_CAPACITY = 16_383;
 
 /** Explicitly authorized non-destructive provider migrations only. */
 export const SAFE_STRING_CAPACITY_INCREASES = Object.freeze([
@@ -49,6 +50,20 @@ export const SAFE_STRING_CAPACITY_INCREASES = Object.freeze([
     fromSize: 64,
     toSize: HOUSEHOLD_NAME_STORAGE_CAPACITY,
     schemaVersion: 3,
+  }),
+  Object.freeze({
+    tableId: "cards",
+    columnKey: "name",
+    fromSize: 64,
+    toSize: CARD_NAME_STORAGE_CAPACITY,
+    schemaVersion: 4,
+  }),
+  Object.freeze({
+    tableId: "expenses",
+    columnKey: "name",
+    fromSize: 64,
+    toSize: EXPENSE_NAME_STORAGE_CAPACITY,
+    schemaVersion: 4,
   }),
 ]);
 
@@ -140,7 +155,7 @@ export const TABLES: readonly TableDefinition[] = [
       bigInteger("amountPoisha", true),
       text("payerId", 64, true),
       enumeration("splitMethod", ["equal", "amount", "percentage"], true),
-      text("name", 64, true),
+      text("name", EXPENSE_NAME_STORAGE_CAPACITY, true),
       enumeration("paymentMethod", ["cash", "card"], true),
       text("paymentRefJson", 512, true),
       text("allocationsJson", 1024, true),
@@ -163,6 +178,7 @@ export const TABLES: readonly TableDefinition[] = [
     columns: [
       text("ownerId", 64, true),
       text("cardId", 64, true),
+      text("cardName", CARD_NAME_STORAGE_CAPACITY, false),
       text("snapshotJson", 2048, true),
       iso("createdAt", true),
     ],
@@ -193,7 +209,7 @@ export const TABLES: readonly TableDefinition[] = [
     name: "Cards",
     columns: [
       text("ownerId", 64, true),
-      text("name", 64, true),
+      text("name", CARD_NAME_STORAGE_CAPACITY, true),
       text("design", 32, true),
       enumeration("type", ["debit", "credit"], true),
       enumeration("status", ["active", "archived"], true),

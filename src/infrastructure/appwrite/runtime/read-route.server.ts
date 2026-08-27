@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { ApplicationError } from "@/application/errors/application-error";
+import { ApplicationError, BackdatedExpenseConfirmationRequiredError } from "@/application/errors/application-error";
 import { serializeWithBigInt } from "@/application/transport/json-bigint";
 import { DomainError } from "@/domain/shared/domain-error";
 import { TransactionFailure } from "./tx-errors.server";
@@ -23,19 +23,29 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
       : { status: 400, body: { error: error.message } };
   }
   if (error instanceof ApplicationError || error instanceof DomainError) {
+    if (error instanceof BackdatedExpenseConfirmationRequiredError) {
+      return {
+        status: 409,
+        body: {
+          error: error.message,
+          code: error.code,
+          confirmationToken: error.confirmationToken,
+        },
+      };
+    }
     switch (error.code) {
       case "NOT_FOUND":
-        return { status: 404, body: { error: "Not found." } };
+        return { status: 404, body: { error: "Not found.", code: error.code } };
       case "CONFLICT":
       case "HOUSEHOLD_STATE_CHANGED":
       case "EXPENSE_VERSION_CONFLICT":
       case "IDEMPOTENCY_KEY_REUSED":
       case "IDEMPOTENCY_IN_PROGRESS":
-        return { status: 409, body: { error: error.message } };
+        return { status: 409, body: { error: error.message, code: error.code } };
       case "INVALID_HOUSEHOLD_CODE":
       case "INVALID_INPUT":
       case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":
-        return { status: 400, body: { error: error.message } };
+        return { status: 400, body: { error: error.message, code: error.code } };
       case "MALFORMED_PERSISTED_DATA":
         console.error("[product-read] malformed persisted data", { store: error.context?.store ?? "unknown" });
         return { status: 500, body: { error: "Stored data could not be interpreted." } };

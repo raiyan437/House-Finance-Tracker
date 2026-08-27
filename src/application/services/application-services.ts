@@ -1,5 +1,10 @@
 import { ApplicationError, BackdatedExpenseConfirmationRequiredError } from "../errors/application-error";
-import { expenseRelevantIntentDigest, localBackdatedConfirmationToken } from "../expenses/backdated-expense-confirmation";
+import {
+  expenseRelevantIntentDigest,
+  LOCAL_BACKDATED_CONFIRMATION_AUTHORITY,
+  type BackdatedExpenseConfirmationAuthority,
+  type BackdatedExpenseConfirmationPayload,
+} from "../expenses/backdated-expense-confirmation";
 import { assertIdempotentIntent, binaryContentDigest, canonicalIntentDigest, type IdempotencyDescriptor } from "../idempotency/command-idempotency";
 import { HouseholdAnalyticsApplicationService } from "../analytics/analytics-service";
 import {
@@ -124,6 +129,18 @@ export interface Dependencies {
   readonly session: CurrentSession;
   readonly values: ApplicationValues;
   readonly receiptContentDecoder?: ReceiptContentDecoder;
+  readonly backdatedConfirmationAuthority?: BackdatedExpenseConfirmationAuthority;
+}
+
+function requireBackdatedConfirmation(
+  deps: Dependencies,
+  payload: BackdatedExpenseConfirmationPayload,
+  providedToken: string | undefined,
+): void {
+  const authority = deps.backdatedConfirmationAuthority ?? LOCAL_BACKDATED_CONFIRMATION_AUTHORITY;
+  if (!providedToken || !authority.verify(providedToken, payload)) {
+    throw new BackdatedExpenseConfirmationRequiredError(authority.issue(payload));
+  }
 }
 
 function event(values: ApplicationValues, household: HouseholdId, actor: UserId, aggregateType: AuditEvent["aggregateType"], aggregateId: string, action: string, changedFields: readonly string[], occurredAt = values.now()): AuditEvent {
@@ -727,7 +744,7 @@ export class ExpenseApplicationService {
     const settlements = await this.deps.repositories.settlements.listByHousehold(command.householdId);
     const backdatedBoundary = latestConfirmedSettlementBefore(command.householdId, now, settlements);
     if (isBackdatedAfterSettlement(expense.expenseDate, backdatedBoundary)) {
-      const token = localBackdatedConfirmationToken({
+      const payload = {
         actorId: actor,
         commandType: "create-expense",
         commandId: activeCommandId,
@@ -735,10 +752,8 @@ export class ExpenseApplicationService {
         proposedExpenseDate: expense.expenseDate,
         qualifyingSettlementId: backdatedBoundary!.settlementId,
         qualifyingSettlementResolvedAt: backdatedBoundary!.resolvedAt,
-      });
-      if (command.backdatedConfirmationToken !== token) {
-        throw new BackdatedExpenseConfirmationRequiredError(token);
-      }
+      } satisfies BackdatedExpenseConfirmationPayload;
+      requireBackdatedConfirmation(this.deps, payload, command.backdatedConfirmationToken);
     }
     await Promise.all((command.receipts ?? []).map((item) => validateReceiptContent(item.content, this.deps.receiptContentDecoder)));
     const receipts = (command.receipts ?? []).map((item) => { const metadata: ReceiptMetadata = { receiptId: receiptId(this.deps.values.nextId("receipt")), householdId: command.householdId, expenseId: id, createdByUserId: actor, mimeType: item.content.mimeType, ...(item.originalFilename ? { originalFilename: item.originalFilename.trim() } : {}), sizeBytes: item.content.bytes.byteLength, createdAt: now, contentStatus: "available" }; assertReceiptMetadata(metadata); return { metadata, content: item.content }; });
@@ -780,6 +795,14 @@ export class ExpenseApplicationService {
   async editExpense(command: EditExpenseCommand): Promise<ExpenseView> {
     const actor = await this.deps.session.getCurrentUserId();
     const activeCommandId = command.commandId ?? commandId(this.deps.values.nextId("command"));
+    const editIntent = Object.fromEntries(Object.entries(command).filter(([key]) => key !== "commandId"));
+    const delivery: IdempotencyDescriptor = { actorId: actor, commandType: "edit-expense", commandId: activeCommandId, intentDigest: canonicalIntentDigest(editIntent) };
+    const replay = await this.deps.repositories.commandOutcomes.get(delivery);
+    if (replay) {
+      assertIdempotentIntent(replay, delivery);
+      if (replay.resourceId !== command.expenseId) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      return this.getExpense(command.expenseId);
+    }
     const original = await this.deps.repositories.expenses.getById(command.expenseId);
     if (!original || original.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
     const [memberships, settlements] = await Promise.all([
@@ -881,7 +904,7 @@ export class ExpenseApplicationService {
     if (financialChanged) {
       const boundary = latestConfirmedSettlementBefore(original.householdId, commandInstant, settlements);
       if (isBackdatedAfterSettlement(proposed.expenseDate, boundary)) {
-        const token = localBackdatedConfirmationToken({
+        const payload = {
           actorId: actor,
           commandType: "edit-expense",
           commandId: activeCommandId,
@@ -889,10 +912,8 @@ export class ExpenseApplicationService {
           proposedExpenseDate: proposed.expenseDate,
           qualifyingSettlementId: boundary!.settlementId,
           qualifyingSettlementResolvedAt: boundary!.resolvedAt,
-        });
-        if (command.backdatedConfirmationToken !== token) {
-          throw new BackdatedExpenseConfirmationRequiredError(token);
-        }
+        } satisfies BackdatedExpenseConfirmationPayload;
+        requireBackdatedConfirmation(this.deps, payload, command.backdatedConfirmationToken);
       }
     }
     const updated: Expense = { ...proposed, revision: original.revision + 1, updatedAt: commandInstant };
@@ -952,8 +973,16 @@ export class ExpenseApplicationService {
     );
   }
 
-  async deleteExpense(id: ExpenseId, expectedRevision: number): Promise<void> {
+  async deleteExpense(id: ExpenseId, expectedRevision: number, requestedCommandId?: CommandId): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
+    const activeCommandId = requestedCommandId ?? commandId(this.deps.values.nextId("command"));
+    const delivery: IdempotencyDescriptor = { actorId: actor, commandType: "delete-expense", commandId: activeCommandId, intentDigest: canonicalIntentDigest({ expenseId: id, expectedRevision }) };
+    const replay = await this.deps.repositories.commandOutcomes.get(delivery);
+    if (replay) {
+      assertIdempotentIntent(replay, delivery);
+      if (replay.resourceId !== id) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      return;
+    }
     const original = await this.deps.repositories.expenses.getById(id);
     if (!original || original.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
     const [memberships, settlements] = await Promise.all([
@@ -1007,7 +1036,7 @@ export class ExpenseApplicationService {
       paymentMethod: deleted.payment.method,
       ...(cardAssociationIdentity ? { cardAssociationIdentity } : {}),
     });
-    await this.deps.atomic.editExpense({ expectedExpenseId: original.expenseId, expense: deleted, actorId: actor, commandId: commandId(this.deps.values.nextId("command")), relevantIntentDigest, backdatedConfirmationApplicable: false, expectedRevision, auditEvents: [event(this.deps.values, original.householdId, actor, "expense", id, "deleted", ["deletedAt"], now)] });
+    await this.deps.atomic.editExpense({ expectedExpenseId: original.expenseId, expense: deleted, actorId: actor, commandId: activeCommandId, relevantIntentDigest, backdatedConfirmationApplicable: false, expectedRevision, auditEvents: [event(this.deps.values, original.householdId, actor, "expense", id, "deleted", ["deletedAt"], now)] });
   }
 
   private view(
@@ -1150,8 +1179,18 @@ export class SettlementApplicationService {
   async transitionSettlement(
     id: SettlementId,
     status: Exclude<SettlementStatus, "pending">,
+    requestedCommandId?: CommandId,
   ): Promise<void> {
     const actor = await this.deps.session.getCurrentUserId();
+    const activeCommandId = requestedCommandId ?? commandId(this.deps.values.nextId("command"));
+    const commandType = status === "confirmed" ? "confirm-settlement" : status === "rejected" ? "reject-settlement" : "cancel-settlement";
+    const delivery: IdempotencyDescriptor = { actorId: actor, commandType, commandId: activeCommandId, intentDigest: canonicalIntentDigest({ settlementId: id, status }) };
+    const replay = await this.deps.repositories.commandOutcomes.get(delivery);
+    if (replay) {
+      assertIdempotentIntent(replay, delivery);
+      if (replay.resourceId !== id) throw new ApplicationError("NOT_FOUND", "Settlement not found.");
+      return;
+    }
     const current = await this.deps.repositories.settlements.getById(id);
     if (!current) throw new ApplicationError("NOT_FOUND", "Settlement not found.");
     await requireActiveMembership(this.deps.repositories, current.householdId, actor);
@@ -1239,8 +1278,18 @@ export class CardApplicationService {
     name: string;
     type: Card["type"];
     colorId: CardColorId;
+    commandId?: CommandId;
   }>): Promise<MyCardSummaryView> {
     const actor = await this.deps.session.getCurrentUserId();
+    const activeCommandId = input.commandId ?? commandId(this.deps.values.nextId("command"));
+    const delivery: IdempotencyDescriptor = { actorId: actor, commandType: "edit-card", commandId: activeCommandId, intentDigest: canonicalIntentDigest({ cardId: id, name: input.name.trim(), type: input.type, colorId: input.colorId }) };
+    const replay = await this.deps.repositories.commandOutcomes.get(delivery);
+    if (replay) {
+      assertIdempotentIntent(replay, delivery);
+      const replayed = await this.deps.repositories.cards.getOwned(cardId(replay.resourceId), actor);
+      if (!replayed) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      return projectMyCard(replayed);
+    }
     const current = await this.deps.repositories.cards.getOwned(id, actor);
     if (!current || current.archivedAt) throw new ApplicationError("NOT_FOUND", "Card not found.");
     const updated: Card = {
@@ -1268,8 +1317,18 @@ export class CardApplicationService {
   async deleteOrArchiveMyCard(
     id: CardId,
     expectedAction: CardRemovalAction,
+    requestedCommandId?: CommandId,
   ): Promise<CardRemovalResult> {
     const actor = await this.deps.session.getCurrentUserId();
+    const activeCommandId = requestedCommandId ?? commandId(this.deps.values.nextId("command"));
+    const delivery: IdempotencyDescriptor = { actorId: actor, commandType: "remove-card", commandId: activeCommandId, intentDigest: canonicalIntentDigest({ cardId: id, expectedAction }) };
+    const replay = await this.deps.repositories.commandOutcomes.get(delivery);
+    if (replay) {
+      assertIdempotentIntent(replay, delivery);
+      const [action, resourceId] = replay.resourceId.split(":", 2);
+      if (resourceId !== id || (action !== "delete" && action !== "archive")) throw new ApplicationError("NOT_FOUND", "Card not found.");
+      return action === "delete" ? "deleted" : "archived";
+    }
     return this.deps.atomic.removeCard({
       cardId: id,
       ownerId: actor,

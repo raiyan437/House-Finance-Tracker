@@ -136,6 +136,10 @@ describe("strict provider row mappers", () => {
     }));
     expect(snapshot.expenseId).toBe("e1");
     expect(snapshot.colorId).toBe("red");
+    expect(mapPrivateExpenseCard(row("e2", {
+      ownerId: "u1", cardId: "c1", cardName: "Long Card Name", createdAt: INSTANT,
+      snapshotJson: JSON.stringify({ cardType: "credit", colorId: "blue" }),
+    }))).toMatchObject({ expenseId: "e2", cardName: "Long Card Name", cardType: "credit", colorId: "blue" });
     expect(() => mapPrivateExpenseCard(row("e1", { ownerId: "u1", cardId: "c1", createdAt: INSTANT, snapshotJson: "{\"colorId\":\"neon-pink\"}" }))).toThrow();
   });
 

@@ -6,9 +6,14 @@ import { runWithCommandEnvelope } from "./command-envelope.server";
 import { createInMemoryTablesDB, InMemoryTablesReader } from "../reads/in-memory-tables-reader.helper";
 import { guardRowId, membershipRowId } from "../ids";
 import { canonicalIntentDigest, type IdempotencyDescriptor } from "@/application/idempotency/command-idempotency";
-import { auditEventId, commandId, householdId, joinRequestId, userId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, commandId, expenseId, householdId, joinRequestId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
-import type { AuditEvent } from "@/domain/records/domain-records";
+import type { AuditEvent, Expense } from "@/domain/records/domain-records";
+import { expenseDate } from "@/domain/dates/expense-date";
+import { positivePoisha } from "@/domain/money/poisha";
+import { allocateEqualSplit } from "@/domain/splits/equal-split";
+import { expenseRelevantIntentDigest } from "@/application/expenses/backdated-expense-confirmation";
+import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 
 const T0 = isoInstant("2026-08-26T08:00:00.000Z");
 const T1 = isoInstant("2026-08-26T09:00:00.000Z");
@@ -17,7 +22,7 @@ const HH = householdId("h_house1");
 const LEADER = userId("u_raiyan");
 const JOHN = userId("u_john");
 const SARAH = userId("u_sarah");
-      const DANA = userId("u_dana");
+const DANA = userId("u_dana");
 const ALEX = userId("u_alex");
 
 let reader: InMemoryTablesReader;
@@ -58,6 +63,37 @@ function descriptor(actor: string, commandIdValue: string, intentSeed: unknown):
   };
 }
 
+function expenseRecord(id: string, payment: Expense["payment"] = { method: "cash" }): Expense {
+  const allocations = allocateEqualSplit(positivePoisha(300), [LEADER, JOHN]);
+  return {
+    expenseId: expenseId(id), householdId: HH, creatorId: LEADER, payerId: LEADER,
+    name: "Shared lunch", amount: positivePoisha(300), expenseDate: expenseDate("2026-08-26"),
+    splitMethod: "equal", allocations, payment, revision: 1, createdAt: T1, updatedAt: T1,
+  };
+}
+
+function expenseAudit(id: string, action = "created", instant = T1): AuditEvent {
+  return {
+    auditEventId: auditEventId(`a_${id}_${action}`), householdId: HH, actorId: LEADER,
+    aggregateType: "expense", aggregateId: id, action, occurredAt: instant, changedFields: ["expense"],
+  };
+}
+
+function pendingSettlement(id = "s_pending"): SettlementRecord {
+  const recommendation = { householdId: HH, senderId: JOHN, receiverId: LEADER, amount: positivePoisha(150) };
+  return {
+    settlementId: settlementId(id), ...recommendation, originatingRecommendation: recommendation,
+    status: "pending", createdAt: T1,
+  };
+}
+
+function settlementAudit(id: string, actor = JOHN, action = "created-pending", instant = T1): AuditEvent {
+  return {
+    auditEventId: auditEventId(`a_${id}_${action}`), householdId: HH, actorId: actor,
+    aggregateType: "settlement", aggregateId: id, action, occurredAt: instant, changedFields: ["status", "amount"],
+  };
+}
+
 beforeEach(() => {
   reader = new InMemoryTablesReader();
   persistence = new AppwriteCommandPersistence(createInMemoryTablesDB(reader).tablesDB as unknown as TablesDB);
@@ -70,6 +106,8 @@ beforeEach(() => {
   reader.seed("join_requests", [requestRow("j_req1", String(ALEX))]);
   reader.seed("expenses", []);
   reader.seed("settlements", []);
+  reader.seed("cards", []);
+  reader.seed("expense_card_private_details", []);
   reader.seed("command_outcomes", []);
   reader.seed("coordination_guards", []);
   seedGuard("active-membership", String(LEADER), String(LEADER));
@@ -89,7 +127,7 @@ async function codesOf(run: () => Promise<unknown>): Promise<string> {
   }
 }
 
-describe("R2 trusted command kernel", () => {
+describe("trusted Appwrite command kernel", () => {
   describe("protected creates", () => {
     it("creates a household atomically with leader membership, guards, audit, and outcome", async () => {
       const newHouseholdDescriptor = descriptor(String(DANA), "k_cmd_new", { name: "Alex House", code: "999999999" });
@@ -423,6 +461,319 @@ describe("R2 trusted command kernel", () => {
           reader.stageCreateRow("hft", "coordination_guards", `bound-${index}`, { logicalKey: `bound-${index}` }, txId);
         }
       }).toThrow();
+    });
+  });
+
+  describe("R3B owner-private Card commands", () => {
+    const cardDescriptor = (id: string, name = "Travel") => ({
+      actorId: LEADER,
+      commandType: "create-card" as const,
+      commandId: commandId(id),
+      intentDigest: canonicalIntentDigest({ name, type: "debit", colorId: "red" }),
+    });
+
+    it("creates a Card with its guard and outcome but no Household audit", async () => {
+      const resourceId = await persistence.createCard({
+        card: { cardId: cardId("c_travel"), ownerId: LEADER, name: "Travel", type: "debit", colorId: "red", createdAt: T0, updatedAt: T0 },
+        idempotency: cardDescriptor("k_card_create"),
+      });
+      expect(resourceId).toBe("c_travel");
+      expect(await reader.getRow("cards", "c_travel")).toMatchObject({ ownerId: LEADER, status: "active", version: 1 });
+      expect((await reader.listRows("coordination_guards")).some((row) => row.logicalKey === "card:c_travel")).toBe(true);
+      expect(await reader.listRows("audit_events")).toEqual([]);
+      expect(await reader.listRows("command_outcomes")).toHaveLength(1);
+      expect(persistence.lastR3StagedOperations.createCard).toBe(3);
+
+      await expect(persistence.createCard({
+        card: { cardId: cardId("c_other"), ownerId: LEADER, name: "Changed", type: "debit", colorId: "red", createdAt: T0, updatedAt: T0 },
+        idempotency: cardDescriptor("k_card_create", "Changed"),
+      })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    });
+
+    it("edits with OCC, Card-guard serialization, replay, and changed-intent protection", async () => {
+      await persistence.createCard({
+        card: { cardId: cardId("c_edit"), ownerId: LEADER, name: "Original", type: "debit", colorId: "red", createdAt: T0, updatedAt: T0 },
+        idempotency: cardDescriptor("k_card_seed", "Original"),
+      });
+      const run = (name: string) => runWithCommandEnvelope(
+        { commandType: "edit-card", commandId: "k_card_edit", intentSeed: { cardId: "c_edit", name, type: "credit", colorId: "blue" } },
+        () => persistence.updateCard({
+          card: { cardId: cardId("c_edit"), ownerId: LEADER, name, type: "credit", colorId: "blue", createdAt: T0, updatedAt: T1 },
+          expectedUpdatedAt: T0,
+        }),
+      );
+      await run("Updated");
+      expect(await reader.getRow("cards", "c_edit")).toMatchObject({ name: "Updated", type: "credit", design: "blue", version: 2 });
+      expect(persistence.lastR3StagedOperations.editCard).toBe(3);
+      await run("Updated");
+      expect((await reader.listRows("command_outcomes")).filter((row) => row.commandType === "edit-card")).toHaveLength(1);
+      await expect(run("Changed intent")).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+      await expect(persistence.updateCard({
+        card: { cardId: cardId("c_edit"), ownerId: JOHN, name: "Probe", type: "credit", colorId: "blue", createdAt: T0, updatedAt: T1 },
+        expectedUpdatedAt: T1,
+      })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("deletes when unreferenced, archives when referenced, and refuses stale Delete consent", async () => {
+      const seed = async (id: string) => persistence.createCard({
+        card: { cardId: cardId(id), ownerId: LEADER, name: id, type: "debit", colorId: "red", createdAt: T0, updatedAt: T0 },
+        idempotency: cardDescriptor(`k_${id}`, id),
+      });
+      await seed("c_delete");
+      const deleted = await runWithCommandEnvelope(
+        { commandType: "remove-card", commandId: "k_remove_delete", intentSeed: { cardId: "c_delete", expectedAction: "delete" } },
+        () => persistence.removeCard({ cardId: cardId("c_delete"), ownerId: LEADER, expectedAction: "delete", occurredAt: T1 }),
+      );
+      expect(deleted).toBe("deleted");
+      expect(await reader.getRow("cards", "c_delete")).toBeUndefined();
+
+      await seed("c_archive");
+      reader.seed("expense_card_private_details", [{ $id: "e_ref", ownerId: LEADER, cardId: "c_archive", cardName: "c_archive", snapshotJson: JSON.stringify({ cardType: "debit", colorId: "red" }), createdAt: T0 }]);
+      await expect(runWithCommandEnvelope(
+        { commandType: "remove-card", commandId: "k_remove_stale", intentSeed: { cardId: "c_archive", expectedAction: "delete" } },
+        () => persistence.removeCard({ cardId: cardId("c_archive"), ownerId: LEADER, expectedAction: "delete", occurredAt: T1 }),
+      )).rejects.toMatchObject({ code: "CONFLICT" });
+      expect((await reader.getRow("cards", "c_archive"))?.status).toBe("active");
+
+      const archived = await runWithCommandEnvelope(
+        { commandType: "remove-card", commandId: "k_remove_archive", intentSeed: { cardId: "c_archive", expectedAction: "archive" } },
+        () => persistence.removeCard({ cardId: cardId("c_archive"), ownerId: LEADER, expectedAction: "archive", occurredAt: T1 }),
+      );
+      expect(archived).toBe("archived");
+      expect(await reader.getRow("cards", "c_archive")).toMatchObject({ status: "archived", archivedAt: T1, version: 2 });
+      expect(await reader.listRows("audit_events")).toEqual([]);
+      expect(persistence.lastR3StagedOperations.removeCard).toBe(3);
+    });
+  });
+
+  describe("R3C/R3D Expense commands", () => {
+    const expenseDescriptor = (id: string, intent: unknown = { expenseId: id }): IdempotencyDescriptor => ({
+      actorId: LEADER,
+      commandType: "create-expense",
+      commandId: commandId(`k_${id}`),
+      intentDigest: canonicalIntentDigest(intent),
+    });
+
+    it("creates exact Cash and Card Expenses with measured atomic write counts", async () => {
+      const cash = expenseRecord("e_cash");
+      const cashId = await persistence.createExpense({
+        expense: cash, actorId: LEADER, commandId: expenseDescriptor("e_cash").commandId,
+        receipts: [], auditEvent: expenseAudit("e_cash"), idempotency: expenseDescriptor("e_cash"),
+      });
+      expect(cashId).toBe("e_cash");
+      expect(await reader.getRow("expenses", "e_cash")).toMatchObject({ amountPoisha: 300, revision: 1, paymentMethod: "cash" });
+      expect(persistence.lastR3StagedOperations.createExpense).toBe(4);
+
+      reader.seed("cards", [{
+        $id: "c_pay", ownerId: LEADER, name: "Private Leader Card", design: "red", type: "debit",
+        status: "active", archivedAt: null, version: 1, createdAt: T0, updatedAt: T0,
+      }]);
+      seedGuard("card", "c_pay", String(LEADER));
+      const cardExpense = expenseRecord("e_card", { method: "card", cardReference: "private:e_card" });
+      await persistence.createExpense({
+        expense: cardExpense, actorId: LEADER, commandId: expenseDescriptor("e_card").commandId,
+        selectedCardId: cardId("c_pay"), receipts: [], auditEvent: expenseAudit("e_card"), idempotency: expenseDescriptor("e_card"),
+      });
+      expect(await reader.getRow("expense_card_private_details", "e_card")).toMatchObject({
+        ownerId: LEADER, cardId: "c_pay", cardName: "Private Leader Card",
+      });
+      expect(String((await reader.getRow("expense_card_private_details", "e_card"))?.snapshotJson)).not.toContain("Private Leader Card");
+      expect(persistence.lastR3StagedOperations.createExpense).toBe(6);
+    });
+
+    it("measures the worst-case Card-switch edit and Card-linked soft delete", async () => {
+      reader.seed("cards", [
+        {
+          $id: "c_old", ownerId: LEADER, name: "Old Card", design: "red", type: "debit",
+          status: "active", archivedAt: null, version: 1, createdAt: T0, updatedAt: T0,
+        },
+        {
+          $id: "c_new", ownerId: LEADER, name: "New Card", design: "blue", type: "credit",
+          status: "active", archivedAt: null, version: 1, createdAt: T0, updatedAt: T0,
+        },
+      ]);
+      seedGuard("card", "c_old", String(LEADER));
+      seedGuard("card", "c_new", String(LEADER));
+      const original = expenseRecord("e_switch", { method: "card", cardReference: "private:e_switch" });
+      await persistence.createExpense({
+        expense: original, actorId: LEADER, commandId: expenseDescriptor("e_switch").commandId,
+        selectedCardId: cardId("c_old"), receipts: [], auditEvent: expenseAudit("e_switch"), idempotency: expenseDescriptor("e_switch"),
+      });
+
+      const editedAt = isoInstant("2026-08-26T10:00:00.000Z");
+      const switched: Expense = { ...original, revision: 2, updatedAt: editedAt };
+      await runWithCommandEnvelope(
+        { commandType: "edit-expense", commandId: "k_switch", intentSeed: { expenseId: "e_switch", cardId: "c_new" } },
+        () => persistence.editExpense({
+          expectedExpenseId: original.expenseId, actorId: LEADER, commandId: commandId("k_switch"),
+          expense: switched, selectedCardId: cardId("c_new"), expectedRevision: 1,
+          backdatedConfirmationApplicable: false,
+          auditEvents: [{
+            ...expenseAudit("e_switch", "edited", editedAt),
+            auditEventId: auditEventId("a_e_switch_card_edited"),
+          }],
+        }),
+      );
+      expect(await reader.getRow("expense_card_private_details", "e_switch")).toMatchObject({ cardId: "c_new", cardName: "New Card" });
+      expect(persistence.lastR3StagedOperations.editExpense).toBe(7);
+
+      const deletedAt = isoInstant("2026-08-26T11:00:00.000Z");
+      const deleted: Expense = {
+        ...switched, revision: 3, updatedAt: deletedAt, deletedAt, deletedByUserId: LEADER,
+      };
+      await runWithCommandEnvelope(
+        { commandType: "delete-expense", commandId: "k_delete_switch", intentSeed: { expenseId: "e_switch", expectedRevision: 2 } },
+        () => persistence.editExpense({
+          expectedExpenseId: original.expenseId, actorId: LEADER, commandId: commandId("k_delete_switch"),
+          expense: deleted, expectedRevision: 2, backdatedConfirmationApplicable: false,
+          auditEvents: [{
+            ...expenseAudit("e_switch", "deleted", deletedAt),
+            auditEventId: auditEventId("a_e_switch_deleted"),
+          }],
+        }),
+      );
+      expect(await reader.getRow("expenses", "e_switch")).toMatchObject({ revision: 3, deletedAt });
+      expect(persistence.lastR3StagedOperations.deleteExpense).toBe(5);
+    });
+
+    it("rejects forged/archived Card selection, future dates, and R4 Receipt payloads with rollback", async () => {
+      reader.seed("cards", [{
+        $id: "c_foreign", ownerId: JOHN, name: "John private", design: "blue", type: "credit",
+        status: "active", archivedAt: null, version: 1, createdAt: T0, updatedAt: T0,
+      }]);
+      const forged = expenseRecord("e_forged", { method: "card", cardReference: "private:e_forged" });
+      await expect(persistence.createExpense({
+        expense: forged, actorId: LEADER, commandId: expenseDescriptor("e_forged").commandId,
+        selectedCardId: cardId("c_foreign"), receipts: [], auditEvent: expenseAudit("e_forged"), idempotency: expenseDescriptor("e_forged"),
+      })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(await reader.getRow("expenses", "e_forged")).toBeUndefined();
+
+      const future = { ...expenseRecord("e_future"), expenseDate: expenseDate("2026-08-27") };
+      await expect(persistence.createExpense({
+        expense: future, actorId: LEADER, commandId: expenseDescriptor("e_future").commandId,
+        receipts: [], auditEvent: expenseAudit("e_future"), idempotency: expenseDescriptor("e_future"),
+      })).rejects.toMatchObject({ code: "EXPENSE_DATE_IN_FUTURE" });
+
+      await expect(persistence.createExpense({
+        expense: expenseRecord("e_receipt"), actorId: LEADER, commandId: expenseDescriptor("e_receipt").commandId,
+        receipts: [{ metadata: {} as never, content: {} as never }], auditEvent: expenseAudit("e_receipt"), idempotency: expenseDescriptor("e_receipt"),
+      })).rejects.toMatchObject({ code: "COMMANDS_UNAVAILABLE" });
+    });
+
+    it("enforces revision OCC and the Confirmed-Settlement financial lock while allowing name-only edit", async () => {
+      const original = expenseRecord("e_locked");
+      await persistence.createExpense({
+        expense: original, actorId: LEADER, commandId: expenseDescriptor("e_locked").commandId,
+        receipts: [], auditEvent: expenseAudit("e_locked"), idempotency: expenseDescriptor("e_locked"),
+      });
+      reader.seed("settlements", [{
+        $id: "s_confirmed", householdId: HH, senderId: JOHN, receiverId: LEADER,
+        amountPoisha: 150, originalAmountPoisha: 150, status: "confirmed",
+        pairKey: JSON.stringify([HH, JOHN, LEADER]), recommendationDigest: "digest",
+        createdAt: T0, resolvedAt: "2026-08-26T10:00:00.000Z",
+      }]);
+      const renamed: Expense = { ...original, name: "Renamed only", revision: 2, updatedAt: isoInstant("2026-08-26T11:00:00.000Z") };
+      await runWithCommandEnvelope(
+        { commandType: "edit-expense", commandId: "k_edit_locked", intentSeed: { expenseId: "e_locked", name: "Renamed only" } },
+        () => persistence.editExpense({
+          expectedExpenseId: original.expenseId, actorId: LEADER, commandId: commandId("k_edit_locked"),
+          expense: renamed, expectedRevision: 1, relevantIntentDigest: expenseRelevantIntentDigest({
+            amount: renamed.amount, expenseDate: renamed.expenseDate, splitMethod: renamed.splitMethod,
+            allocations: renamed.allocations, paymentMethod: "cash",
+          }), backdatedConfirmationApplicable: true, auditEvents: [expenseAudit("e_locked", "edited", renamed.updatedAt)],
+        }),
+      );
+      expect(await reader.getRow("expenses", "e_locked")).toMatchObject({ name: "Renamed only", revision: 2 });
+
+      const financial: Expense = { ...renamed, amount: positivePoisha(302), allocations: allocateEqualSplit(positivePoisha(302), [LEADER, JOHN]), revision: 3, updatedAt: isoInstant("2026-08-26T12:00:00.000Z") };
+      await expect(runWithCommandEnvelope(
+        { commandType: "edit-expense", commandId: "k_edit_financial", intentSeed: { expenseId: "e_locked", amount: 302 } },
+        () => persistence.editExpense({
+          expectedExpenseId: original.expenseId, actorId: LEADER, commandId: commandId("k_edit_financial"),
+          expense: financial, expectedRevision: 2, backdatedConfirmationApplicable: true,
+          auditEvents: [expenseAudit("e_locked", "edited", financial.updatedAt)],
+        }),
+      )).rejects.toMatchObject({ code: "EXPENSE_FINANCIAL_HISTORY_LOCKED" });
+      expect(await reader.getRow("expenses", "e_locked")).toMatchObject({ amountPoisha: 300, revision: 2 });
+
+      await expect(persistence.editExpense({
+        expectedExpenseId: original.expenseId, actorId: LEADER, expense: { ...renamed, revision: 3, updatedAt: financial.updatedAt },
+        expectedRevision: 1, auditEvents: [expenseAudit("e_locked", "edited", financial.updatedAt)],
+      })).rejects.toMatchObject({ code: "EXPENSE_VERSION_CONFLICT" });
+    });
+  });
+
+  describe("R3E Settlement commands", () => {
+    beforeEach(async () => {
+      const expense = expenseRecord("e_balance");
+      await persistence.createExpense({
+        expense, actorId: LEADER, commandId: commandId("k_balance"), receipts: [],
+        auditEvent: expenseAudit("e_balance"),
+        idempotency: {
+          actorId: LEADER, commandType: "create-expense", commandId: commandId("k_balance"),
+          intentDigest: canonicalIntentDigest({ expenseId: "e_balance" }),
+        },
+      });
+    });
+
+    it("creates only the exact recommendation, records zero-effect Pending, and rejects the unordered duplicate", async () => {
+      const settlement = pendingSettlement();
+      const idempotency = {
+        actorId: JOHN, commandType: "create-pending-settlement", commandId: commandId("k_settle"),
+        intentDigest: canonicalIntentDigest(settlement.originatingRecommendation),
+      } as const;
+      const created = await persistence.createSettlement({ settlement, auditEvent: settlementAudit("s_pending"), idempotency });
+      expect(created).toBe("s_pending");
+      expect(await reader.getRow("settlements", "s_pending")).toMatchObject({
+        senderId: JOHN, receiverId: LEADER, amountPoisha: 150, originalAmountPoisha: 150, status: "pending", resolvedAt: null,
+      });
+      expect(persistence.lastR3StagedOperations.createSettlement).toBe(5);
+
+      const duplicate = { ...pendingSettlement("s_reverse"), senderId: LEADER, receiverId: JOHN,
+        originatingRecommendation: { householdId: HH, senderId: LEADER, receiverId: JOHN, amount: positivePoisha(150) } };
+      await expect(persistence.createSettlement({
+        settlement: duplicate, auditEvent: settlementAudit("s_reverse", LEADER),
+        idempotency: { actorId: LEADER, commandType: "create-pending-settlement", commandId: commandId("k_reverse"), intentDigest: canonicalIntentDigest(duplicate.originatingRecommendation) },
+      })).rejects.toMatchObject({ code: "DUPLICATE_PENDING_SETTLEMENT" });
+      expect(await reader.getRow("settlements", "s_reverse")).toBeUndefined();
+    });
+
+    it("authorizes receiver Confirm, preserves the original amount, and makes terminal history immutable", async () => {
+      const current = pendingSettlement();
+      await persistence.createSettlement({
+        settlement: current, auditEvent: settlementAudit("s_pending"),
+        idempotency: { actorId: JOHN, commandType: "create-pending-settlement", commandId: commandId("k_settle"), intentDigest: canonicalIntentDigest(current.originatingRecommendation) },
+      });
+      const resolvedAt = isoInstant("2026-08-26T10:00:00.000Z");
+      const confirmed: SettlementRecord = { ...current, status: "confirmed", resolvedAt };
+      await runWithCommandEnvelope(
+        { commandType: "confirm-settlement", commandId: "k_confirm", intentSeed: { settlementId: "s_pending", status: "confirmed" } },
+        () => persistence.transitionSettlement({
+          settlement: confirmed, expectedStatus: "pending", auditEvent: settlementAudit("s_pending", LEADER, "confirmed", resolvedAt),
+        }),
+      );
+      expect(await reader.getRow("settlements", "s_pending")).toMatchObject({ status: "confirmed", amountPoisha: 150, originalAmountPoisha: 150, resolvedAt });
+      expect(persistence.lastR3StagedOperations["settlement-confirmed"]).toBe(5);
+
+      await expect(persistence.transitionSettlement({
+        settlement: { ...confirmed, status: "rejected" }, expectedStatus: "pending",
+        auditEvent: settlementAudit("s_pending", LEADER, "rejected", resolvedAt),
+      })).rejects.toMatchObject({ code: "CONFLICT" });
+    });
+
+    it("rejects the wrong transition actor without releasing the Pending-pair guard", async () => {
+      const current = pendingSettlement();
+      await persistence.createSettlement({
+        settlement: current, auditEvent: settlementAudit("s_pending"),
+        idempotency: { actorId: JOHN, commandType: "create-pending-settlement", commandId: commandId("k_settle"), intentDigest: canonicalIntentDigest(current.originatingRecommendation) },
+      });
+      const resolvedAt = isoInstant("2026-08-26T10:00:00.000Z");
+      await expect(persistence.transitionSettlement({
+        settlement: { ...current, status: "confirmed", resolvedAt }, expectedStatus: "pending",
+        auditEvent: settlementAudit("s_pending", JOHN, "confirmed", resolvedAt),
+      })).rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_RECEIVER" });
+      expect(await reader.getRow("settlements", "s_pending")).toMatchObject({ status: "pending" });
     });
   });
 });

@@ -2,8 +2,8 @@
 
 **Prepared:** 2026-08-26
 **Target:** the complete frozen production release defined in `PRODUCTION_RELEASE_PLAN.md`
-**Current phase:** R3 — APPROVED for implementation after R2 checkpoint `9ecd4d3`
-**Planning status:** R3 is authorized only in the scope and order recorded in `R3_PLAN.md`; R4 and R5 remain unauthorized.
+**Current phase:** R3 — IMPLEMENTED and verified; uncommitted for owner review
+**Planning status:** R3 implementation followed `R3_PLAN.md`; R4 and R5 remain unauthorized.
 
 ## Executive position
 
@@ -39,6 +39,14 @@ No local-data migration, self-registration, new product feature, UI redesign, ca
 5. Two approved accounts passed Create → Pending Join → Accept → active Member with reload persistence. Final live invariants are exactly one Leader, one Member, no pending request, and no duplicates.
 6. The complete automated R2 matrix is green. R2 is ready for owner review and R3 has not started.
 
+### R3 acceptance result
+
+1. Planning was checkpointed at `42590b64d9c8ad7c3628dbdd08d94783d298b6a8`; implementation remains uncommitted.
+2. Schema V4 is live and clean: Card and Expense name storage capacities are 16,383, the optional private snapshot `cardName` exists, and metadata version is 4. These are provider capacities, not product name limits.
+3. Card, Expense, and Settlement production command families are enabled through the trusted R2 architecture. Receipt mutation/content capabilities remain disabled.
+4. The existing two-account Household passed the retained private-Card -> exact split Expense -> zero-effect Pending -> Confirm -> locked financial edit/name-only edit journey with reload persistence and zero final balances.
+5. The R3 command maximum is 7 staged operations. OCC, replay/changed-intent idempotency, privacy, financial serialization, Pending-pair uniqueness, exact-poisha math, backdated/future-date policy, and historical locks are covered and green.
+
 ## Critical path and aggressive schedule
 
 These are focused engineering-day ranges, not calendar promises. They assume immediate owner availability for the named acceptance windows, no new requirements, and no provider outage.
@@ -47,9 +55,9 @@ These are focused engineering-day ranges, not calendar promises. They assume imm
 |---|---|---|---|---:|
 | 0 | R2 unblock — complete | Typecheck fixed; single-project gate reconciled; no product name maximum | green | complete |
 | 1 | Finish R2 — complete | Ten commands wired, Household capability enabled, backup/schema/journey/regression verified | two real accounts passed across reloads | complete |
-| 2 | R3 Cards | Private Card create/edit/delete-or-archive with transaction-time owner checks and no metadata leakage | cross-identity privacy and consent-race tests green | 1 day |
-| 3 | R3 Expenses | Exact-poisha writes, revision OCC, server Dhaka date, signed backdated confirmation, confirmed-settlement lock, private Card snapshot handling | provider parity plus edit/delete/create race rollback green | 2–3 days |
-| 4 | R3 Settlements | Mark Paid/Confirm/Reject/Cancel, exact-current recommendation check, Pending-pair guards, immutable confirmation | two-account financial journey and concurrency matrix green | 1–2 days |
+| 2 | R3 Cards — complete | Private Card create/edit/delete-or-archive with transaction-time owner checks and no metadata leakage | cross-identity privacy and consent-race tests green | complete |
+| 3 | R3 Expenses — complete | Exact-poisha writes, revision OCC, server Dhaka date, signed backdated confirmation, confirmed-settlement lock, private Card snapshot handling | provider parity plus edit/delete/create race rollback green | complete |
+| 4 | R3 Settlements — complete | Mark Paid/Confirm/Reject/Cancel, exact-current recommendation check, Pending-pair guards, immutable confirmation | two-account financial journey and concurrency matrix green | complete |
 | 5 | R4 Receipts | Trusted reservation/upload saga, quotas, private content reads/removal, orphan reconciliation | 10 MiB boundary, fault injection, privacy, and quota tests green | 1.5–2.5 days |
 | 6 | R4 Retention | Deploy and exercise the once-daily function; verify Dhaka cutoff, delete-before-mark, recovery, and manual fallback | one live authorized execution plus idempotent rerun green | 0.5–1 day |
 | 7 | R5 Release | Production-like deployment, full security/integration matrix, backup/runbook/rollback, owner smoke and launch | no critical/high findings; production smoke green; owner approves go-live | 2–3 days |

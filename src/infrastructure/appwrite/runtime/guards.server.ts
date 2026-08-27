@@ -10,7 +10,9 @@ export type GuardKind =
   | "active-membership"
   | "active-leader"
   | "pending-join"
-  | "financial";
+  | "financial"
+  | "pending-settlement"
+  | "card";
 
 function logicalKey(kind: GuardKind, subject: string): string {
   return `${kind}:${subject}`;
@@ -80,6 +82,34 @@ export class CommandGuardEngine {
     }
     const rowId = this.rowIdFor(kind, subject);
     await this.tablesDB.updateRow({ databaseId: "hft", tableId: GUARD_TABLE, rowId, data: { ownerValue: toOwner }, transactionId: this.tx.id });
+    this.tx.recordStagedOperation();
+  }
+
+  /**
+   * Participates in OCC serialization without changing ownership. Existing
+   * pre-R3 resources may establish their guard on first trusted mutation.
+   */
+  async touch(kind: GuardKind, subject: string, ownerValue?: string): Promise<void> {
+    const row = await this.readGuard(kind, subject);
+    if (!row) {
+      await this.acquire(kind, subject, ownerValue);
+      return;
+    }
+    if (ownerValue !== undefined && row.ownerValue != null && String(row.ownerValue) !== ownerValue) {
+      throw new TransactionFailure("conflict", `Coordination guard '${logicalKey(kind, subject)}' belongs to another owner.`);
+    }
+    const counter = Number(row.counter);
+    const version = Number(row.version);
+    if (!Number.isSafeInteger(counter) || counter < 0 || !Number.isSafeInteger(version) || version < 0) {
+      throw new TransactionFailure("conflict", `Coordination guard '${logicalKey(kind, subject)}' is malformed.`);
+    }
+    await this.tablesDB.updateRow({
+      databaseId: "hft",
+      tableId: GUARD_TABLE,
+      rowId: this.rowIdFor(kind, subject),
+      data: { counter: counter + 1, version: version + 1 },
+      transactionId: this.tx.id,
+    });
     this.tx.recordStagedOperation();
   }
 }

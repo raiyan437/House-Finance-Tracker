@@ -1,4 +1,5 @@
 import type { DBSchema } from "idb";
+import type { CommandType } from "@/application/idempotency/command-idempotency";
 
 export interface UserProfileRecordV1 {
   recordVersion: 1;
@@ -241,7 +242,7 @@ export interface CommandOutcomeRecordV1 {
   recordVersion: 1;
   key: string;
   actorId: string;
-  commandType: "create-expense" | "create-household" | "send-join-request" | "create-pending-settlement" | "upload-receipt" | "create-card" | "cancel-join-request" | "accept-join-request" | "reject-join-request" | "leave-household" | "remove-member" | "transfer-leadership" | "rename-household" | "delete-household";
+  commandType: CommandType;
   commandId: string;
   intentDigest: string;
   resourceId: string;

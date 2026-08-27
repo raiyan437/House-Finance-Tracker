@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PRODUCTION_R2_CAPABILITIES } from "@/application/runtime-capabilities";
+import { PRODUCTION_R3_CAPABILITIES } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication } from "@/application/services/application-services";
 import type { ApplicationRepositories, AtomicApplicationPersistence, CurrentSession } from "@/application/repositories";
 import type { ApplicationValues } from "@/application/services/application-services";
@@ -19,6 +19,7 @@ beforeEach(() => {
   vi.stubEnv("APPWRITE_PROJECT_ID", "r1-test-project");
   vi.stubEnv("APPWRITE_RUNTIME_API_KEY", "test-runtime-key");
   vi.stubEnv("ALLOWED_ACCOUNT_EMAILS", "user1@test.io");
+  vi.stubEnv("AUTH_HMAC_SECRET", "test-hmac-secret");
 });
 
 function emptyReadRepositories(): ApplicationRepositories {
@@ -58,7 +59,7 @@ function contextWith(reader: InMemoryTablesReader): ReturnType<typeof buildProdu
     tables: reader,
     dependencies,
     application,
-    capabilities: PRODUCTION_R2_CAPABILITIES,
+    capabilities: PRODUCTION_R3_CAPABILITIES,
     enforceHouseCodeThrottle: async () => undefined,
   } as unknown as ReturnType<typeof buildProductRequestContext>;
 }
@@ -66,11 +67,12 @@ function contextWith(reader: InMemoryTablesReader): ReturnType<typeof buildProdu
 describe("trusted production request context", () => {
   it("builds a real context with server clock values and production capabilities", async () => {
     const built = buildProductRequestContext({ userId: "user_abc" as UserId, email: "abc@test.io" });
-    expect(built.capabilities).toBe(PRODUCTION_R2_CAPABILITIES);
+    expect(built.capabilities).toBe(PRODUCTION_R3_CAPABILITIES);
     await expect(built.dependencies.session.getCurrentUserId()).resolves.toBe("user_abc");
     expect(built.dependencies.values.now()).toMatch(/Z$/);
-    // The read plane never writes: any atomic access rejects.
-    await expect(Promise.resolve().then(() => (built.dependencies.atomic as unknown as { createExpense(): Promise<string> }).createExpense())).rejects.toThrow(/later production slice/);
+    expect(typeof built.dependencies.atomic.createExpense).toBe("function");
+    expect(typeof built.dependencies.atomic.createSettlement).toBe("function");
+    expect(typeof built.dependencies.atomic.createCard).toBe("function");
   });
 
   it("reports the server-authoritative Asia/Dhaka business date", async () => {
@@ -80,7 +82,7 @@ describe("trusted production request context", () => {
 
   it("assembles the bootstrap projection with session view and no-household state", async () => {
     const bootstrap = await loadBootstrap(contextWith(new InMemoryTablesReader()));
-    expect(bootstrap.capabilities).toEqual(PRODUCTION_R2_CAPABILITIES);
+    expect(bootstrap.capabilities).toEqual(PRODUCTION_R3_CAPABILITIES);
     // 18:30 UTC is already the next calendar day in Asia/Dhaka.
     expect(bootstrap.businessDate).toBe("2026-08-27");
     expect(bootstrap.household).toEqual({ status: "no-household" });

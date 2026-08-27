@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ApplicationError } from "@/application/errors/application-error";
+import { ApplicationError, BackdatedExpenseConfirmationRequiredError, type ApplicationErrorCode } from "@/application/errors/application-error";
 import type { ProductCapabilities } from "@/application/runtime-capabilities";
 import type { CalendarMonth } from "@/application/analytics/calendar-month";
 import { parseWithBigInt } from "@/application/transport/json-bigint";
@@ -65,14 +65,17 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw Object.assign(new ApplicationError("PERSISTENCE_FAILURE", "The service is temporarily unavailable."), { status: 0 });
   }
   const text = await response.text();
-  const payload = text.length > 0 ? parseWithBigInt<{ data?: T; error?: string }>(text) : {};
+  const payload = text.length > 0 ? parseWithBigInt<{ data?: T; error?: string; code?: ApplicationErrorCode; confirmationToken?: string }>(text) : {};
   if (!response.ok) {
+    if (payload.code === "BACKDATED_EXPENSE_CONFIRMATION_REQUIRED" && payload.confirmationToken) {
+      throw Object.assign(new BackdatedExpenseConfirmationRequiredError(payload.confirmationToken), { status: response.status });
+    }
     const code =
-      response.status === 404 ? "NOT_FOUND"
+      payload.code ?? (response.status === 404 ? "NOT_FOUND"
       : response.status === 409 ? "CONFLICT"
       : response.status === 429 ? "RATE_LIMITED"
       : response.status === 401 || response.status === 403 ? "SESSION_UNAVAILABLE"
-      : "PERSISTENCE_FAILURE";
+      : "PERSISTENCE_FAILURE");
     throw Object.assign(
       new ApplicationError(code, payload.error ?? "The service is temporarily unavailable."),
       { status: response.status },
@@ -178,9 +181,26 @@ function buildReadyState(
     },
     getExpense: (expenseIdValue: ExpenseId) =>
       requestJson<ExpenseView>(`/api/app/expense?id=${encodeURIComponent(expenseIdValue)}`),
-    createExpense: () => commandUnavailable(),
-    editExpense: () => commandUnavailable(),
-    deleteExpense: () => commandUnavailable(),
+    createExpense: async (command: Parameters<ExpenseApplicationActions["createExpense"]>[0]) => {
+      const result = await requestJson<ExpenseView>("/api/app/expense-create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(command),
+      });
+      await refresh();
+      return result;
+    },
+    editExpense: async (command: Parameters<ExpenseApplicationActions["editExpense"]>[0]) => {
+      const result = await requestJson<ExpenseView>("/api/app/expense-edit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(command),
+      });
+      await refresh();
+      return result;
+    },
+    deleteExpense: (expenseIdValue: ExpenseId, expectedRevision: number) =>
+      postGeneratedCommand("/api/app/expense-delete", { expenseId: expenseIdValue, expectedRevision }),
     listReceipts: (expenseIdValue: ExpenseId) =>
       requestJson<readonly ReceiptView[]>(`/api/app/expense-receipts?id=${encodeURIComponent(expenseIdValue)}`),
     readReceipt: () => commandUnavailable(),
@@ -189,24 +209,65 @@ function buildReadyState(
       requestJson<readonly ExpenseActivityView[]>(`/api/app/expense-activity?id=${encodeURIComponent(expenseIdValue)}`),
   });
 
-  const settlementActions: SettlementApplicationActions = Object.freeze({
+  const settlementActions = Object.freeze<SettlementApplicationActions>({
     getPage: (householdIdValue: HouseholdId) =>
       requestJson<SettlementPageView>(`/api/app/settlements?householdId=${encodeURIComponent(householdIdValue)}`),
     getPendingPreview: (settlementIdValue: SettlementId) =>
       requestJson<PendingSettlementView>(`/api/app/settlement-preview?id=${encodeURIComponent(settlementIdValue)}`),
-    markRecommendationPaid: () => commandUnavailable(),
-    confirm: () => commandUnavailable(),
-    reject: () => commandUnavailable(),
-    cancel: () => commandUnavailable(),
+    markRecommendationPaid: async (recommendation, commandId) => {
+      await postCommand("/api/app/settlement-create", { recommendation, commandId });
+    },
+    confirm: (settlementIdValue) => postGeneratedCommand("/api/app/settlement-confirm", { settlementId: settlementIdValue }),
+    reject: (settlementIdValue) => postGeneratedCommand("/api/app/settlement-reject", { settlementId: settlementIdValue }),
+    cancel: (settlementIdValue) => postGeneratedCommand("/api/app/settlement-cancel", { settlementId: settlementIdValue }),
   });
 
   const cardActions: CardApplicationActions = Object.freeze({
     getMyCards: () => requestJson<CardPageView>("/api/app/cards"),
-    createMyCard: () => commandUnavailable(),
-    updateMyCard: () => commandUnavailable(),
+    createMyCard: async (input: Parameters<CardApplicationActions["createMyCard"]>[0]) => {
+      const result = await requestJson<MyCardSummaryView>("/api/app/card-create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      await refresh();
+      return result;
+    },
+    updateMyCard: async (
+      cardIdValue: Parameters<CardApplicationActions["updateMyCard"]>[0],
+      input: Parameters<CardApplicationActions["updateMyCard"]>[1],
+    ) => {
+      const retryKey = `/api/app/card-edit:${JSON.stringify({ cardId: cardIdValue, ...input })}`;
+      const commandId = retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+      retryCommandIds.set(retryKey, commandId);
+      const result = await requestJson<MyCardSummaryView>("/api/app/card-edit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cardId: cardIdValue, ...input, commandId }),
+      });
+      retryCommandIds.delete(retryKey);
+      await refresh();
+      return result;
+    },
     getRemovalPreview: (cardIdValue: CardId) =>
       requestJson<CardRemovalPreview>(`/api/app/card-removal-preview?id=${encodeURIComponent(cardIdValue)}`),
-    deleteOrArchive: () => commandUnavailable(),
+    deleteOrArchive: async (
+      cardIdValue: Parameters<CardApplicationActions["deleteOrArchive"]>[0],
+      expectedAction: Parameters<CardApplicationActions["deleteOrArchive"]>[1],
+    ) => {
+      const intent = { cardId: cardIdValue, expectedAction };
+      const retryKey = `/api/app/card-remove:${JSON.stringify(intent)}`;
+      const commandId = retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+      retryCommandIds.set(retryKey, commandId);
+      const result = await requestJson<"deleted" | "archived">("/api/app/card-remove", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...intent, commandId }),
+      });
+      retryCommandIds.delete(retryKey);
+      await refresh();
+      return result;
+    },
   });
 
   const analyticsActions: AnalyticsApplicationActions = Object.freeze({

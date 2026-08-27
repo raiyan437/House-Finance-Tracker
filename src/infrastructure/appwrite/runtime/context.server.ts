@@ -2,7 +2,7 @@ import "server-only";
 
 
 import type { ApplicationRepositories, CurrentSession } from "@/application/repositories";
-import { PRODUCTION_R2_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
+import { PRODUCTION_R3_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication, type ApplicationValues, type Dependencies, type GeneratedIdKind } from "@/application/services/application-services";
 import { userId, type UserId } from "@/domain/shared/identifiers";
 import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
@@ -16,6 +16,7 @@ import { loadAppwriteServerConfig } from "../config";
 import { createAppwriteReadRepositories, createTablesReader, type AppwriteReadRepositories } from "../reads/read-repositories.server";
 import type { TablesReader } from "../reads/tables.server";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
+import { createServerBackdatedConfirmationAuthority } from "./backdated-confirmation.server";
 
 export interface TrustedActor {
   readonly userId: UserId;
@@ -138,23 +139,27 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
   const clients = createAppwriteAuthClients(config.value);
   const tablesDB = clients.tablesDB();
   const tables = createTablesReader(tablesDB);
-  const commandPersistence = new AppwriteCommandPersistence(tablesDB);
+  const values = serverApplicationValues();
+  const authSecret = process.env.AUTH_HMAC_SECRET;
+  if (!authSecret) throw new Error("Production HMAC configuration is unavailable.");
+  const backdatedConfirmationAuthority = createServerBackdatedConfirmationAuthority(authSecret, values.now);
+  const commandPersistence = new AppwriteCommandPersistence(tablesDB, backdatedConfirmationAuthority);
   const repositories = createAppwriteReadRepositories(tables, actor.userId, actor.email);
   const dependencies: Dependencies = {
     repositories: repositories as unknown as ApplicationRepositories,
     atomic: commandPersistence,
     session: new TrustedSession(actor.userId),
-    values: serverApplicationValues(),
+    values,
+    backdatedConfirmationAuthority,
   };
   const application = new HouseFinanceApplication(dependencies);
-  const authSecret = process.env.AUTH_HMAC_SECRET;
   return Object.freeze({
     actor,
     repositories,
     tables,
     dependencies,
     application,
-    capabilities: PRODUCTION_R2_CAPABILITIES,
+    capabilities: PRODUCTION_R3_CAPABILITIES,
     enforceHouseCodeThrottle: async (identityParts: readonly string[]) => {
       if (!authSecret) {
         throw new AuthError("PROVIDER_UNAVAILABLE", "The service is temporarily unavailable.");
