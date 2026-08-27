@@ -3,7 +3,7 @@
 **Prepared:** 2026-08-26
 **Target:** the complete frozen production release defined in `PRODUCTION_RELEASE_PLAN.md`
 **Current phase:** R3 — IMPLEMENTED and verified; uncommitted for owner review
-**Planning status:** R3 implementation followed `R3_PLAN.md`; R4 and R5 remain unauthorized.
+**Planning status:** R3 is checkpointed at `01d82897e246aadee611d01ca977b1fb0cb3d1d4`. R4 implementation is authorized through `R4_PLAN.md`; R5 remains unauthorized.
 
 ## Executive position
 

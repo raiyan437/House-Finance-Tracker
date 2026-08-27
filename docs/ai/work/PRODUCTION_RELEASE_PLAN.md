@@ -1,6 +1,6 @@
 # Production Release Plan - five gated phases (R1-R5)
 
-**Status:** R1 and R2 are committed and accepted. R3 Cards -> Expenses -> Settlements is implemented, verified, and uncommitted for owner review. R4 and R5 remain unauthorized. This document maps the release contract into exactly five phases. The concise fastest-path execution view is `EARLIEST_PRODUCTION_PLAN.md`. Each phase still requires separate owner authorization; completing one phase never authorizes the next.
+**Status:** R1-R3 are committed and accepted; R3 is `01d82897e246aadee611d01ca977b1fb0cb3d1d4`. R4 Receipt Storage/retention implementation is authorized through `R4_PLAN.md`; R5 remains unauthorized. This document maps the release contract into exactly five phases. The concise fastest-path execution view is `EARLIEST_PRODUCTION_PLAN.md`. Each phase still requires separate owner authorization; completing one phase never authorizes the next.
 
 ## Release definition (what "production release" means here)
 
