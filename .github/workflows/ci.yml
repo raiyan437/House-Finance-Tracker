@@ -16,7 +16,6 @@ jobs:
       # Hermetic production build: composition defaults to local; no Appwrite
       # or auth secrets are ever present in CI.
       APP_COMPOSITION: local
-      NODE_ENV: production
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +42,8 @@ jobs:
 
       - name: Production build
         run: npm run build
+        env:
+          NODE_ENV: production
 
       - name: Dependency audit
         run: npm audit --audit-level=high
