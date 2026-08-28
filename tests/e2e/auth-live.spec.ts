@@ -89,7 +89,7 @@ test.describe("live Appwrite authentication", () => {
     await page.setExtraHTTPHeaders({});
   }
 
-  test("login reaches the real product surface with hardened session cookie", async ({ page, browserName }) => {
+  test("login reaches the real product surface with hardened session cookie", async ({ page, browserName }, testInfo) => {
     await page.goto("/login");
     const axeResults = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(axeResults.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
@@ -108,6 +108,7 @@ test.describe("live Appwrite authentication", () => {
     expect(cookies.some((cookie) => cookie.name === "hft_session")).toBe(true);
     expect(sessionCookie).toBeDefined();
     expect(sessionCookie?.httpOnly).toBe(true);
+    expect(sessionCookie?.secure).toBe(new URL(String(testInfo.project.use.baseURL)).protocol === "https:");
     if (browserName === "webkit") {
       expect(["Lax", "None"]).toContain(sessionCookie?.sameSite);
     } else {
@@ -210,7 +211,7 @@ test.describe("live Appwrite authentication", () => {
     await revokedContext.addCookies([{
       name: priorSession.name,
       value: priorSession.value,
-      url: "http://127.0.0.1:3000",
+      url: String(testInfo.project.use.baseURL),
       httpOnly: true,
       sameSite: "Lax",
     }]);

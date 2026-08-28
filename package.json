@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "appwrite:plan": "tsx src/infrastructure/appwrite/bootstrap/cli.ts plan",
     "appwrite:apply": "tsx src/infrastructure/appwrite/bootstrap/cli.ts apply",
-    "appwrite:provision": "tsx scripts/appwrite-provision.mts"
+    "appwrite:provision": "tsx scripts/appwrite-provision.mts",
+    "r5:receipt-fixtures": "tsx scripts/r5-receipt-fixtures.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
