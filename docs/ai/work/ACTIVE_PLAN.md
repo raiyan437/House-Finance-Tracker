@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B and R1-R3 are committed. R4 Receipt Storage and retention implementation/live acceptance are complete and approved for checkpointing, with evidence in `R4_PLAN.md`. R5 deployment-readiness planning is authorized after the clean checkpoint; deployment, implementation, merge, and release remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
+The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B and R1-R4 are committed. R5 Appwrite Sites production-readiness implementation, feature-branch deployment, and QA are authorized in `R5_PLAN.md`; merge, final release, and tag remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
 
 ## Reconciliation findings
 
@@ -217,7 +217,7 @@ Complete responsive behavior, accessibility audit, empty/loading/error/success s
 
 ### Phase 13 - Appwrite architecture and integration
 
-**Plan status (2026-08-29): Phases 13A/13B complete (`bed70e3`); R1 checkpointed as `5fed47f`; R2 as `9ecd4d3`; R3 as `01d82897e246aadee611d01ca977b1fb0cb3d1d4`. R4 Receipt Storage/retention implementation and live acceptance are complete, approved for checkpointing, and its ordered content-read then mutation capability gates are enabled; full evidence is in `R4_PLAN.md`. Live Schema V4 remains clean and sufficient. R5 planning is authorized after a clean R4 checkpoint; no deployment or implementation is authorized.**
+**Plan status (2026-08-29): Phases 13A/13B complete (`bed70e3`); R1 `5fed47f`; R2 `9ecd4d3`; R3 `01d82897e246aadee611d01ca977b1fb0cb3d1d4`; R4 `840d907211f5d79793096613539981c099049161`. Live Schema V4 remains clean and sufficient. R5 Appwrite Sites production-readiness implementation, feature-branch deployment, and full QA are authorized in `R5_PLAN.md`; merge/release/tag remain unauthorized.**
 
 #### R2 SIMPLIFICATION - Owner Decision (2026-08-26)
 
