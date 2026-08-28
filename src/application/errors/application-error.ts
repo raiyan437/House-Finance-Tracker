@@ -20,6 +20,7 @@ export type ApplicationErrorCode =
   | "RECEIPT_USER_QUOTA_EXCEEDED"
   | "RECEIPT_PROJECT_CAPACITY_EXCEEDED"
   | "RECEIPT_PRIVATE_ACCESS_FORBIDDEN"
+  | "RECEIPT_PARTIAL_SUCCESS"
   | "IDEMPOTENCY_KEY_REUSED"
   | "IDEMPOTENCY_IN_PROGRESS";
 
@@ -49,5 +50,23 @@ export class BackdatedExpenseConfirmationRequiredError extends ApplicationError 
     );
     this.name = "BackdatedExpenseConfirmationRequiredError";
     this.confirmationToken = confirmationToken;
+  }
+}
+
+/** Expense persistence completed, but one or more separate Receipt sagas did not. */
+export class ReceiptSagaPartialSuccessError extends ApplicationError {
+  readonly savedExpenseId: string;
+  readonly failedReceiptOperations: number;
+
+  constructor(savedExpenseId: string, failedReceiptOperations: number) {
+    super(
+      "RECEIPT_PARTIAL_SUCCESS",
+      failedReceiptOperations === 1
+        ? "The Expense was saved, but one Receipt change did not finish. Your Receipt draft is still here; retry to finish it."
+        : `The Expense was saved, but ${failedReceiptOperations} Receipt changes did not finish. Your Receipt drafts are still here; retry to finish them.`,
+    );
+    this.name = "ReceiptSagaPartialSuccessError";
+    this.savedExpenseId = savedExpenseId;
+    this.failedReceiptOperations = failedReceiptOperations;
   }
 }

@@ -22,7 +22,7 @@ import type {
   ReceiptView,
   ExpenseView,
 } from "@/application/services/application-services";
-import { ApplicationError } from "@/application/errors/application-error";
+import { ApplicationError, ReceiptSagaPartialSuccessError } from "@/application/errors/application-error";
 import { MAX_AVAILABLE_RECEIPTS_PER_EXPENSE, RECEIPT_USER_QUOTA_BYTES } from "@/application/receipts/receipt-storage-policy";
 import type { MyCardSummaryView } from "@/application/cards/card-page";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
 import { DomainError } from "@/domain/shared/domain-error";
-import { expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
+import { commandId, expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { ErrorState } from "@/presentation/components/async-state";
@@ -133,6 +133,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   const [original, setOriginal] = useState<ExpenseView>();
   const [existingReceipts, setExistingReceipts] = useState<readonly ExistingReceiptPreview[]>([]);
   const [removedReceiptIds, setRemovedReceiptIds] = useState<readonly string[]>([]);
+  const receiptRemovalCommandIds = useRef(new Map<string, ReturnType<typeof commandId>>());
   const [pendingReceipts, setPendingReceipts] = useState<readonly PendingReceipt[]>([]);
   const [receiptError, setReceiptError] = useState<string>();
   const [submitError, setSubmitError] = useState<string>();
@@ -250,6 +251,9 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   }, []);
 
   function stageExistingReceiptRemoval(receiptId: string) {
+    if (!receiptRemovalCommandIds.current.has(receiptId)) {
+      receiptRemovalCommandIds.current.set(receiptId, commandId(crypto.randomUUID()));
+    }
     setRemovedReceiptIds((current) => (current.includes(receiptId) ? current : [...current, receiptId]));
     const entry = existingUrlsRef.current.find((candidate) => candidate.receiptId === receiptId);
     if (!entry) return;
@@ -415,6 +419,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
       const newReceipts = [];
       for (const receipt of pendingReceipts) {
         newReceipts.push({
+          commandId: commandId(receipt.key),
           originalFilename: receipt.file.name,
           content: {
             bytes: new Uint8Array(await receipt.file.arrayBuffer()),
@@ -492,11 +497,27 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
         payment,
         newReceipts,
         removedReceiptIds: removedReceiptIds.map(parseReceiptId),
+        receiptRemovalCommandIds: Object.fromEntries(
+          removedReceiptIds.map((id) => [id, receiptRemovalCommandIds.current.get(id) ?? commandId(crypto.randomUUID())]),
+        ),
       });
       expenseCommand.complete();
       setBackdatedConfirmationToken(undefined);
       router.push(`/expenses/${original.expense.expenseId}`);
     } catch (error) {
+      if (error instanceof ReceiptSagaPartialSuccessError) {
+        if (mode === "edit" && original) {
+          try {
+            const refreshed = await runtime.expenseActions.getExpense(parseExpenseId(error.savedExpenseId));
+            setOriginal(refreshed);
+            form.reset(editFormValues(refreshed, form.getValues("name")));
+          } catch {
+            // The explicit partial-success message remains accurate even if refresh is temporarily unavailable.
+          }
+        }
+        setSubmitError(error.message);
+        return;
+      }
       if (error instanceof ApplicationError && error.code === "BACKDATED_EXPENSE_CONFIRMATION_REQUIRED") {
         const token = "confirmationToken" in error
           ? String(error.confirmationToken)

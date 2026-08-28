@@ -68,3 +68,15 @@ export const PRODUCTION_R3_CAPABILITIES: ProductCapabilities = Object.freeze({
   ...PRODUCTION_R3_EXPENSE_CAPABILITIES,
   settlementMutations: true,
 });
+
+/** R4A: authorized server-delivered Receipt binaries are available; writes remain gated. */
+export const PRODUCTION_R4_CONTENT_CAPABILITIES: ProductCapabilities = Object.freeze({
+  ...PRODUCTION_R3_CAPABILITIES,
+  receiptContentReads: true,
+});
+
+/** R4: trusted upload/removal sagas and private content delivery are complete. */
+export const PRODUCTION_R4_CAPABILITIES: ProductCapabilities = Object.freeze({
+  ...PRODUCTION_R4_CONTENT_CAPABILITIES,
+  receiptMutations: true,
+});

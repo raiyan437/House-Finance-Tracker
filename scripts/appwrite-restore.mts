@@ -1,71 +1,106 @@
 /**
- * R2 restore CLI (D2): restores table rows from a backup file into an explicit
- * TARGET database id. Safety rails:
- *  - the live database id ("hft") is refused unless --allow-live is passed;
- *  - rows are upserted by their original $id so restores are idempotent;
- *  - a post-restore count comparison against the backup is printed.
+ * R4 isolated-project restore. The complete backup is verified before writes;
+ * available binaries are restored and checked before their metadata rows.
+ * Production-project restores remain fail-closed and require a separate,
+ * owner-approved disaster-recovery/cutover procedure.
  *
- * Usage:
- *   npx tsx scripts/appwrite-restore.mts --file <backup.json> --target-database <id> [--yes]
+ * Usage: npx tsx scripts/appwrite-restore.mts --backup <directory> --target-database <id> --yes --isolated
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { Client, TablesDB } from "node-appwrite";
+import { join, resolve } from "node:path";
+import { Client, Storage, TablesDB } from "node-appwrite";
+import { InputFile } from "node-appwrite/file";
+import sharp from "sharp";
 import { assertNotProduction, loadAppwriteCliEnv } from "./appwrite-cli-env";
+import { resolveVerifiedReceiptBinaryPath } from "./receipt-backup-path";
 
-const cliEnv = loadAppwriteCliEnv(process.argv);
-const env = {
-  APPWRITE_ENDPOINT: cliEnv.endpoint,
-  APPWRITE_PROJECT_ID: cliEnv.projectId,
-  APPWRITE_RUNTIME_API_KEY: cliEnv.runtimeApiKey,
-};
+const MAX_RECEIPT_DECODED_PIXELS = 268_402_689;
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-const file = arg("--file");
+function sha256(value: Uint8Array | string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+const backup = arg("--backup") ?? arg("--file");
 const targetDatabase = arg("--target-database");
-const yes = process.argv.includes("--yes");
-
-if (!file || !targetDatabase) throw new Error("Usage: --file <backup.json> --target-database <id> [--yes]");
-
-// Gate C §2 fail-closed safeguard: never target the known PRODUCTION project.
-assertNotProduction(targetDatabase, "Restore");
-
-if (targetDatabase === "hft" && !yes) throw new Error('Refusing to restore into the LIVE database "hft" without --allow-live.');
-if (targetDatabase === "hft" && !process.argv.includes("--allow-live")) {
-  // Extra belt: even --yes alone must never touch the live id.
-  throw new Error('Restoring into "hft" additionally requires --allow-live.');
+if (!backup || !targetDatabase || !process.argv.includes("--yes") || !process.argv.includes("--isolated")) {
+  throw new Error("Usage: --backup <directory> --target-database <id> --yes --isolated");
+}
+const cliEnv = loadAppwriteCliEnv(process.argv);
+assertNotProduction(cliEnv.projectId, "Restore");
+if (targetDatabase === "hft" && !process.argv.includes("--allow-live-database-id")) {
+  throw new Error('Restoring into database id "hft" requires --allow-live-database-id (the connected project must still be non-production).');
 }
 
-const raw = readFileSync(file, "utf8");
-const expected = existsSyncSafe(`${file}.sha256`);
-if (expected && createHash("sha256").update(raw).digest("hex") !== expected) throw new Error("Backup checksum mismatch — refusing restore.");
-const parsed = JSON.parse(raw) as { tables: Record<string, { rows: Array<Record<string, unknown>> }> };
+const root = resolve(backup);
+const manifestRaw = readFileSync(join(root, "manifest.json"), "utf8");
+if (sha256(manifestRaw) !== readFileSync(join(root, "manifest.sha256"), "utf8").trim()) throw new Error("Backup manifest checksum mismatch.");
+const manifest = JSON.parse(manifestRaw) as {
+  formatVersion: number;
+  rowsSha256: string;
+  receipts: Array<{ receiptId: string; relativePath: string; mimeType: "image/jpeg" | "image/png" | "image/webp"; sizeBytes: number; sha256: string }>;
+};
+if (manifest.formatVersion !== 2) throw new Error("Unsupported backup format.");
+const rowsRaw = readFileSync(join(root, "rows.json"), "utf8");
+if (sha256(rowsRaw) !== manifest.rowsSha256) throw new Error("Backup rows checksum mismatch.");
+const parsed = JSON.parse(rowsRaw) as { tables: Record<string, { count: number; rows: Array<Record<string, unknown>> }> };
+const receiptRows = new Map((parsed.tables.receipt_metadata?.rows ?? []).map((row) => [String(row.$id), row]));
 
-const tables = new TablesDB(
-  new Client().setEndpoint(env.APPWRITE_ENDPOINT).setProject(env.APPWRITE_PROJECT_ID).setKey(env.APPWRITE_RUNTIME_API_KEY),
-);
-
-function existsSyncSafe(path: string): string | undefined {
-  try {
-    return readFileSync(path, "utf8").trim();
-  } catch {
-    return undefined;
+const verifiedBinaries = new Map<string, Uint8Array>();
+for (const entry of manifest.receipts) {
+  if (verifiedBinaries.has(entry.receiptId)) throw new Error(`Duplicate Receipt backup entry for ${entry.receiptId}.`);
+  const row = receiptRows.get(entry.receiptId);
+  const bytes = new Uint8Array(readFileSync(resolveVerifiedReceiptBinaryPath(root, entry.receiptId, entry.relativePath)));
+  if (!row || row.contentState !== "available" || row.mimeType !== entry.mimeType || Number(row.sizeBytes) !== entry.sizeBytes || row.checksum !== entry.sha256 || bytes.byteLength !== entry.sizeBytes || sha256(bytes) !== entry.sha256) {
+    throw new Error(`Receipt metadata/binary verification failed for ${entry.receiptId}.`);
   }
+  const decoder = sharp(bytes, { failOn: "error", sequentialRead: true, limitInputPixels: MAX_RECEIPT_DECODED_PIXELS });
+  const decoded = await decoder.metadata();
+  const expectedFormat = entry.mimeType === "image/jpeg" ? "jpeg" : entry.mimeType.slice("image/".length);
+  if (decoded.format !== expectedFormat || !decoded.width || !decoded.height || decoded.width * decoded.height > MAX_RECEIPT_DECODED_PIXELS) throw new Error(`Receipt ${entry.receiptId} is not a valid supported image.`);
+  await decoder.stats();
+  verifiedBinaries.set(entry.receiptId, bytes);
+}
+if ([...receiptRows.values()].filter((row) => row.contentState === "available").length !== verifiedBinaries.size) {
+  throw new Error("The backup does not contain exactly one binary per available Receipt.");
 }
 
+const client = new Client().setEndpoint(cliEnv.endpoint).setProject(cliEnv.projectId).setKey(cliEnv.runtimeApiKey);
+const tables = new TablesDB(client);
+const storage = new Storage(client);
+const metadataKeys = new Set(["$id", "$createdAt", "$updatedAt", "$permissions", "$databaseId", "$tableId"]);
+const dataOf = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).filter(([key]) => !metadataKeys.has(key)));
 const restoredCounts: Record<string, number> = {};
+
+// Non-Receipt rows first. Available Receipt metadata is deliberately withheld
+// until its binary has been restored and verified in Storage.
 for (const [tableId, entry] of Object.entries(parsed.tables)) {
-  let restored = 0;
-  for (const row of entry.rows) {
-    const metadataKeys = ["$id", "$createdAt", "$updatedAt", "$permissions"];
-    const data = Object.fromEntries(Object.entries(row).filter(([key]) => !metadataKeys.includes(key)));
-    await tables.upsertRow({ databaseId: targetDatabase, tableId, rowId: String(row.$id), data });
-    restored += 1;
-  }
-  restoredCounts[tableId] = restored;
+  if (tableId === "receipt_metadata") continue;
+  for (const row of entry.rows) await tables.upsertRow({ databaseId: targetDatabase, tableId, rowId: String(row.$id), data: dataOf(row) });
+  restoredCounts[tableId] = entry.rows.length;
 }
-console.log(JSON.stringify({ restoredInto: targetDatabase, counts: restoredCounts }, null, 2));
+
+for (const entry of manifest.receipts) {
+  const row = receiptRows.get(entry.receiptId)!;
+  const fileId = String(row.storageFileId);
+  const bytes = verifiedBinaries.get(entry.receiptId)!;
+  try {
+    await storage.createFile({ bucketId: "receipts", fileId, file: InputFile.fromBuffer(bytes, "receipt.bin"), permissions: [] });
+  } catch (error) {
+    if (Number((error as { code?: unknown }).code) !== 409) throw error;
+  }
+  const downloaded = new Uint8Array(await storage.getFileDownload({ bucketId: "receipts", fileId }));
+  if (downloaded.byteLength !== entry.sizeBytes || sha256(downloaded) !== entry.sha256) throw new Error(`Restored Storage verification failed for ${entry.receiptId}.`);
+}
+
+for (const row of receiptRows.values()) {
+  if (row.contentState === "available" && !verifiedBinaries.has(String(row.$id))) throw new Error(`Available Receipt ${String(row.$id)} has no restored binary.`);
+  await tables.upsertRow({ databaseId: targetDatabase, tableId: "receipt_metadata", rowId: String(row.$id), data: dataOf(row) });
+}
+restoredCounts.receipt_metadata = receiptRows.size;
+console.log(JSON.stringify({ restoredIntoProject: cliEnv.projectId, restoredIntoDatabase: targetDatabase, receiptBinaries: verifiedBinaries.size, counts: restoredCounts, integrityVerified: true }, null, 2));

@@ -43,6 +43,7 @@ class ProviderTablesReader implements TablesReader {
           databaseId: DATABASE_ID,
           tableId,
           queries: cursor ? [...pageQueries, Query.cursorAfter(cursor)] : pageQueries,
+          transactionId: this.options.transactionId,
         });
         rows.push(...(page.rows as AppwriteRow[]));
         cursor = page.rows.length === PAGE_SIZE ? page.rows[page.rows.length - 1]?.$id : undefined;

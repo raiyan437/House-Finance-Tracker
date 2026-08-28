@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PRODUCTION_R3_CAPABILITIES } from "@/application/runtime-capabilities";
+import { PRODUCTION_R4_CAPABILITIES } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication } from "@/application/services/application-services";
 import type { ApplicationRepositories, AtomicApplicationPersistence, CurrentSession } from "@/application/repositories";
 import type { ApplicationValues } from "@/application/services/application-services";
@@ -59,7 +59,7 @@ function contextWith(reader: InMemoryTablesReader): ReturnType<typeof buildProdu
     tables: reader,
     dependencies,
     application,
-    capabilities: PRODUCTION_R3_CAPABILITIES,
+    capabilities: PRODUCTION_R4_CAPABILITIES,
     enforceHouseCodeThrottle: async () => undefined,
   } as unknown as ReturnType<typeof buildProductRequestContext>;
 }
@@ -67,7 +67,7 @@ function contextWith(reader: InMemoryTablesReader): ReturnType<typeof buildProdu
 describe("trusted production request context", () => {
   it("builds a real context with server clock values and production capabilities", async () => {
     const built = buildProductRequestContext({ userId: "user_abc" as UserId, email: "abc@test.io" });
-    expect(built.capabilities).toBe(PRODUCTION_R3_CAPABILITIES);
+    expect(built.capabilities).toBe(PRODUCTION_R4_CAPABILITIES);
     await expect(built.dependencies.session.getCurrentUserId()).resolves.toBe("user_abc");
     expect(built.dependencies.values.now()).toMatch(/Z$/);
     expect(typeof built.dependencies.atomic.createExpense).toBe("function");
@@ -82,7 +82,7 @@ describe("trusted production request context", () => {
 
   it("assembles the bootstrap projection with session view and no-household state", async () => {
     const bootstrap = await loadBootstrap(contextWith(new InMemoryTablesReader()));
-    expect(bootstrap.capabilities).toEqual(PRODUCTION_R3_CAPABILITIES);
+    expect(bootstrap.capabilities).toEqual(PRODUCTION_R4_CAPABILITIES);
     // 18:30 UTC is already the next calendar day in Asia/Dhaka.
     expect(bootstrap.businessDate).toBe("2026-08-27");
     expect(bootstrap.household).toEqual({ status: "no-household" });

@@ -436,7 +436,7 @@ export interface CreateExpenseCommand {
   readonly percentageEntries?: readonly PercentageSplitEntry[];
   readonly allocations: readonly SplitAllocation[];
   readonly payment: { readonly method: "cash" } | { readonly method: "card"; readonly cardId: CardId };
-  readonly receipts?: readonly Readonly<{ originalFilename?: string; content: ReceiptContent }>[];
+  readonly receipts?: readonly Readonly<{ originalFilename?: string; content: ReceiptContent; commandId?: CommandId }>[];
 }
 
 export interface ExpenseView {
@@ -640,8 +640,11 @@ export interface EditExpenseCommand {
   readonly newReceipts?: readonly Readonly<{
     originalFilename?: string;
     content: ReceiptContent;
+    commandId?: CommandId;
   }>[];
   readonly removedReceiptIds?: readonly ReceiptId[];
+  /** Trusted production Receipt sagas use stable per-removal command identities. */
+  readonly receiptRemovalCommandIds?: Readonly<Record<string, CommandId>>;
 }
 
 export class ExpenseApplicationService {

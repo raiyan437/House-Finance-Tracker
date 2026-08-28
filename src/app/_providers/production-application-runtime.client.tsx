@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ApplicationError, BackdatedExpenseConfirmationRequiredError, type ApplicationErrorCode } from "@/application/errors/application-error";
+import { ApplicationError, BackdatedExpenseConfirmationRequiredError, ReceiptSagaPartialSuccessError, type ApplicationErrorCode } from "@/application/errors/application-error";
 import type { ProductCapabilities } from "@/application/runtime-capabilities";
 import type { CalendarMonth } from "@/application/analytics/calendar-month";
 import { parseWithBigInt } from "@/application/transport/json-bigint";
@@ -28,6 +28,7 @@ import type {
   ExpenseView,
   JoinableHouseholdView,
   ReceiptView,
+  ExpenseReceiptContent,
 } from "@/application/services/application-services";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { CardId, CommandId, ExpenseId, HouseholdId, JoinRequestId, SettlementId, UserId } from "@/domain/shared/identifiers";
@@ -88,13 +89,6 @@ function isStatusFailure(error: unknown): error is Error & { status: number } {
   return error instanceof Error && typeof (error as { status?: unknown }).status === "number";
 }
 
-/** Defense in depth only: capabilities disable these actions before invocation. */
-function commandUnavailable(): Promise<never> {
-  return Promise.reject(
-    new ApplicationError("COMMANDS_UNAVAILABLE", "This action arrives with the next production update."),
-  );
-}
-
 function LoadingScreen() {
   return (
     <main className="grid min-h-dvh place-items-center bg-background" role="status" aria-label="Loading">
@@ -147,6 +141,73 @@ function buildReadyState(
     retryCommandIds.delete(retryKey);
   };
 
+  const uploadReceipt = async (
+    expenseIdValue: ExpenseId,
+    receipt: NonNullable<Parameters<ExpenseApplicationActions["createExpense"]>[0]["receipts"]>[number],
+    fallbackKey: string,
+  ): Promise<void> => {
+    const retryKey = `/api/app/receipt-upload:${fallbackKey}`;
+    const receiptCommandId = receipt.commandId ?? retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+    retryCommandIds.set(retryKey, String(receiptCommandId));
+    const bytes = receipt.content.bytes;
+    const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    await requestJson<ReceiptView>("/api/app/receipt-upload", {
+      method: "POST",
+      headers: {
+        "content-type": receipt.content.mimeType,
+        "x-command-id": String(receiptCommandId),
+        "x-expense-id": String(expenseIdValue),
+        ...(receipt.originalFilename ? { "x-receipt-filename": encodeURIComponent(receipt.originalFilename) } : {}),
+      },
+      body,
+    });
+  };
+
+  const removeReceipt = async (receiptIdValue: string, receiptCommandId: string): Promise<void> => {
+    await requestJson("/api/app/receipt-remove", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ receiptId: receiptIdValue, commandId: receiptCommandId }),
+    });
+  };
+
+  const finishReceiptSagas = async (
+    expenseIdValue: ExpenseId,
+    additions: NonNullable<Parameters<ExpenseApplicationActions["createExpense"]>[0]["receipts"]>,
+    removals: readonly string[],
+    removalCommandIds: Readonly<Record<string, string>>,
+  ): Promise<void> => {
+    const operations: Promise<void>[] = additions.map((receipt, index) =>
+      uploadReceipt(expenseIdValue, receipt, `${String(expenseIdValue)}:${index}:${String(receipt.commandId ?? "fallback")}`));
+    for (const receiptIdValue of removals) {
+      const retryKey = `/api/app/receipt-remove:${receiptIdValue}`;
+      const receiptCommandId = removalCommandIds[receiptIdValue] ?? retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+      retryCommandIds.set(retryKey, receiptCommandId);
+      operations.push(removeReceipt(receiptIdValue, receiptCommandId));
+    }
+    const outcomes = await Promise.allSettled(operations);
+    const failures = outcomes.filter((outcome) => outcome.status === "rejected").length;
+    await refresh();
+    if (failures > 0) throw new ReceiptSagaPartialSuccessError(String(expenseIdValue), failures);
+  };
+
+  const readReceiptContent = async (receiptIdValue: string): Promise<ExpenseReceiptContent> => {
+    const response = await fetch(`/api/app/receipts/${encodeURIComponent(receiptIdValue)}/content`, {
+      headers: { accept: "image/jpeg, image/png, image/webp" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      const payload = text ? parseWithBigInt<{ error?: string; code?: ApplicationErrorCode }>(text) : {};
+      throw Object.assign(new ApplicationError(payload.code ?? "NOT_FOUND", payload.error ?? "Receipt not found."), { status: response.status });
+    }
+    const mimeType = response.headers.get("content-type")?.split(";", 1)[0];
+    if (mimeType !== "image/jpeg" && mimeType !== "image/png" && mimeType !== "image/webp") {
+      throw new ApplicationError("RECEIPT_CONTENT_MISMATCH", "The stored Receipt could not be read safely.");
+    }
+    return Object.freeze({ bytes: new Uint8Array(await response.arrayBuffer()), mimeType });
+  };
+
   const householdActions: HouseholdApplicationActions = Object.freeze({
     generateCode: () => requestJson<string>("/api/app/household-code-candidate"),
     findHousehold: async (code: string) =>
@@ -182,29 +243,48 @@ function buildReadyState(
     getExpense: (expenseIdValue: ExpenseId) =>
       requestJson<ExpenseView>(`/api/app/expense?id=${encodeURIComponent(expenseIdValue)}`),
     createExpense: async (command: Parameters<ExpenseApplicationActions["createExpense"]>[0]) => {
+      const { receipts = [], ...expenseCommand } = command;
       const result = await requestJson<ExpenseView>("/api/app/expense-create", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(command),
+        body: JSON.stringify({ ...expenseCommand, receipts: [] }),
       });
-      await refresh();
+      await finishReceiptSagas(result.expense.expenseId, receipts, [], {});
       return result;
     },
     editExpense: async (command: Parameters<ExpenseApplicationActions["editExpense"]>[0]) => {
+      const {
+        newReceipts = [],
+        removedReceiptIds = [],
+        receiptRemovalCommandIds = {},
+        ...expenseCommand
+      } = command;
       const result = await requestJson<ExpenseView>("/api/app/expense-edit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(command),
+        body: JSON.stringify({ ...expenseCommand, newReceipts: [], removedReceiptIds: [] }),
       });
-      await refresh();
+      await finishReceiptSagas(
+        result.expense.expenseId,
+        newReceipts,
+        removedReceiptIds.map(String),
+        Object.fromEntries(Object.entries(receiptRemovalCommandIds).map(([key, value]) => [key, String(value)])),
+      );
       return result;
     },
     deleteExpense: (expenseIdValue: ExpenseId, expectedRevision: number) =>
       postGeneratedCommand("/api/app/expense-delete", { expenseId: expenseIdValue, expectedRevision }),
     listReceipts: (expenseIdValue: ExpenseId) =>
       requestJson<readonly ReceiptView[]>(`/api/app/expense-receipts?id=${encodeURIComponent(expenseIdValue)}`),
-    readReceipt: () => commandUnavailable(),
-    deleteReceipt: () => commandUnavailable(),
+    readReceipt: (receiptIdValue: Parameters<ExpenseApplicationActions["readReceipt"]>[0]) => readReceiptContent(String(receiptIdValue)),
+    deleteReceipt: async (receiptIdValue: Parameters<ExpenseApplicationActions["deleteReceipt"]>[0]) => {
+      const retryKey = `/api/app/receipt-remove:${String(receiptIdValue)}`;
+      const receiptCommandId = retryCommandIds.get(retryKey) ?? crypto.randomUUID();
+      retryCommandIds.set(retryKey, receiptCommandId);
+      await removeReceipt(String(receiptIdValue), receiptCommandId);
+      retryCommandIds.delete(retryKey);
+      await refresh();
+    },
     listActivity: (expenseIdValue: ExpenseId) =>
       requestJson<readonly ExpenseActivityView[]>(`/api/app/expense-activity?id=${encodeURIComponent(expenseIdValue)}`),
   });

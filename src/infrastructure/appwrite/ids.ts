@@ -31,6 +31,26 @@ export function commandOutcomeRowId(descriptor: Readonly<{ actorId: string; comm
   return derivePrefixedId("c_", JSON.stringify([descriptor.actorId, descriptor.commandType, descriptor.commandId]));
 }
 
+function receiptCommandKey(actorId: string, commandType: string, commandId: string): string {
+  return JSON.stringify([actorId, commandType, commandId]);
+}
+
+export function receiptReservationRowId(actorId: string, commandId: string): string {
+  return derivePrefixedId("q_", receiptCommandKey(actorId, "upload-receipt", commandId));
+}
+
+export function receiptMetadataRowId(actorId: string, commandId: string): string {
+  return derivePrefixedId("r_", receiptCommandKey(actorId, "upload-receipt", commandId));
+}
+
+export function receiptStorageFileId(actorId: string, commandId: string): string {
+  return derivePrefixedId("f_", receiptCommandKey(actorId, "upload-receipt", commandId));
+}
+
+export function receiptAuditRowId(actorId: string, commandType: "upload-receipt" | "remove-receipt", commandId: string): string {
+  return derivePrefixedId("a_", receiptCommandKey(actorId, commandType, commandId));
+}
+
 /** Deterministic membership row id (membership composite key hashed into provider charset). */
 export function membershipRowId(householdId: string, userId: string): string {
   return derivePrefixedId("m_", JSON.stringify([householdId, userId]));

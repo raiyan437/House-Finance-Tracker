@@ -68,7 +68,10 @@ export function productionProjectId(): string | undefined {
  */
 export function assertNotProduction(projectId: string, actionLabel: string): void {
   const production = productionProjectId();
-  if (production && projectId === production) {
+  if (!production) {
+    throw new Error(`${actionLabel} refused: the production project id could not be proven from .env.local.`);
+  }
+  if (projectId === production) {
     throw new Error(`${actionLabel} refused: connected project id matches the PRODUCTION project.`);
   }
 }

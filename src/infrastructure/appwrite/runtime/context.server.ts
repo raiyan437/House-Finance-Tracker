@@ -2,7 +2,7 @@ import "server-only";
 
 
 import type { ApplicationRepositories, CurrentSession } from "@/application/repositories";
-import { PRODUCTION_R3_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
+import { PRODUCTION_R4_CAPABILITIES, type ProductCapabilities } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication, type ApplicationValues, type Dependencies, type GeneratedIdKind } from "@/application/services/application-services";
 import { userId, type UserId } from "@/domain/shared/identifiers";
 import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
@@ -17,6 +17,8 @@ import { createAppwriteReadRepositories, createTablesReader, type AppwriteReadRe
 import type { TablesReader } from "../reads/tables.server";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
 import { createServerBackdatedConfirmationAuthority } from "./backdated-confirmation.server";
+import { ReceiptOperations } from "./receipt-operations.server";
+import { AppwriteReceiptStorage } from "./receipt-storage.server";
 
 export interface TrustedActor {
   readonly userId: UserId;
@@ -36,6 +38,7 @@ export interface ProductRequestContext {
   readonly tables: TablesReader;
   readonly dependencies: Dependencies;
   readonly application: HouseFinanceApplication;
+  readonly receiptOperations: ReceiptOperations;
   readonly capabilities: ProductCapabilities;
   /** Opaque HMAC-windowed throttle for house-code lookup/generation reads. */
   enforceHouseCodeThrottle(identityParts: readonly string[]): Promise<void>;
@@ -153,13 +156,20 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
     backdatedConfirmationAuthority,
   };
   const application = new HouseFinanceApplication(dependencies);
+  const receiptOperations = new ReceiptOperations(
+    tablesDB,
+    new AppwriteReceiptStorage(clients.storage()),
+    actor.userId,
+    () => String(values.now()),
+  );
   return Object.freeze({
     actor,
     repositories,
     tables,
     dependencies,
     application,
-    capabilities: PRODUCTION_R3_CAPABILITIES,
+    receiptOperations,
+    capabilities: PRODUCTION_R4_CAPABILITIES,
     enforceHouseCodeThrottle: async (identityParts: readonly string[]) => {
       if (!authSecret) {
         throw new AuthError("PROVIDER_UNAVAILABLE", "The service is temporarily unavailable.");

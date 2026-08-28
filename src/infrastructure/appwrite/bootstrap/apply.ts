@@ -237,7 +237,7 @@ export async function applySchemaPlan(
       schedule: MAINTENANCE_FUNCTION.schedule,
       timeout: MAINTENANCE_FUNCTION.timeoutSeconds,
       logging: MAINTENANCE_FUNCTION.logging,
-      entrypoint: "src/main.ts",
+      entrypoint: "src/main.js",
       commands: "npm install",
       scopes: [ProjectKeyScopes.TablesRead, ProjectKeyScopes.TablesWrite, ProjectKeyScopes.RowsRead, ProjectKeyScopes.RowsWrite, ProjectKeyScopes.FilesRead, ProjectKeyScopes.FilesWrite],
     });

@@ -41,10 +41,14 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
       case "EXPENSE_VERSION_CONFLICT":
       case "IDEMPOTENCY_KEY_REUSED":
       case "IDEMPOTENCY_IN_PROGRESS":
+      case "RECEIPT_COUNT_LIMIT_EXCEEDED":
+      case "RECEIPT_USER_QUOTA_EXCEEDED":
+      case "RECEIPT_PROJECT_CAPACITY_EXCEEDED":
         return { status: 409, body: { error: error.message, code: error.code } };
       case "INVALID_HOUSEHOLD_CODE":
       case "INVALID_INPUT":
       case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":
+      case "RECEIPT_CONTENT_MISMATCH":
         return { status: 400, body: { error: error.message, code: error.code } };
       case "MALFORMED_PERSISTED_DATA":
         console.error("[product-read] malformed persisted data", { store: error.context?.store ?? "unknown" });
@@ -109,7 +113,7 @@ export async function runProductRead<T>(request: NextRequest, handler: (context:
   }
 }
 
-function assertSameOrigin(origin: string, host: string | null): boolean {
+export function assertSameOrigin(origin: string, host: string | null): boolean {
   if (!host) return false;
   try {
     return new URL(origin).host === host;

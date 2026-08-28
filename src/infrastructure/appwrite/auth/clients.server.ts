@@ -1,10 +1,11 @@
-import { Account, Client, TablesDB } from "node-appwrite";
+import { Account, Client, Storage, TablesDB } from "node-appwrite";
 import { loadAppwriteServerConfig, type AppwriteServerConfig } from "../config";
 
 export interface AppwriteAuthClients {
   readonly adminAccount: () => Account;
   readonly sessionAccount: (sessionSecret: string) => Account;
   readonly tablesDB: () => TablesDB;
+  readonly storage: () => Storage;
 }
 
 function baseClient(config: AppwriteServerConfig): Client {
@@ -16,6 +17,7 @@ export function createAppwriteAuthClients(config: AppwriteServerConfig = require
     adminAccount: () => new Account(baseClient(config).setKey(runtimeKey(config))),
     sessionAccount: (sessionSecret: string) => new Account(baseClient(config).setSession(sessionSecret)),
     tablesDB: () => new TablesDB(baseClient(config).setKey(runtimeKey(config))),
+    storage: () => new Storage(baseClient(config).setKey(runtimeKey(config))),
   };
 }
 

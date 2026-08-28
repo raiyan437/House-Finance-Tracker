@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCTION_R2_CAPABILITIES } from "@/application/runtime-capabilities";
-import { commandId, householdId, joinRequestId, userId } from "@/domain/shared/identifiers";
+import { commandId, householdId, joinRequestId, receiptId, userId } from "@/domain/shared/identifiers";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 
 const replace = vi.fn();
@@ -131,7 +132,86 @@ describe("production application runtime composition", () => {
     ]);
     expect(commands.every((entry) => typeof entry.body.commandId === "string")).toBe(true);
   });
+
+  it("runs stable binary Receipt sagas after Expense persistence and reports retryable partial success", async () => {
+    currentPathname = "/household";
+    const calls: Array<{ path: string; init?: RequestInit }> = [];
+    let uploadAttempts = 0;
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const path = String(input);
+      calls.push({ path, init });
+      if (path === "/api/app/bootstrap") return new Response(JSON.stringify(bootstrapPayload()), { status: 200 });
+      if (path === "/api/app/expense-create") {
+        return new Response(JSON.stringify({ data: { expense: { expenseId: "e_saved" } } }), { status: 200 });
+      }
+      if (path === "/api/app/receipt-upload") {
+        uploadAttempts += 1;
+        return uploadAttempts === 1
+          ? new Response(JSON.stringify({ error: "busy", code: "PERSISTENCE_FAILURE" }), { status: 503 })
+          : new Response(JSON.stringify({ data: { visibility: "private", receiptId: "r_saved" } }), { status: 200 });
+      }
+      throw new Error(`Unexpected path ${path}`);
+    });
+    render(<ProductionApplicationRuntime><ExpenseReceiptProbe /></ProductionApplicationRuntime>);
+    const save = await screen.findByRole("button", { name: "save-with-receipt" });
+
+    save.click();
+    expect(await screen.findByText("RECEIPT_PARTIAL_SUCCESS")).toBeVisible();
+    save.click();
+    expect(await screen.findByText("saved:e_saved")).toBeVisible();
+
+    const expenseCalls = calls.filter((call) => call.path === "/api/app/expense-create");
+    const uploadCalls = calls.filter((call) => call.path === "/api/app/receipt-upload");
+    expect(expenseCalls).toHaveLength(2);
+    expect(JSON.parse(String(expenseCalls[0]!.init?.body))).toMatchObject({ receipts: [] });
+    expect(uploadCalls).toHaveLength(2);
+    expect((uploadCalls[0]!.init?.headers as Record<string, string>)["x-command-id"]).toBe("receipt-command");
+    expect((uploadCalls[1]!.init?.headers as Record<string, string>)["x-command-id"]).toBe("receipt-command");
+    expect(new Uint8Array(uploadCalls[0]!.init?.body as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it("reads private Receipt bytes only through the trusted content endpoint", async () => {
+    currentPathname = "/household";
+    const paths: string[] = [];
+    globalThis.fetch = vi.fn(async (input) => {
+      const path = String(input);
+      paths.push(path);
+      if (path === "/api/app/bootstrap") return new Response(JSON.stringify(bootstrapPayload()), { status: 200 });
+      if (path === "/api/app/receipts/r_private/content") {
+        return new Response(new Uint8Array([8, 9]), { status: 200, headers: { "content-type": "image/png", "content-length": "2" } });
+      }
+      throw new Error(`Unexpected path ${path}`);
+    });
+    render(<ProductionApplicationRuntime><ReceiptReadProbe /></ProductionApplicationRuntime>);
+    const read = await screen.findByRole("button", { name: "read-private-receipt" });
+    read.click();
+    expect(await screen.findByText("image/png:2")).toBeVisible();
+    expect(paths).toContain("/api/app/receipts/r_private/content");
+  });
 });
+
+function ExpenseReceiptProbe() {
+  const runtime = useApplicationRuntime();
+  const [status, setStatus] = useState("idle");
+  if (runtime.status !== "ready") return null;
+  const invoke = () => {
+    void runtime.expenseActions.createExpense({
+      commandId: commandId("expense-command"),
+      receipts: [{ commandId: commandId("receipt-command"), originalFilename: "private.png", content: { mimeType: "image/png", bytes: new Uint8Array([1, 2, 3]) } }],
+    } as never).then((view) => setStatus(`saved:${String(view.expense.expenseId)}`)).catch((error: { code?: string }) => setStatus(error.code ?? "error"));
+  };
+  return <div><button onClick={invoke}>save-with-receipt</button><span>{status}</span></div>;
+}
+
+function ReceiptReadProbe() {
+  const runtime = useApplicationRuntime();
+  const [status, setStatus] = useState("idle");
+  if (runtime.status !== "ready") return null;
+  return <div>
+    <button onClick={() => { void runtime.expenseActions.readReceipt(receiptId("r_private")).then((content) => setStatus(`${content.mimeType}:${content.bytes.byteLength}`)); }}>read-private-receipt</button>
+    <span>{status}</span>
+  </div>;
+}
 
 function HouseholdCommandProbe() {
   const runtime = useApplicationRuntime();
