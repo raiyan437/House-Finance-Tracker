@@ -36,10 +36,7 @@ function json(data: unknown, status = 200): NextResponse {
 }
 
 function sameOrigin(request: NextRequest): boolean {
-  return assertSameOrigin(
-    request.headers.get("origin") ?? "",
-    request.headers.get("host"),
-  );
+  return assertSameOrigin(request);
 }
 
 function mapReceiptRouteFailure(error: unknown): NextResponse {
@@ -120,12 +117,12 @@ export async function readBoundedReceiptBody(request: NextRequest, declaredLengt
 }
 
 export async function runReceiptUpload(request: NextRequest): Promise<NextResponse> {
-  if (!sameOrigin(request)) return json({ error: "Cross-origin requests are not permitted." }, 403);
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (!Number.isSafeInteger(declaredLength) || declaredLength < 1 || declaredLength > MAX_RECEIPT_BYTES) {
-    return json({ error: "Receipt content is not a valid supported image.", code: "RECEIPT_CONTENT_MISMATCH" }, 400);
-  }
   try {
+    if (!sameOrigin(request)) return json({ error: "Cross-origin requests are not permitted." }, 403);
+    const declaredLength = Number(request.headers.get("content-length"));
+    if (!Number.isSafeInteger(declaredLength) || declaredLength < 1 || declaredLength > MAX_RECEIPT_BYTES) {
+      return json({ error: "Receipt content is not a valid supported image.", code: "RECEIPT_CONTENT_MISMATCH" }, 400);
+    }
     const headers = parseUploadHeaders(request);
     const resolved = await resolveReadContext();
     if (resolved.status !== "ok") return resolved.status as NextResponse;
@@ -141,10 +138,10 @@ export async function runReceiptContentRead(
   request: NextRequest,
   receiptId: string,
 ): Promise<NextResponse> {
-  if (request.headers.get("origin") && !sameOrigin(request)) {
-    return json({ error: "Cross-origin requests are not permitted." }, 403);
-  }
   try {
+    if (request.headers.get("origin") && !sameOrigin(request)) {
+      return json({ error: "Cross-origin requests are not permitted." }, 403);
+    }
     if (!RESOURCE_ID_PATTERN.test(receiptId)) throw new ApplicationError("NOT_FOUND", "Receipt not found.");
     const resolved = await resolveReadContext();
     if (resolved.status !== "ok") return resolved.status as NextResponse;

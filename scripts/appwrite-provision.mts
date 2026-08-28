@@ -1,6 +1,6 @@
 import {
   loadAppwriteProvisioningConfig,
-  loadAppwriteServerConfig,
+  loadAppwriteOperatorConfig,
   mergeDotEnvFile,
 } from "../src/infrastructure/appwrite/config";
 
@@ -48,13 +48,17 @@ async function main(): Promise<void> {
   const { users } = createProvisioningClients(provisioningConfig.value);
 
   if (oneUserSmoke) {
-    const runtimeConfig = loadAppwriteServerConfig();
+    const runtimeConfig = loadAppwriteOperatorConfig();
     if (!runtimeConfig.ok || !runtimeConfig.value?.runtimeApiKey) {
       console.error("Runtime read configuration is invalid.");
       process.exit(1);
     }
     const { createAppwriteAuthClients } = await import("../src/infrastructure/appwrite/auth/clients.server");
-    const tablesDB = createAppwriteAuthClients(runtimeConfig.value).tablesDB();
+    const tablesDB = createAppwriteAuthClients({
+      endpoint: runtimeConfig.value.endpoint,
+      projectId: runtimeConfig.value.projectId,
+      runtimeApiKey: runtimeConfig.value.runtimeApiKey as string,
+    }).tablesDB();
     const approvedEmails = provisioningConfig.value.accountEmails.emails;
     const beforeUsers = await users.list({ queries: [] });
     const normalizedExisting = beforeUsers.users.map((user) => user.email.trim().toLowerCase());

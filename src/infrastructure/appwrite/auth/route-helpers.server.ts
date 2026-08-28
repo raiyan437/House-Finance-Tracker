@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { AuthError } from "@/infrastructure/appwrite/auth/auth-errors.server";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { requestHasTrustedOrigin, TrustedOriginConfigurationError } from "../trusted-origin.server";
 
 export interface AuthRouteResult {
   readonly status: number;
@@ -10,13 +11,7 @@ export interface AuthRouteResult {
 }
 
 export function assertSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === request.headers.get("host");
-  } catch {
-    return false;
-  }
+  return requestHasTrustedOrigin(request, request.method !== "GET" && request.method !== "HEAD");
 }
 
 export async function readSessionSecret(): Promise<string | undefined> {
@@ -40,15 +35,18 @@ export async function runAuthMutation(
   request: NextRequest,
   handler: () => Promise<AuthRouteResult>,
 ): Promise<NextResponse> {
-  if (!assertSameOrigin(request)) {
-    return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403 });
-  }
   try {
+    if (!assertSameOrigin(request)) {
+      return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403 });
+    }
     const result = await handler();
     const response = NextResponse.json(result.body ?? {}, { status: result.status });
     applyCookie(response, result.cookie);
     return response;
   } catch (error) {
+    if (error instanceof TrustedOriginConfigurationError) {
+      return NextResponse.json({ error: "The authentication service is temporarily unavailable." }, { status: 503 });
+    }
     if (error instanceof AuthError) {
       const status = error.code === "RATE_LIMITED" ? 429 : 400;
       return NextResponse.json({ error: error.message }, { status });

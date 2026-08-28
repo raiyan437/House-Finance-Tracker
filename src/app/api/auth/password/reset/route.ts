@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   return runAuthMutation(request, async () => {
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return { status: 400, body: { error: "Invalid reset details." } };
-    const deps = buildAuthCoreDeps(new URL(request.url).origin);
+    const deps = buildAuthCoreDeps();
     const ipAddress = (request.headers.get("x-forwarded-for") ?? "local").split(",")[0].trim();
     return completePasswordReset(deps, [ipAddress], parsed.data);
   });

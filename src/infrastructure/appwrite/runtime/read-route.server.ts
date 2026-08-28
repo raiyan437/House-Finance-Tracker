@@ -10,6 +10,7 @@ import { AuthError } from "../auth/auth-errors.server";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
 import { buildProductRequestContext, requireActor, resolveTrustedActor, type ProductRequestContext } from "./context.server";
+import { requestHasTrustedOrigin, TrustedOriginConfigurationError } from "../trusted-origin.server";
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" } as const;
 
@@ -93,11 +94,10 @@ export async function resolveReadContext(): Promise<
  * session verification, sanitized error mapping, and no-store caching.
  */
 export async function runProductRead<T>(request: NextRequest, handler: (context: ProductRequestContext) => Promise<T>): Promise<NextResponse> {
-  const origin = request.headers.get("origin");
-  if (origin && !assertSameOrigin(origin, request.headers.get("host"))) {
-    return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
-  }
   try {
+    if (!requestHasTrustedOrigin(request, false)) {
+      return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
+    }
     const resolved = await resolveReadContext();
     if (resolved.status !== "ok") return resolved.status as NextResponse;
     const data = await handler(resolved.context);
@@ -106,6 +106,9 @@ export async function runProductRead<T>(request: NextRequest, handler: (context:
       headers: { ...NO_STORE_HEADERS, "content-type": "application/json" },
     });
   } catch (error) {
+    if (error instanceof TrustedOriginConfigurationError) {
+      return NextResponse.json({ error: "The service is temporarily unavailable." }, { status: 503, headers: NO_STORE_HEADERS });
+    }
     const mapped = mapReadError(error);
     if (mapped) return NextResponse.json(mapped.body, { status: mapped.status, headers: NO_STORE_HEADERS });
     console.error("[product-read]", error instanceof Error ? error.message : error);
@@ -113,13 +116,8 @@ export async function runProductRead<T>(request: NextRequest, handler: (context:
   }
 }
 
-export function assertSameOrigin(origin: string, host: string | null): boolean {
-  if (!host) return false;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
+export function assertSameOrigin(request: NextRequest, requireOrigin = true): boolean {
+  return requestHasTrustedOrigin(request, requireOrigin);
 }
 
 /**
@@ -135,9 +133,15 @@ export async function runTrustedCommand<T>(
   schema: z.ZodType,
   handler: (context: ProductRequestContext, input: Record<string, unknown>) => Promise<T>,
 ): Promise<NextResponse> {
-  const origin = request.headers.get("origin");
-  if (!assertSameOrigin(origin ?? "", request.headers.get("host"))) {
-    return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
+  try {
+    if (!assertSameOrigin(request)) {
+      return NextResponse.json({ error: "Cross-origin requests are not permitted." }, { status: 403, headers: NO_STORE_HEADERS });
+    }
+  } catch (error) {
+    if (error instanceof TrustedOriginConfigurationError) {
+      return NextResponse.json({ error: "The service is temporarily unavailable." }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+    throw error;
   }
   let body: Record<string, unknown> = {};
   try {

@@ -106,10 +106,12 @@ describe("authentication core for pre-provisioned accounts", () => {
 
   it("returns the same recovery result for approved and unknown accounts without calling the provider for unknown accounts", async () => {
     let recoveryCalls = 0;
+    let recoveryUrl = "";
     const deps = makeDeps({
       adminAccount: (() => ({
-        createRecovery: async () => {
+        createRecovery: async ({ url }: { url: string }) => {
           recoveryCalls += 1;
+          recoveryUrl = url;
         },
       })) as unknown as AuthCoreDeps["adminAccount"],
     });
@@ -118,6 +120,7 @@ describe("authentication core for pre-provisioned accounts", () => {
     expect(approved).toEqual({ status: 200, body: { sent: true } });
     expect(unknown).toEqual(approved);
     expect(recoveryCalls).toBe(1);
+    expect(recoveryUrl).toBe("https://hft.test/reset-password");
   });
 
   it("limits reset completion to five attempts per fifteen-minute HMAC bucket", async () => {

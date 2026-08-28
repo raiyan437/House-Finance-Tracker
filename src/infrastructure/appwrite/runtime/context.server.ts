@@ -143,8 +143,7 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
   const tablesDB = clients.tablesDB();
   const tables = createTablesReader(tablesDB);
   const values = serverApplicationValues();
-  const authSecret = process.env.AUTH_HMAC_SECRET;
-  if (!authSecret) throw new Error("Production HMAC configuration is unavailable.");
+  const authSecret = config.value.authSecret;
   const backdatedConfirmationAuthority = createServerBackdatedConfirmationAuthority(authSecret, values.now);
   const commandPersistence = new AppwriteCommandPersistence(tablesDB, backdatedConfirmationAuthority);
   const repositories = createAppwriteReadRepositories(tables, actor.userId, actor.email);

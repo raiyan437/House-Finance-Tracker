@@ -31,7 +31,7 @@ describe("Appwrite infrastructure containment", () => {
       .map((file) => ({ file: relative(ROOT, file).replaceAll("\\", "/"), source: read(file) }))
       .filter(
         ({ file, source }) =>
-          /APPWRITE_(RUNTIME_API_KEY|BOOTSTRAP_API_KEY|PROVISIONING_API_KEY)/.test(source) &&
+          /(?:HFT_APPWRITE_RUNTIME_API_KEY|HFT_AUTH_HMAC_SECRET|APPWRITE_(?:RUNTIME_API_KEY|BOOTSTRAP_API_KEY|PROVISIONING_API_KEY))/.test(source) &&
           !file.startsWith("src/infrastructure/appwrite/") &&
           !file.includes("appwrite-boundaries.test"),
       )
@@ -91,9 +91,21 @@ describe("Appwrite infrastructure containment", () => {
 
   it("keeps runtime, bootstrap, and provisioning client credentials structurally separate", () => {
     const configSource = read(join(SRC, "infrastructure", "appwrite", "config.ts"));
-    expect(configSource).toMatch(/interface AppwriteServerConfig[\s\S]*runtimeApiKey[\s\S]*bootstrapApiKey[\s\S]*accountEmails/);
-    expect(configSource.match(/interface AppwriteServerConfig\s*\{([\s\S]*?)\n\}/)?.[1]).not.toContain("provisioningApiKey");
+    const runtimeBlock = configSource.match(/interface AppwriteServerConfig\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const operatorBlock = configSource.match(/interface AppwriteOperatorConfig\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(runtimeBlock).toMatch(/runtimeApiKey[\s\S]*authSecret[\s\S]*appOrigin[\s\S]*accountEmails/);
+    expect(runtimeBlock).not.toMatch(/bootstrapApiKey|provisioningApiKey/);
+    expect(operatorBlock).toMatch(/runtimeApiKey[\s\S]*bootstrapApiKey/);
     expect(configSource.match(/interface AppwriteProvisioningConfig\s*\{([\s\S]*?)\n\}/)?.[1]).not.toMatch(/runtimeApiKey|bootstrapApiKey/);
+  });
+
+  it("uses Site-safe HFT variables exclusively for the deployed runtime", () => {
+    const configSource = read(join(SRC, "infrastructure", "appwrite", "config.ts"));
+    const runtimeLoader = configSource.match(/export function loadAppwriteServerConfig[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(runtimeLoader).toMatch(/HFT_APPWRITE_ENDPOINT[\s\S]*HFT_APPWRITE_PROJECT_ID[\s\S]*HFT_APPWRITE_RUNTIME_API_KEY/);
+    expect(runtimeLoader).toMatch(/HFT_AUTH_HMAC_SECRET[\s\S]*HFT_APP_ORIGIN[\s\S]*HFT_ALLOWED_ACCOUNT_EMAILS/);
+    expect(runtimeLoader).not.toMatch(/env\.(?:APPWRITE_|AUTH_HMAC_SECRET|ALLOWED_ACCOUNT_EMAILS)/);
+    expect(sourceFiles(join(SRC, "app")).map(read).join("\n")).not.toMatch(/NEXT_PUBLIC_.*(?:KEY|SECRET|TOKEN)/);
   });
 
   it("keeps production composition free of local DEV identity and IndexedDB runtime tooling", () => {

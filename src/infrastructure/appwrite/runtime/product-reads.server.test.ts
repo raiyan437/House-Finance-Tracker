@@ -15,11 +15,12 @@ const SEED_INSTANT_ISO = "2026-08-01T00:00:00.000Z" as IsoInstant;
 
 beforeEach(() => {
   // Hermetic configuration for client construction only (no network happens).
-  vi.stubEnv("APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1");
-  vi.stubEnv("APPWRITE_PROJECT_ID", "r1-test-project");
-  vi.stubEnv("APPWRITE_RUNTIME_API_KEY", "test-runtime-key");
-  vi.stubEnv("ALLOWED_ACCOUNT_EMAILS", "user1@test.io");
-  vi.stubEnv("AUTH_HMAC_SECRET", "test-hmac-secret");
+  vi.stubEnv("HFT_APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1");
+  vi.stubEnv("HFT_APPWRITE_PROJECT_ID", "r1-test-project");
+  vi.stubEnv("HFT_APPWRITE_RUNTIME_API_KEY", "test-runtime-key");
+  vi.stubEnv("HFT_ALLOWED_ACCOUNT_EMAILS", "user1@test.io");
+  vi.stubEnv("HFT_AUTH_HMAC_SECRET", "test-hmac-secret");
+  vi.stubEnv("HFT_APP_ORIGIN", "https://hft.test");
 });
 
 function emptyReadRepositories(): ApplicationRepositories {

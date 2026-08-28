@@ -1,6 +1,8 @@
 import { Account, Client, Storage, TablesDB } from "node-appwrite";
 import { loadAppwriteServerConfig, type AppwriteServerConfig } from "../config";
 
+type AppwriteClientConfig = Pick<AppwriteServerConfig, "endpoint" | "projectId" | "runtimeApiKey">;
+
 export interface AppwriteAuthClients {
   readonly adminAccount: () => Account;
   readonly sessionAccount: (sessionSecret: string) => Account;
@@ -8,11 +10,11 @@ export interface AppwriteAuthClients {
   readonly storage: () => Storage;
 }
 
-function baseClient(config: AppwriteServerConfig): Client {
+function baseClient(config: AppwriteClientConfig): Client {
   return new Client().setEndpoint(config.endpoint).setProject(config.projectId);
 }
 
-export function createAppwriteAuthClients(config: AppwriteServerConfig = requireLoadedConfig()): AppwriteAuthClients {
+export function createAppwriteAuthClients(config: AppwriteClientConfig = requireLoadedConfig()): AppwriteAuthClients {
   return {
     adminAccount: () => new Account(baseClient(config).setKey(runtimeKey(config))),
     sessionAccount: (sessionSecret: string) => new Account(baseClient(config).setSession(sessionSecret)),
@@ -21,8 +23,7 @@ export function createAppwriteAuthClients(config: AppwriteServerConfig = require
   };
 }
 
-function runtimeKey(config: AppwriteServerConfig): string {
-  if (!config.runtimeApiKey) throw new Error("APPWRITE_RUNTIME_API_KEY is required for authentication operations.");
+function runtimeKey(config: AppwriteClientConfig): string {
   return config.runtimeApiKey;
 }
 

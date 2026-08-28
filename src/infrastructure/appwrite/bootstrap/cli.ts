@@ -1,5 +1,5 @@
 import { Client, Functions, Storage, TablesDB } from "node-appwrite";
-import { loadAppwriteServerConfig, mergeDotEnvFile } from "../config";
+import { loadAppwriteOperatorConfig, mergeDotEnvFile } from "../config";
 import { appwriteSchemaReader, planSchemaApplication } from "./planner";
 import { applySchemaPlan } from "./apply";
 
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   mergeDotEnvFile(".env.local");
   mergeDotEnvFile(".env");
   const { mode, confirm } = parseArgs(process.argv.slice(2));
-  const config = loadAppwriteServerConfig();
+  const config = loadAppwriteOperatorConfig();
   if (!config.ok || !config.value) {
     console.error("Appwrite configuration is invalid:", config.errors?.join(" "));
     process.exitCode = 1;

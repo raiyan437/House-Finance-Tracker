@@ -5,7 +5,7 @@ import { readSessionSecret, runAuthMutation } from "@/infrastructure/appwrite/au
 
 export async function POST(request: NextRequest) {
   return runAuthMutation(request, async () => {
-    const deps = buildAuthCoreDeps(new URL(request.url).origin);
+    const deps = buildAuthCoreDeps();
     return logoutCurrentSession(deps, await readSessionSecret());
   });
 }

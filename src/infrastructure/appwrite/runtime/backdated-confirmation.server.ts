@@ -23,7 +23,7 @@ export function createServerBackdatedConfirmationAuthority(
   secret: string,
   now: () => IsoInstant,
 ): BackdatedExpenseConfirmationAuthority {
-  if (!secret) throw new Error("AUTH_HMAC_SECRET is required for backdated Expense confirmation.");
+  if (!secret) throw new Error("HFT_AUTH_HMAC_SECRET is required for backdated Expense confirmation.");
   return Object.freeze({
     issue(payload: BackdatedExpenseConfirmationPayload) {
       const expiresAt = new Date(Date.parse(now()) + VALIDITY_MS).toISOString();
