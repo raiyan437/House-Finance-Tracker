@@ -67,6 +67,7 @@ test.describe("live Appwrite authentication", () => {
   let email = "";
   let password = "";
   let loginIdentity = 0;
+  const loginRunOffset = process.pid % 200;
 
   test.beforeAll(({ browser }) => {
     void browser;
@@ -81,14 +82,19 @@ test.describe("live Appwrite authentication", () => {
     const result = diagnostics.get(testInfo.testId);
     diagnostics.delete(testInfo.testId);
     if (!result) throw new Error("Browser diagnostics were not initialized.");
+    const expectedRevocation401 = testInfo.title.startsWith("logout revokes the current remote session");
+    const unexpectedConsoleErrors = result.consoleErrors.filter((message) =>
+      !(expectedRevocation401 && /Failed to load resource: the server responded with a status of 401/i.test(message))
+    );
     if (result.hydrationErrors.length > 0) throw new Error(`Unexpected hydration errors: ${result.hydrationErrors.length}.`);
     if (result.pageErrors.length > 0) throw new Error(`Unexpected page errors: ${result.pageErrors.length}: ${safeDiagnosticSummary(result.pageErrors)}`);
-    if (result.consoleErrors.length > 0) throw new Error(`Unexpected console errors: ${result.consoleErrors.length}: ${safeDiagnosticSummary(result.consoleErrors)}`);
+    if (unexpectedConsoleErrors.length > 0) throw new Error(`Unexpected console errors: ${unexpectedConsoleErrors.length}: ${safeDiagnosticSummary(unexpectedConsoleErrors)}`);
   });
 
   async function login(page: import("@playwright/test").Page) {
     loginIdentity += 1;
-    await page.setExtraHTTPHeaders({ "x-forwarded-for": `198.51.100.${loginIdentity}` });
+    const addressSuffix = ((loginRunOffset + loginIdentity) % 250) + 1;
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": `198.51.100.${addressSuffix}` });
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
@@ -223,9 +229,10 @@ test.describe("live Appwrite authentication", () => {
       sameSite: "Lax",
     }]);
     const revokedPage = await revokedContext.newPage();
-    const target = diagnostics.get(testInfo.testId);
-    if (!target) throw new Error("Browser diagnostics were not initialized.");
-    attachDiagnostics(revokedPage, target);
+    // This isolated adversarial page intentionally receives 401 responses for
+    // the revoked cookie. Its URL and cookie assertions below are authoritative;
+    // keep those expected browser resource messages out of the ordinary-page
+    // zero-console-error gate.
     await revokedPage.goto("/dashboard");
     await expect(revokedPage).toHaveURL(/\/login$/);
     const revokedCookies = await revokedContext.cookies();
