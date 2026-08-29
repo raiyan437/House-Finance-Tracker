@@ -132,6 +132,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
                       : "hover:bg-secondary hover:text-foreground",
                   )}
                   href={item.href}
+                  prefetch={false}
                   title={isCollapsed ? item.label : undefined}
                 >
                   <Icon
@@ -205,6 +206,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
               isCollapsed ? "justify-center px-2" : "px-3",
             )}
             href="/profile"
+            prefetch={false}
             title={isCollapsed ? `Open profile for ${runtime.session.displayName}` : undefined}
           >
             <MemberRow

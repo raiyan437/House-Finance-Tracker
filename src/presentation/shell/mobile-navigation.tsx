@@ -51,6 +51,7 @@ function MobileLink({
         active && "text-foreground",
       )}
       href={href}
+      prefetch={false}
       title={label}
     >
         <span
@@ -175,6 +176,7 @@ export function MobileNavigation() {
                         active ? "bg-brand-soft text-foreground" : "hover:bg-secondary",
                       )}
                       href={item.href}
+                      prefetch={false}
                     >
                       <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
                       {item.label}

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { AuthError } from "@/infrastructure/appwrite/auth/auth-errors.server";
-import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { serializeClearedSessionCookie, SESSION_COOKIE_NAME } from "./session-cookie";
 import { requestHasTrustedOrigin, TrustedOriginConfigurationError } from "../trusted-origin.server";
 
 export interface AuthRouteResult {
@@ -28,7 +28,7 @@ function applyCookie(response: NextResponse, cookie: AuthRouteResult["cookie"]):
     response.headers.append("set-cookie", `${SESSION_COOKIE_NAME}=${cookie.secret ?? ""}; ${attributes}`);
     return;
   }
-  response.headers.append("set-cookie", `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`);
+  response.headers.append("set-cookie", serializeClearedSessionCookie(secure));
 }
 
 export async function runAuthMutation(

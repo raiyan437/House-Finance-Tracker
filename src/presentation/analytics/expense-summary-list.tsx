@@ -31,6 +31,7 @@ export function ExpenseSummaryList({ expenses, emptyMessage, emptyAction, compac
             aria-label={`Open ${expense.name} expense details`}
             className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
             href={`/expenses/${expense.expenseId}`}
+            prefetch={false}
           />
           <div className={compact ? "grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3" : "grid gap-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-4"}>
             {compact ? <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-xl bg-brand-soft"><ArrowUpRight className="size-4" /></span> : null}

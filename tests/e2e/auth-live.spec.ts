@@ -31,6 +31,15 @@ interface BrowserDiagnostics {
 
 const diagnostics = new Map<string, BrowserDiagnostics>();
 
+function safeDiagnosticSummary(messages: readonly string[]): string {
+  return messages
+    .map((message) => message
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+      .replace(/[A-Za-z0-9_-]{32,}/g, "[opaque-value]")
+      .slice(0, 240))
+    .join(" | ");
+}
+
 function attachDiagnostics(page: Page, target: BrowserDiagnostics): void {
   page.on("console", (message) => {
     if (message.type() !== "error") return;
@@ -73,8 +82,8 @@ test.describe("live Appwrite authentication", () => {
     diagnostics.delete(testInfo.testId);
     if (!result) throw new Error("Browser diagnostics were not initialized.");
     if (result.hydrationErrors.length > 0) throw new Error(`Unexpected hydration errors: ${result.hydrationErrors.length}.`);
-    if (result.pageErrors.length > 0) throw new Error(`Unexpected page errors: ${result.pageErrors.length}.`);
-    if (result.consoleErrors.length > 0) throw new Error(`Unexpected console errors: ${result.consoleErrors.length}.`);
+    if (result.pageErrors.length > 0) throw new Error(`Unexpected page errors: ${result.pageErrors.length}: ${safeDiagnosticSummary(result.pageErrors)}`);
+    if (result.consoleErrors.length > 0) throw new Error(`Unexpected console errors: ${result.consoleErrors.length}: ${safeDiagnosticSummary(result.consoleErrors)}`);
   });
 
   async function login(page: import("@playwright/test").Page) {

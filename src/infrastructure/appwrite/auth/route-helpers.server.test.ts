@@ -50,4 +50,15 @@ describe("production auth route envelope", () => {
     }
     expect(calls).toBe(0);
   });
+
+  it("clears a revoked session with the same host-only hardened attributes", async () => {
+    configure();
+    const response = await runAuthMutation(
+      new NextRequest("https://hft.appwrite.network/api/session"),
+      async () => ({ status: 200, body: { status: "anonymous" }, cookie: { action: "clear" } }),
+    );
+    expect(response.headers.get("set-cookie")).toBe(
+      `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`,
+    );
+  });
 });

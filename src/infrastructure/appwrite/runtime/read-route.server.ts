@@ -7,7 +7,7 @@ import { serializeWithBigInt } from "@/application/transport/json-bigint";
 import { DomainError } from "@/domain/shared/domain-error";
 import { TransactionFailure } from "./tx-errors.server";
 import { AuthError } from "../auth/auth-errors.server";
-import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
+import { serializeClearedSessionCookie, SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
 import { buildProductRequestContext, requireActor, resolveTrustedActor, type ProductRequestContext } from "./context.server";
 import { requestHasTrustedOrigin, TrustedOriginConfigurationError } from "../trusted-origin.server";
@@ -71,9 +71,10 @@ async function currentSessionSecret(): Promise<string | undefined> {
 export async function resolveReadContext(): Promise<
   { status: "ok"; context: ProductRequestContext } | { status: Response }
 > {
+  const sessionSecret = await currentSessionSecret();
   let resolution: TrustedActorResolution;
   try {
-    resolution = await resolveTrustedActor(await currentSessionSecret());
+    resolution = await resolveTrustedActor(sessionSecret);
   } catch {
     resolution = { status: "provider-unavailable" };
   }
@@ -84,7 +85,13 @@ export async function resolveReadContext(): Promise<
     return { status: "ok", context: buildProductRequestContext(requireActor(resolution)) };
   } catch (error) {
     const mapped = mapReadError(error);
-    if (mapped) return { status: new NextResponse(JSON.stringify(mapped.body), { status: mapped.status, headers: NO_STORE_HEADERS }) };
+    if (mapped) {
+      const response = new NextResponse(JSON.stringify(mapped.body), { status: mapped.status, headers: NO_STORE_HEADERS });
+      if (sessionSecret && resolution.status === "anonymous") {
+        response.headers.append("set-cookie", serializeClearedSessionCookie(process.env.NODE_ENV === "production"));
+      }
+      return { status: response };
+    }
     throw error;
   }
 }

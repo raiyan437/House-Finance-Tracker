@@ -34,4 +34,8 @@ export function buildSessionCookie(directive: SessionCookieDirective, secure: bo
   };
 }
 
+export function serializeClearedSessionCookie(secure: boolean): string {
+  return `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
 export const CLEARED_SESSION_COOKIE: ClearCookieDirective = { action: "clear" };

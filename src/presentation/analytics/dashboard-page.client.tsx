@@ -165,7 +165,7 @@ export function DashboardContent({ view }: Readonly<{ view: DashboardPageView }>
       <div className="dashboard-analytics-grid mt-6 grid gap-4">
         <ChartCard
           className="col-span-full h-[286px] min-w-0 gap-3 overflow-hidden"
-          action={<Button asChild size="sm" variant="outline"><Link href={`/reports/monthly?month=${view.selectedMonth}`}>View Monthly Report<ArrowRight /></Link></Button>}
+          action={<Button asChild size="sm" variant="outline"><Link href={`/reports/monthly?month=${view.selectedMonth}`} prefetch={false}>View Monthly Report<ArrowRight /></Link></Button>}
           description={`Daily spending for ${formatCalendarMonth(view.selectedMonth)}`}
           padding="canonical"
           summary={trendSummary}
@@ -183,9 +183,9 @@ export function DashboardContent({ view }: Readonly<{ view: DashboardPageView }>
           <h2 className="dashboard-panel-title">Recent Expenses</h2>
           <p className="compact-caption mt-1 text-text-muted">Latest household activity</p>
           <MobileCollapse className="mt-4 min-h-0 flex-1 overflow-hidden flex flex-col" id="dashboard-recent-expenses-body" sectionLabel="Recent Expenses">
-            <ExpenseSummaryList compact emptyAction={<Button asChild size="xs" variant="outline"><Link href="/expenses/new"><Plus />Add Expense</Link></Button>} emptyMessage="No expenses this month" expenses={view.recentExpenses} />
+            <ExpenseSummaryList compact emptyAction={<Button asChild size="xs" variant="outline"><Link href="/expenses/new" prefetch={false}><Plus />Add Expense</Link></Button>} emptyMessage="No expenses this month" expenses={view.recentExpenses} />
           </MobileCollapse>
-          <div className="mt-3"><Button asChild className="h-8 rounded-xl border bg-secondary px-4 text-xs" variant="ghost"><Link href={`/expenses?month=${view.selectedMonth}`}>View All Expenses</Link></Button></div>
+          <div className="mt-3"><Button asChild className="h-8 rounded-xl border bg-secondary px-4 text-xs" variant="ghost"><Link href={`/expenses?month=${view.selectedMonth}`} prefetch={false}>View All Expenses</Link></Button></div>
         </Surface>
         <ChartCard className="dashboard-payment-mix-card relative min-h-[286px] min-w-0 gap-3 overflow-hidden" description="Cash vs Card this month" padding="canonical" summary={paymentSummary} summaryVisuallyHidden title="Payment Mix">
           <p className="sr-only" id="dashboard-payment-mix-description">{paymentSummary}</p>
@@ -251,7 +251,7 @@ function HousemateBalances({ view }: Readonly<{ view: DashboardPageView }>) {
         </ul>
         {view.housemateBalances.every((member) => member.state === "settled") ? <p className="mt-2 flex items-center gap-2 text-xs text-success"><CircleCheck aria-hidden="true" className="size-4" />Everyone is settled</p> : null}
       </MobileCollapse>
-      <div className="mt-3"><Button asChild className="h-8 rounded-xl border bg-secondary px-4 text-xs" variant="ghost"><Link href="/settlements">View Settlements</Link></Button></div>
+      <div className="mt-3"><Button asChild className="h-8 rounded-xl border bg-secondary px-4 text-xs" variant="ghost"><Link href="/settlements" prefetch={false}>View Settlements</Link></Button></div>
     </Surface>
   );
 }
