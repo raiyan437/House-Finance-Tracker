@@ -20,6 +20,7 @@ import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
@@ -27,6 +28,7 @@ import { PageHeader } from "@/presentation/shell/page-header";
 export function JoinHouseholdForm() {
   const router = useRouter();
   const runtime = useApplicationRuntime();
+  const canJoinHousehold = useCapability("householdMutations");
   const command = useIdempotentCommand();
   const [household, setHousehold] = useState<JoinableHouseholdView>();
   const [sending, setSending] = useState(false);
@@ -107,9 +109,10 @@ export function JoinHouseholdForm() {
             <p className="mt-1 font-mono text-body tabular-nums text-text-secondary">House code {matchedHousehold.code}</p>
             <p className="mt-4 text-body text-text-secondary">Only the household name and code are shown before acceptance.</p>
             {sendError ? <p className="mt-4 text-sm text-danger" role="alert">{sendError}</p> : null}
-            <Button aria-busy={sending} className="mt-5 w-full sm:w-fit" disabled={sending} onClick={() => void sendRequest()} type="button">
+            <Button aria-busy={sending} className="mt-5 w-full sm:w-fit" disabled={sending || !canJoinHousehold} onClick={() => void sendRequest()} type="button">
               {sending ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Sending…</> : "Send Join Request"}
             </Button>
+            <CapabilityNotice active={!canJoinHousehold} />
           </div>
         ) : null}
 

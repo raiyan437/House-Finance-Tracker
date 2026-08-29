@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { userId } from "@/domain/shared/identifiers";
@@ -12,6 +13,7 @@ function readyRuntime(
 ): ApplicationRuntimeState {
   return {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session,
     household: { status: "no-household" },
     householdActions: {

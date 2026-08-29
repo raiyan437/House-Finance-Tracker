@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
-import { MobileDevelopmentTools } from "@/presentation/devtools/development-tools";
+import { useDevelopmentToolsSlots } from "@/presentation/devtools/development-tools-slots";
 import { moreNavigationItems } from "./navigation-items";
 
 interface MobileLinkProps {
@@ -51,6 +51,7 @@ function MobileLink({
         active && "text-foreground",
       )}
       href={href}
+      prefetch={false}
       title={label}
     >
         <span
@@ -77,6 +78,7 @@ function MobileLink({
 export function MobileNavigation() {
   const pathname = usePathname();
   const runtime = useApplicationRuntime();
+  const developmentTools = useDevelopmentToolsSlots();
   const moreActive = moreNavigationItems.some((item) => item.isActive(pathname));
   const settlementActionCount = runtime.status === "ready"
     ? runtime.session.settlementActionCount
@@ -174,6 +176,7 @@ export function MobileNavigation() {
                         active ? "bg-brand-soft text-foreground" : "hover:bg-secondary",
                       )}
                       href={item.href}
+                      prefetch={false}
                     >
                       <Icon aria-hidden="true" className="size-5" strokeWidth={1.8} />
                       {item.label}
@@ -198,7 +201,7 @@ export function MobileNavigation() {
                 );
               })}
             </nav>
-            <MobileDevelopmentTools />
+            {developmentTools?.mobile}
           </SheetContent>
         </Sheet>
       </div>

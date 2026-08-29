@@ -3,7 +3,7 @@ import type { HouseholdBalanceSheet } from "@/domain/balances/balance-types";
 import { canonicalMemberships } from "@/domain/membership/membership-invariants";
 import type { HouseholdRole, MembershipSnapshot } from "@/domain/membership/membership-types";
 import type { Poisha } from "@/domain/money/poisha";
-import type { Household, UserProfile } from "@/domain/records/domain-records";
+import type { Household, MemberIdentityView } from "@/domain/records/domain-records";
 import { compareUserIds, type HouseholdId, type UserId } from "@/domain/shared/identifiers";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 
@@ -149,7 +149,7 @@ export function buildActiveHouseholdPageView(input: Readonly<{
   household: Household;
   actorId: UserId;
   memberships: readonly MembershipSnapshot[];
-  profiles: readonly UserProfile[];
+  profiles: readonly MemberIdentityView[];
   sheet: HouseholdBalanceSheet;
   settlements: readonly SettlementRecord[];
 }>): ActiveHouseholdPageView {

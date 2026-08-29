@@ -19,6 +19,7 @@ import {
   type DevelopmentIdentityOption,
 } from "@/presentation/devtools/development-tools";
 import { Toaster } from "@/components/ui/sonner";
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import type { UserId } from "@/domain/shared/identifiers";
 import type { HouseholdAccessState } from "@/application/services/application-services";
 
@@ -151,6 +152,7 @@ export function LocalApplicationRuntime({
           setState({
             status: "ready",
             ...view,
+            capabilities: FULL_LOCAL_CAPABILITIES,
             householdActions: actions,
             expenseActions,
             settlementActions,

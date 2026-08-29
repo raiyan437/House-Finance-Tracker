@@ -2,6 +2,7 @@
 
 import { House, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { useCapability } from "@/presentation/runtime/capability-gate.client";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { Surface } from "@/presentation/components/surface";
 import { PageContainer } from "@/presentation/shell/page-container";
@@ -9,6 +10,7 @@ import { PageHeader } from "@/presentation/shell/page-header";
 
 export function ProfilePageClient() {
   const runtime = useApplicationRuntime();
+  const profileEditingAvailable = useCapability("profileMutations");
 
   if (runtime.status === "loading") {
     return (
@@ -90,7 +92,9 @@ export function ProfilePageClient() {
             </div>
           </div>
           <p className="mt-4 text-xs leading-5 text-text-muted">
-            Profile editing and authentication remain unavailable in the local development session.
+            {profileEditingAvailable
+              ? "Profile editing and authentication remain unavailable in the local development session."
+              : "Display name editing arrives with a later production update. Your sign-in email is managed by the account administrator."}
           </p>
         </Surface>
       </div>

@@ -8,14 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MemberRow } from "@/presentation/components/member-row";
-import { DevelopmentTools, useDevelopmentToolsActive } from "@/presentation/devtools/development-tools";
+import { useDevelopmentToolsSlots } from "@/presentation/devtools/development-tools-slots";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { Brand } from "./brand";
 import { desktopNavigationItems } from "./navigation-items";
-
-function preventUnavailableAction(event: React.SyntheticEvent) {
-  event.preventDefault();
-}
 
 interface DesktopSidebarProps {
   readonly collapsed?: boolean;
@@ -64,7 +60,8 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = collapsed !== undefined;
   const isCollapsed = isControlled ? collapsed : internalCollapsed;
-  const developmentToolsActive = useDevelopmentToolsActive();
+  const developmentTools = useDevelopmentToolsSlots();
+  const canSignOut = runtime.status === "ready" && typeof runtime.signOut === "function";
   const joinRequestCount = runtime.status === "ready" && runtime.household.status === "active-leader"
     ? runtime.household.joinRequests.length
     : 0;
@@ -135,6 +132,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
                       : "hover:bg-secondary hover:text-foreground",
                   )}
                   href={item.href}
+                  prefetch={false}
                   title={isCollapsed ? item.label : undefined}
                 >
                   <Icon
@@ -174,14 +172,14 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           })}
         </ul>
       </nav>
-      {developmentToolsActive ? (
+      {developmentTools ? (
         <div
           className={cn(
             "border-t border-warning/30 py-4 transition-[margin,padding] duration-300 ease-[var(--motion-ease-out)]",
             isCollapsed ? "mx-2" : "mx-4",
           )}
         >
-          <DevelopmentTools compact={isCollapsed} />
+          {developmentTools.desktop(isCollapsed)}
         </div>
       ) : null}
       <div
@@ -208,6 +206,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
               isCollapsed ? "justify-center px-2" : "px-3",
             )}
             href="/profile"
+            prefetch={false}
             title={isCollapsed ? `Open profile for ${runtime.session.displayName}` : undefined}
           >
             <MemberRow
@@ -227,16 +226,15 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           </div>
         )}
         <Button
-          aria-describedby="logout-unavailable-description"
-          aria-disabled="true"
+          aria-describedby={canSignOut ? undefined : "logout-unavailable-description"}
+          aria-disabled={!canSignOut}
           aria-label="Log Out"
           className={cn(
             "mt-4 h-10 w-full justify-center rounded-xl bg-foreground text-row font-semibold text-white transition-[gap,padding] hover:bg-foreground/90 aria-disabled:cursor-not-allowed aria-disabled:opacity-100",
             isCollapsed ? "gap-0 px-0" : "gap-2",
           )}
-          onClick={preventUnavailableAction}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") preventUnavailableAction(event);
+          onClick={() => {
+            if (canSignOut) void runtime.signOut?.();
           }}
           title={isCollapsed ? "Log Out" : undefined}
           variant="default"
@@ -252,12 +250,14 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
             Log Out
           </span>
         </Button>
-        <p
-          className="sr-only"
-          id="logout-unavailable-description"
-        >
-          Authentication is introduced in a later phase.
-        </p>
+        {!canSignOut ? (
+          <p
+            className="sr-only"
+            id="logout-unavailable-description"
+          >
+            Sign out is unavailable in this runtime.
+          </p>
+        ) : null}
       </div>
     </aside>
   );

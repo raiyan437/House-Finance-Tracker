@@ -17,6 +17,7 @@ export function Brand({ className, compact = false, ...props }: BrandPropsWithSt
         className,
       )}
       href="/dashboard"
+      prefetch={false}
       {...props}
     >
       <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-foreground text-lg font-semibold text-white">

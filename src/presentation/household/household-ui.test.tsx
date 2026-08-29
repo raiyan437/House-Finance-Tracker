@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -79,6 +80,7 @@ function readyState(
   const isMember = household.status === "active-member";
   return {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session: {
       userId: userId("user-alex"),
       displayName: "Alex",

@@ -1,10 +1,10 @@
 # House Finance Tracker
 
-Local-first shared household expense tracking with exact integer-poisha financials, implemented through Raiyan's AIDOS workflow.
+Private shared household expense tracking with exact integer-poisha financials, implemented through Raiyan's AIDOS workflow.
 
 ## Current status
 
-The complete local application is finished and verified at the `pre-appwrite-local-v1` checkpoint: simulated development identities, household onboarding and management, expenses with receipts, settlements, private cards, dashboard/analytics/monthly reports, receipt retention, settled-history locks, OCC/idempotency hardening, and a responsive accessible UI. Production backend integration (Appwrite), real authentication, scheduled server-side retention, and deployment are intentionally not implemented and remain separately gated phases.
+The complete local application remains frozen at tag `local-mvp-v1`. The feature branch `feature/phase-13-appwrite` now runs the full production composition on Appwrite Sites at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network): Appwrite Auth, TablesDB reads and mutations, private Receipt Storage through trusted same-origin Route Handlers, and the independent daily maintenance Function. Live Schema V4 is clean. R5 production QA is complete except for the owner-restricted password-reset completion; merge to `main`, final release, and tag still require separate owner acceptance. See [`docs/ai/work/R5_PLAN.md`](docs/ai/work/R5_PLAN.md) for the deployment evidence and rollback runbook.
 
 ## Commands
 
@@ -16,6 +16,9 @@ The complete local application is finished and verified at the `pre-appwrite-loc
 - `npm run test:architecture` - enforce source dependency boundaries.
 - `npm run test:e2e` - run the Playwright suites (Chromium; Firefox/WebKit via the cross-browser smoke spec).
 - `npm run build` - create a production build.
+- `npm run r5:receipt-fixtures` - create checksum-pinned Receipt acceptance fixtures outside Git.
+- `npm run r5:decompression-fixture` - create the deterministic decompression-heavy rejection fixture outside Git.
+- `npm run r5:provider-status -- --site <site-id>` - print a sanitized, read-only provider status when the local operator credential has the required scopes.
 
 ## Dependency boundaries
 
@@ -37,6 +40,6 @@ Presentation -> Application -> Domain
 
 Charts are isolated to a single lazily loaded boundary (`presentation/analytics/analytics-charts*.client.tsx`); Recharts never enters the initial Dashboard/Report route graphs.
 
-Appwrite is prohibited until Phase 13 is separately authorized.
+Appwrite work is restricted to the currently authorized release phase; completing one release phase does not authorize the next.
 
 Project decisions and phase authorization live in [`docs/ai`](docs/ai/README.md).

@@ -141,3 +141,19 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Error-code vocabulary is API surface: format-validation failures deserve their own typed code so callers can distinguish bad input from state conflicts without parsing English messages; when widening codes, sweep every test asserting the old generic code.
 - When an owner requests work that contradicts a documented lesson (Card audit omission), surface the lesson and obtain an explicit decision first; the reaffirmed skip is cheaper than unwinding a model change to the Household-scoped audit store.
 - A frozen "no browser-triggered cleanup" rule can be amended by owner approval into a narrow bootstrap sweep: keep the trigger inside privileged infrastructure, reuse the deterministic idempotent workflow unchanged, log failures non-fatally, and record the amendment in REQUIREMENTS.md before implementing.
+
+## 2026-08-26 - R2 provider-transaction semantics (live-verified)
+
+- Appwrite TablesDB transactions assign their own handles: `createTransaction` ignores client-supplied ids. Commands must adopt the returned `$id` per request; deriving handles from command ids is meaningless.
+- Staged writes are visible only through transaction-scoped reads (`transactionId` on get/list); outside observers see committed state. Read-your-own-writes is the basis for in-transaction revalidation.
+- Commit-time conflict detection exists and is optimistic-first-committer-wins: a second transaction touching an underlying row changed since staging fails with 409 `transaction_conflict`. This composes with - never replaces - application-level OCC, guard pre-checks, and idempotency.
+- Unique-index violations surface at COMMIT as the same 409 `transaction_conflict`, not at staging; typed errors therefore need in-tx pre-checks plus post-conflict outcome re-reads (e.g., idempotent replay) to translate precisely.
+- TTL is bounded (60-3600 s); expired handles reject staged ops and commits with 410 `transaction_expired`. Keep transactions short, retry expired units once with a fresh handle, and stage nothing across user interaction.
+- The operation limit (exactly 100 on Free) is enforced fail-fast when staging the 101st operation, so deletion-math safety can be asserted structurally as well as measured (`tx.stagedOperations()`).
+
+## 2026-08-27 - R3 financial command delivery
+
+- Lost-response replay lookup must precede stale-version, missing-row, deleted-row, or terminal-state prechecks. Otherwise a committed delete or transition can no longer return its original outcome when the same command is retried.
+- Membership and leadership transitions that change financial authorization must touch the same per-Household financial guard as Expense and Settlement writes. Transaction-scoped membership rereads alone do not serialize a concurrently staged authorization change.
+- Private Card association identity belongs in the internal Expense financial fingerprint even though it must not appear in shared presentation. Without it, switching between two private Cards can be misclassified as a non-financial edit.
+- Measure transaction write envelopes with the provider-faithful test double, including upserts and every guard, private row, audit, and outcome. R3's observed maximum is seven operations for Card A -> Card B Expense edit, not the nominal business-row count.

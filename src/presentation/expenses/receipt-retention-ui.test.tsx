@@ -1,3 +1,4 @@
+import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +19,7 @@ import { deterministicSeedData, SEEDED_USER_IDS } from "@/infrastructure/indexed
 import { receiptId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { DomainError } from "@/domain/shared/domain-error";
-import { ApplicationError, BackdatedExpenseConfirmationRequiredError } from "@/application/errors/application-error";
+import { ApplicationError, BackdatedExpenseConfirmationRequiredError, ReceiptSagaPartialSuccessError } from "@/application/errors/application-error";
 import { RECEIPT_RETENTION_NOTICE } from "./expense-ui";
 import { ExpenseDetailsPageClient } from "./expense-details-page.client";
 import { ExpenseFormPageClient } from "./expense-form-page.client";
@@ -124,6 +125,7 @@ function expenseActions(overrides: Partial<ExpenseApplicationActions> = {}): Exp
 function readyState(actions: ExpenseApplicationActions): Extract<ApplicationRuntimeState, { status: "ready" }> {
   return {
     status: "ready",
+      capabilities: FULL_LOCAL_CAPABILITIES,
     session: {
       userId: SEEDED_USER_IDS.raiyan,
       displayName: "Raiyan",
@@ -297,6 +299,30 @@ describe("receipt retention presentation", () => {
     expect(screen.queryByText("EXPENSE_FINANCIAL_HISTORY_LOCKED")).not.toBeInTheDocument();
     expect(editExpense).toHaveBeenCalledTimes(1);
     expect(getExpense).toHaveBeenCalledTimes(2);
+  });
+
+  it("states Expense-save/Receipt-saga partial success and retains a stable upload draft", async () => {
+    const user = userEvent.setup();
+    const refreshed = { ...expenseView, expense: { ...expenseView.expense, revision: expenseView.expense.revision + 1 } };
+    const getExpense = vi.fn().mockResolvedValueOnce(expenseView).mockResolvedValueOnce(refreshed);
+    const editExpense = vi.fn().mockRejectedValue(
+      new ReceiptSagaPartialSuccessError(String(expense.expenseId), 1),
+    );
+    renderWithRuntime(
+      <ExpenseFormPageClient mode="edit" expenseId={expense.expenseId} />,
+      expenseActions({ getExpense, editExpense, listReceipts: vi.fn().mockResolvedValue([]) }),
+    );
+    await screen.findByLabelText("Expense Name");
+    const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await user.upload(fileInput, new File([seed.receiptBytes], "retry-me.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(await screen.findByText(/Expense was saved, but one Receipt change did not finish/u)).toBeVisible();
+    expect(screen.getByText("retry-me.png")).toBeVisible();
+    expect(editExpense).toHaveBeenCalledTimes(1);
+    expect(editExpense.mock.calls[0]![0].newReceipts?.[0]?.commandId).toBeTruthy();
+    expect(getExpense).toHaveBeenCalledTimes(2);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("retains one command ID through authoritative backdated confirmation", async () => {

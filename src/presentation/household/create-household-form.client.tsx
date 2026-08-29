@@ -19,6 +19,7 @@ import { Surface } from "@/presentation/components/surface";
 import { FormField } from "@/presentation/forms/form-field";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
@@ -26,6 +27,7 @@ import { PageHeader } from "@/presentation/shell/page-header";
 export function CreateHouseholdForm() {
   const router = useRouter();
   const runtime = useApplicationRuntime();
+  const canCreateHousehold = useCapability("householdMutations");
   const command = useIdempotentCommand();
   const [generationError, setGenerationError] = useState<string>();
   const [creating, setCreating] = useState(false);
@@ -103,10 +105,11 @@ export function CreateHouseholdForm() {
           </Button>
           <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
             <Button asChild variant="ghost"><Link href="/household">Cancel</Link></Button>
-            <Button aria-busy={creating} disabled={creating} type="submit">
+            <Button aria-busy={creating} disabled={creating || !canCreateHousehold} type="submit">
               {creating ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Creating…</> : "Create Household"}
             </Button>
           </div>
+          <CapabilityNotice active={!canCreateHousehold} />
         </form>
       </Surface>
     </PageContainer>

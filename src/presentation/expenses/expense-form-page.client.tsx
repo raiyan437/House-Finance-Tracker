@@ -22,7 +22,7 @@ import type {
   ReceiptView,
   ExpenseView,
 } from "@/application/services/application-services";
-import { ApplicationError } from "@/application/errors/application-error";
+import { ApplicationError, ReceiptSagaPartialSuccessError } from "@/application/errors/application-error";
 import { MAX_AVAILABLE_RECEIPTS_PER_EXPENSE, RECEIPT_USER_QUOTA_BYTES } from "@/application/receipts/receipt-storage-policy";
 import type { MyCardSummaryView } from "@/application/cards/card-page";
 import { Button } from "@/components/ui/button";
@@ -33,13 +33,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
 import { DomainError } from "@/domain/shared/domain-error";
-import { expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
+import { commandId, expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { ErrorState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
@@ -64,6 +65,7 @@ interface ExistingReceiptPreview {
   readonly metadata: ReceiptView;
   readonly url?: string;
   readonly error?: boolean;
+  readonly contentPending?: boolean;
 }
 
 function definedTextRecord(
@@ -131,6 +133,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   const [original, setOriginal] = useState<ExpenseView>();
   const [existingReceipts, setExistingReceipts] = useState<readonly ExistingReceiptPreview[]>([]);
   const [removedReceiptIds, setRemovedReceiptIds] = useState<readonly string[]>([]);
+  const receiptRemovalCommandIds = useRef(new Map<string, ReturnType<typeof commandId>>());
   const [pendingReceipts, setPendingReceipts] = useState<readonly PendingReceipt[]>([]);
   const [receiptError, setReceiptError] = useState<string>();
   const [submitError, setSubmitError] = useState<string>();
@@ -196,9 +199,16 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     setOriginal(view);
     existingUrlsRef.current.forEach((entry) => URL.revokeObjectURL(entry.url));
     existingUrlsRef.current = [];
+    const contentReadsEnabled = runtime.capabilities.receiptContentReads;
     const receiptPreviews = await Promise.all(receipts.map(async (metadata): Promise<ExistingReceiptPreview | undefined> => {
       if (metadata.visibility === "attachment") {
         return { metadata };
+      }
+      if (!contentReadsEnabled) {
+        return {
+          metadata,
+          ...(metadata.canRead && metadata.contentStatus === "available" ? { contentPending: true } : {}),
+        };
       }
       if (!metadata.canRead || metadata.contentStatus !== "available") {
         return { metadata };
@@ -241,6 +251,9 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   }, []);
 
   function stageExistingReceiptRemoval(receiptId: string) {
+    if (!receiptRemovalCommandIds.current.has(receiptId)) {
+      receiptRemovalCommandIds.current.set(receiptId, commandId(crypto.randomUUID()));
+    }
     setRemovedReceiptIds((current) => (current.includes(receiptId) ? current : [...current, receiptId]));
     const entry = existingUrlsRef.current.find((candidate) => candidate.receiptId === receiptId);
     if (!entry) return;
@@ -266,6 +279,9 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   );
   const memberById = useMemo(() => new Map<string, ExpenseMemberView>(members.map((member) => [member.userId, member])), [members]);
   const financialLocked = original?.financialEditability.state === "locked";
+  const expenseMutationsEnabled = useCapability("expenseMutations");
+  const receiptMutationsEnabled = useCapability("receiptMutations");
+  const saveDisabled = !expenseMutationsEnabled;
   const ownerEditing = original?.expense.creatorId === currentUserId;
   const payerName = original
     ? original.expense.creatorId === currentUserId
@@ -403,6 +419,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
       const newReceipts = [];
       for (const receipt of pendingReceipts) {
         newReceipts.push({
+          commandId: commandId(receipt.key),
           originalFilename: receipt.file.name,
           content: {
             bytes: new Uint8Array(await receipt.file.arrayBuffer()),
@@ -480,11 +497,27 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
         payment,
         newReceipts,
         removedReceiptIds: removedReceiptIds.map(parseReceiptId),
+        receiptRemovalCommandIds: Object.fromEntries(
+          removedReceiptIds.map((id) => [id, receiptRemovalCommandIds.current.get(id) ?? commandId(crypto.randomUUID())]),
+        ),
       });
       expenseCommand.complete();
       setBackdatedConfirmationToken(undefined);
       router.push(`/expenses/${original.expense.expenseId}`);
     } catch (error) {
+      if (error instanceof ReceiptSagaPartialSuccessError) {
+        if (mode === "edit" && original) {
+          try {
+            const refreshed = await runtime.expenseActions.getExpense(parseExpenseId(error.savedExpenseId));
+            setOriginal(refreshed);
+            form.reset(editFormValues(refreshed, form.getValues("name")));
+          } catch {
+            // The explicit partial-success message remains accurate even if refresh is temporarily unavailable.
+          }
+        }
+        setSubmitError(error.message);
+        return;
+      }
       if (error instanceof ApplicationError && error.code === "BACKDATED_EXPENSE_CONFIRMATION_REQUIRED") {
         const token = "confirmationToken" in error
           ? String(error.confirmationToken)
@@ -641,11 +674,11 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
 
           <Surface className="receipts-panel order-2 space-y-3" padding="canonical">
             <div><h2 className="panel-title">Receipts</h2><p className="compact-caption mt-0.5 text-text-muted">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p>{!original || original.expense.creatorId === currentUserId ? <p className="compact-caption mt-1 text-text-muted">{availableReceiptCount} of {MAX_AVAILABLE_RECEIPTS_PER_EXPENSE} available · {Math.floor(remainingUploaderReceiptBytes / (1024 * 1024))} MiB of your receipt quota remains</p> : null}<p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p></div>
-            {!original || original.expense.creatorId === currentUserId ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">Receipt details and management are private to the Expense creator.</p>}
+            {!original || original.expense.creatorId === currentUserId ? (<div className="grid gap-1">{receiptMutationsEnabled ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <div aria-hidden className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm text-text-muted opacity-60" data-capability-pending><Upload className="size-4" /> Add receipt images</div>}<CapabilityNotice active={!receiptMutationsEnabled} /></div>) : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">Receipt details and management are private to the Expense creator.</p>}
             {receiptError ? <p className="text-sm text-danger" role="alert">{receiptError}</p> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {existingReceipts.filter(({ metadata }) => metadata.visibility === "attachment" || !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error }, index) => { if (metadata.visibility === "attachment") return <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Private receipt details are not available to other Household members or Leaders.</p></div>; const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" />{error ? <><p className="text-xs font-medium">Preview unavailable</p><p className="compact-caption mt-1 text-text-muted">The stored image could not be displayed. Your file was not changed.</p></> : <span className="sr-only">Loading receipt preview</span>}</div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemove ? <Button type="button" variant="ghost" size="sm" onClick={() => stageExistingReceiptRemoval(metadata.receiptId)}><Trash2 /> Remove</Button> : null}</div>; })}
-              {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={receipt.url} alt={receipt.file.name} fill sizes="240px" unoptimized /></span><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
+              {existingReceipts.filter(({ metadata }) => metadata.visibility === "attachment" || !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error, contentPending }, index) => { if (metadata.visibility === "attachment") return <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Private receipt details are not available to other Household members or Leaders.</p></div>; const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : contentPending ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">Preview arrives with receipt storage in a later update.</p></div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" />{error ? <><p className="text-xs font-medium">Preview unavailable</p><p className="compact-caption mt-1 text-text-muted">The stored image could not be displayed. Your file was not changed.</p></> : <span className="sr-only">Loading receipt preview</span>}</div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemove ? <Button type="button" variant="ghost" size="sm" disabled={!receiptMutationsEnabled} onClick={() => stageExistingReceiptRemoval(metadata.receiptId)}><Trash2 /> Remove</Button> : null}</div>; })}
+              {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={receipt.url} alt={receipt.file.name} fill sizes="240px" unoptimized /></span><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" disabled={!receiptMutationsEnabled} onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
             </div>
           </Surface>
         </div>
@@ -657,7 +690,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             {submitError ? <div className="mt-5 rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert" tabIndex={-1} ref={submitErrorRef}>{submitError}</div> : null}
           </Surface>
           <Surface className="min-h-[104px]" padding="canonical"><div className="flex gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft"><ShieldCheck aria-hidden="true" className="size-4" /></span><div><h2 className="text-sm font-semibold">Privacy Note</h2><p className="compact-caption mt-1 text-text-muted">Private Card details remain visible only to the Card owner.</p></div></div></Surface>
-          <div className="mt-auto grid grid-cols-[116px_minmax(0,1fr)] gap-3"><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button><Button aria-busy={pendingSave} disabled={pendingSave} type="submit">{pendingSave ? <><Loader2 aria-hidden="true" className="size-4 animate-spin" /> Saving…</> : mode === "create" ? "Create Expense" : "Save Changes"}</Button></div>
+          <div className="mt-auto grid gap-3"><div className="grid grid-cols-[116px_minmax(0,1fr)] gap-3"><Button type="button" variant="outline" asChild><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}>Cancel</Link></Button><Button aria-busy={pendingSave} disabled={pendingSave || saveDisabled} type="submit">{pendingSave ? <><Loader2 aria-hidden="true" className="size-4 animate-spin" /> Saving…</> : mode === "create" ? "Create Expense" : "Save Changes"}</Button></div><CapabilityNotice active={saveDisabled} /></div>
         </aside>
       </form>
     </PageContainer>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { Check, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge } from "@/presentation/components/status-badge";
 import type { UserId } from "@/domain/shared/identifiers";
+import { DevelopmentToolsSlotsProvider } from "./development-tools-slots";
 
 export interface DevelopmentIdentityOption {
   readonly userId: UserId;
@@ -39,9 +40,20 @@ export function DevelopmentToolsProvider({
   children: React.ReactNode;
   value?: DevelopmentToolsContextValue;
 }>) {
+  const active = value !== undefined;
+  const slots = useMemo(
+    () => active ? {
+        desktop: (compact: boolean) => <DevelopmentTools compact={compact} />,
+        mobile: <MobileDevelopmentTools />,
+      } : undefined,
+    [active],
+  );
+
   return (
     <DevelopmentToolsContext.Provider value={value}>
-      {children}
+      <DevelopmentToolsSlotsProvider value={slots}>
+        {children}
+      </DevelopmentToolsSlotsProvider>
     </DevelopmentToolsContext.Provider>
   );
 }

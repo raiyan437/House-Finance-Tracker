@@ -16,6 +16,7 @@ import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { StatusBadge } from "@/presentation/components/status-badge";
 import { Surface } from "@/presentation/components/surface";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { HouseCodeControls } from "./house-code-controls";
@@ -64,6 +65,7 @@ function NoHouseholdState() {
 function LeaderRequestRow({ request, householdName }: Readonly<{ request: LeaderJoinRequestView; householdName: string }>) {
   const runtime = useApplicationRuntime();
   const actions = runtime.status === "ready" ? runtime.householdActions : undefined;
+  const canMutate = useCapability("householdMutations");
 
   async function accept() {
     if (!actions) return;
@@ -90,7 +92,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
           errorMessage="The request, requester eligibility, or Household leadership changed. Review the current status before confirming again."
           onConfirm={accept}
           title={`Accept ${request.requesterName} into ${householdName}?`}
-          trigger={<Button className="min-h-11 min-w-20" size="sm">Accept</Button>}
+          trigger={<Button className="min-h-11 min-w-20" disabled={!canMutate} size="sm">Accept</Button>}
         />
         <ConfirmDialog
           confirmLabel="Reject request"
@@ -99,7 +101,7 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
           errorMessage="The request or Household leadership changed. Review the current status before confirming again."
           onConfirm={reject}
           title={`Reject ${request.requesterName}'s join request?`}
-          trigger={<Button className="min-h-11 min-w-20" size="sm" variant="outline">Reject</Button>}
+          trigger={<Button className="min-h-11 min-w-20" disabled={!canMutate} size="sm" variant="outline">Reject</Button>}
         />
       </div>
     </li>
@@ -121,6 +123,7 @@ function ActiveHouseholdView({
 }>) {
   const runtime = useApplicationRuntime();
   const actions = runtime.status === "ready" ? runtime.householdActions : undefined;
+  const canMutate = useCapability("householdMutations");
   const leaveRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLButtonElement>(null);
   const renameRef = useRef<HTMLButtonElement>(null);
@@ -162,6 +165,7 @@ function ActiveHouseholdView({
           <HouseholdIdentity name={page.household.name} code={page.household.code} />
           {page.viewerRole === "leader" ? (
             <Button
+              disabled={!canMutate}
               onClick={() => setRenameOpen(true)}
               ref={renameRef}
               size="sm"
@@ -194,10 +198,12 @@ function ActiveHouseholdView({
         </div>
         <p className="mt-2 text-body text-text-secondary">Current active household members.</p>
         <HouseholdMemberList
+          actionsDisabled={!canMutate}
           members={page.members}
           onAction={openMemberAction}
           viewerRole={page.viewerRole}
         />
+        <CapabilityNotice active={!canMutate} />
       </Surface>
 
       {page.viewerRole === "leader" ? (
@@ -225,7 +231,7 @@ function ActiveHouseholdView({
         <p className="mt-2 text-body text-text-secondary">Leave only after your exact balance and Pending settlements are clear.</p>
         <Button
           className="mt-5 w-full sm:w-fit"
-          disabled={!page.leave.eligible}
+          disabled={!page.leave.eligible || !canMutate}
           onClick={() => setDialog({ action: "leave", restoreFocusRef: leaveRef })}
           ref={leaveRef}
           variant="outline"
@@ -241,7 +247,7 @@ function ActiveHouseholdView({
           <p className="mt-2 text-body text-text-secondary">Close this household for every active member while preserving historical financial records.</p>
           <Button
             className="mt-5 w-full sm:w-fit"
-            disabled={!page.deleteHousehold.eligible}
+            disabled={!page.deleteHousehold.eligible || !canMutate}
             onClick={() => setDialog({ action: "delete", restoreFocusRef: deleteRef })}
             ref={deleteRef}
             variant="destructive"
@@ -281,6 +287,7 @@ function ActiveHouseholdView({
 
 export function HouseholdPageClient() {
   const runtime = useApplicationRuntime();
+  const canMutate = useCapability("householdMutations");
 
   if (runtime.status === "loading") {
     return <PageContainer><LoadingState label="Loading household" /></PageContainer>;
@@ -326,8 +333,9 @@ export function HouseholdPageClient() {
               destructive
               onConfirm={cancelRequest}
               title="Cancel this join request?"
-              trigger={<Button variant="outline">Cancel Request</Button>}
+              trigger={<Button disabled={!canMutate} variant="outline">Cancel Request</Button>}
             />
+            <CapabilityNotice active={!canMutate} />
           </div>
         </Surface>
       ) : null}

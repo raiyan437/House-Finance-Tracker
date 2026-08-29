@@ -15,6 +15,7 @@ export function HouseholdMemberList({
   members,
   viewerRole,
   onAction,
+  actionsDisabled = false,
 }: Readonly<{
   members: readonly HouseholdMemberView[];
   viewerRole: "leader" | "member";
@@ -23,6 +24,7 @@ export function HouseholdMemberList({
     memberId: HouseholdMemberView["memberId"],
     triggerRef: RefObject<HTMLButtonElement | null>,
   ) => void;
+  actionsDisabled?: boolean;
 }>) {
   return (
     <ul aria-label="Active household members" className="mt-4 divide-y">
@@ -46,6 +48,7 @@ export function HouseholdMemberList({
             ) : null}
             {viewerRole === "leader" && member.remove ? (
               <HouseholdMemberActions
+                disabled={actionsDisabled}
                 member={member}
                 onAction={onAction}
                 position={index + 1}

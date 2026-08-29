@@ -19,6 +19,7 @@ export function HouseholdMemberActions({
   position,
   total,
   onAction,
+  disabled = false,
 }: Readonly<{
   member: HouseholdMemberView;
   position: number;
@@ -28,12 +29,13 @@ export function HouseholdMemberActions({
     memberId: HouseholdMemberView["memberId"],
     triggerRef: RefObject<HTMLButtonElement | null>,
   ) => void;
+  disabled?: boolean;
 }>) {
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <Button
           aria-label={`Manage ${member.displayName}, member ${position} of ${total}`}
           className="size-11"

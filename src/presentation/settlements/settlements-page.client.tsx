@@ -19,6 +19,7 @@ import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { MoneyValue } from "@/presentation/finance/money-value";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
+import { CapabilityNotice, useCapability } from "@/presentation/runtime/capability-gate.client";
 import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
@@ -49,9 +50,10 @@ function statusLabel(status: SettlementHistoryView["status"]): string {
 interface RecommendationCardProps {
   readonly item: SettlementRecommendationView;
   readonly markPaid: () => Promise<void>;
+  readonly actionsDisabled?: boolean;
 }
 
-function RecommendationCard({ item, markPaid }: RecommendationCardProps) {
+function RecommendationCard({ item, markPaid, actionsDisabled = false }: RecommendationCardProps) {
   const outgoing = item.direction === "outgoing";
   return (
     <li>
@@ -67,20 +69,24 @@ function RecommendationCard({ item, markPaid }: RecommendationCardProps) {
         </div>
         <MoneyValue className="text-h2 font-semibold" value={item.recommendation.amount} />
         {outgoing && item.canMarkPaid ? (
-          <ConfirmDialog
-            confirmLabel="Mark as Paid"
-            description={<span>House Finance Tracker does not transfer money. Confirm that you paid {item.counterparty.displayName} <span className="financial-numerals font-semibold">{formatBdt(item.recommendation.amount)}</span> outside the application.</span>}
-            onConfirm={markPaid}
-            title={`Settle up with ${item.counterparty.displayName}?`}
-            trigger={(
-              <Button
-                aria-label={`Settle up with ${item.counterparty.displayName} for ${formatBdt(item.recommendation.amount)}`}
-                className="mt-auto w-full sm:w-auto sm:self-start"
-              >
-                Settle Up
-              </Button>
-            )}
-          />
+          <>
+            <ConfirmDialog
+              confirmLabel="Mark as Paid"
+              description={<span>House Finance Tracker does not transfer money. Confirm that you paid {item.counterparty.displayName} <span className="financial-numerals font-semibold">{formatBdt(item.recommendation.amount)}</span> outside the application.</span>}
+              onConfirm={markPaid}
+              title={`Settle up with ${item.counterparty.displayName}?`}
+              trigger={(
+                <Button
+                  aria-label={`Settle up with ${item.counterparty.displayName} for ${formatBdt(item.recommendation.amount)}`}
+                  className="mt-auto w-full sm:w-auto sm:self-start"
+                  disabled={actionsDisabled}
+                >
+                  Settle Up
+                </Button>
+              )}
+            />
+            <CapabilityNotice active={actionsDisabled} />
+          </>
         ) : null}
         {item.blockedReason ? (
           <p className="mt-auto rounded-lg bg-warning-soft p-3 text-sm text-foreground">
@@ -99,9 +105,10 @@ interface PendingCardProps {
   readonly confirm: () => Promise<void>;
   readonly reject: () => Promise<void>;
   readonly cancel: () => Promise<void>;
+  readonly actionsDisabled?: boolean;
 }
 
-function PendingCard({ item, loadPreview, confirm, reject, cancel }: PendingCardProps) {
+function PendingCard({ item, loadPreview, confirm, reject, cancel, actionsDisabled = false }: PendingCardProps) {
   const receiving = item.relationship === "receiver";
   return (
     <li>
@@ -140,9 +147,9 @@ function PendingCard({ item, loadPreview, confirm, reject, cancel }: PendingCard
               description={<span>Reject {item.sender.displayName}&apos;s claim that they paid <span className="financial-numerals font-semibold">{formatBdt(item.amount)}</span>? The claim will remain in Settlement History and will not affect balances.</span>}
               onConfirm={reject}
               title="Reject this payment claim?"
-              trigger={<Button className="w-full sm:w-auto" variant="outline">Reject</Button>}
+              trigger={<Button className="w-full sm:w-auto" disabled={actionsDisabled} variant="outline">Reject</Button>}
             />
-            <PendingConfirmDialog settlement={item} loadPreview={loadPreview} onConfirm={confirm} />
+            <PendingConfirmDialog settlement={item} loadPreview={loadPreview} onConfirm={confirm} disabled={actionsDisabled} />
           </div>
         ) : (
           <ConfirmDialog
@@ -151,9 +158,10 @@ function PendingCard({ item, loadPreview, confirm, reject, cancel }: PendingCard
             description={<span>Cancel your <span className="financial-numerals font-semibold">{formatBdt(item.amount)}</span> payment claim to {item.receiver.displayName}? It will remain in Settlement History and will not affect balances.</span>}
             onConfirm={cancel}
             title="Cancel this payment claim?"
-            trigger={<Button className="w-full sm:w-auto" variant="outline">Cancel Claim</Button>}
+            trigger={<Button className="w-full sm:w-auto" disabled={actionsDisabled} variant="outline">Cancel Claim</Button>}
           />
         )}
+        {receiving ? null : <CapabilityNotice active={actionsDisabled} />}
       </Surface>
     </li>
   );
@@ -214,6 +222,7 @@ export function SettlementsPageClient() {
     ? runtime.household.household
     : undefined;
   const settlementActions = runtime.status === "ready" ? runtime.settlementActions : undefined;
+  const settlementMutationsEnabled = useCapability("settlementMutations");
   const currentUserId = runtime.status === "ready" ? runtime.session.userId : undefined;
   const householdId = household?.householdId;
 
@@ -292,6 +301,7 @@ export function SettlementsPageClient() {
           <ul className="grid gap-4 md:grid-cols-2">
             {view.recommendations.map((item) => (
               <RecommendationCard
+                actionsDisabled={!settlementMutationsEnabled}
                 item={item}
                 key={`${item.recommendation.senderId}:${item.recommendation.receiverId}`}
                 markPaid={() => mutate(
@@ -313,6 +323,7 @@ export function SettlementsPageClient() {
           <ul className="grid gap-4 lg:grid-cols-2">
             {view.pending.map((item) => (
               <PendingCard
+                actionsDisabled={!settlementMutationsEnabled}
                 item={item}
                 key={item.settlementId}
                 loadPreview={() => runtime.settlementActions.getPendingPreview(item.settlementId)}
