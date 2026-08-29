@@ -119,10 +119,8 @@ test.describe("live Appwrite authentication", () => {
 
     await page.goto("/dashboard");
     await expect(page.locator('[data-slot="app-shell"]')).toBeVisible();
-    // Frozen HouseholdAccessGate: with no household membership, protected
-    // routes land in the real onboarding state.
-    await expect(page).toHaveURL(/\/household$/);
-    await expect(page.getByRole("heading", { name: "Create a Household" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open development tools" })).toHaveCount(0);
     const productionDatabases = await page.evaluate(() => indexedDB.databases().then((entries) => entries.map((entry) => entry.name)));
     expect(productionDatabases.some((name) => typeof name === "string" && name.toLowerCase().includes("finance"))).toBe(false);
@@ -137,7 +135,7 @@ test.describe("live Appwrite authentication", () => {
     const secondTab = await context.newPage();
     await secondTab.goto("/household");
     await expect(secondTab.locator('[data-slot="app-shell"]')).toBeVisible();
-    await expect(secondTab.getByRole("heading", { name: "Create a Household" })).toBeVisible();
+    await expect(secondTab.getByRole("heading", { name: "Household", exact: true })).toBeVisible();
 
     const databases = await secondTab.evaluate(() => indexedDB.databases().then((entries) => entries.map((entry) => entry.name)));
     expect(databases.some((name) => typeof name === "string" && name.toLowerCase().includes("finance"))).toBe(false);
@@ -232,18 +230,18 @@ test.describe("live Appwrite authentication", () => {
     if (!cookie) throw new Error("Expected a session cookie for the browser secret audit.");
 
     const sensitiveValues = [
-      envValue(".env.local", "APPWRITE_RUNTIME_API_KEY"),
+      envValue(".env.local", "HFT_APPWRITE_RUNTIME_API_KEY"),
       envValue(".env.local", "APPWRITE_BOOTSTRAP_API_KEY"),
       envValue(".env.local", "APPWRITE_PROVISIONING_API_KEY"),
-      envValue(".env.local", "AUTH_HMAC_SECRET"),
+      envValue(".env.local", "HFT_AUTH_HMAC_SECRET"),
       envValue(CREDS_FILE, "TEST_PASSWORD"),
       cookie.value,
     ].filter((value) => value.length > 0);
     const forbiddenNames = [
-      "APPWRITE_RUNTIME_API_KEY",
+      "HFT_APPWRITE_RUNTIME_API_KEY",
       "APPWRITE_BOOTSTRAP_API_KEY",
       "APPWRITE_PROVISIONING_API_KEY",
-      "AUTH_HMAC_SECRET",
+      "HFT_AUTH_HMAC_SECRET",
     ];
 
     const documents = [await page.content()];

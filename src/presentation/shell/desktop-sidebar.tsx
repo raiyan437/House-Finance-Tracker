@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MemberRow } from "@/presentation/components/member-row";
-import { DevelopmentTools, useDevelopmentToolsActive } from "@/presentation/devtools/development-tools";
+import { useDevelopmentToolsSlots } from "@/presentation/devtools/development-tools-slots";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { Brand } from "./brand";
 import { desktopNavigationItems } from "./navigation-items";
@@ -60,7 +60,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = collapsed !== undefined;
   const isCollapsed = isControlled ? collapsed : internalCollapsed;
-  const developmentToolsActive = useDevelopmentToolsActive();
+  const developmentTools = useDevelopmentToolsSlots();
   const canSignOut = runtime.status === "ready" && typeof runtime.signOut === "function";
   const joinRequestCount = runtime.status === "ready" && runtime.household.status === "active-leader"
     ? runtime.household.joinRequests.length
@@ -171,14 +171,14 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
           })}
         </ul>
       </nav>
-      {developmentToolsActive ? (
+      {developmentTools ? (
         <div
           className={cn(
             "border-t border-warning/30 py-4 transition-[margin,padding] duration-300 ease-[var(--motion-ease-out)]",
             isCollapsed ? "mx-2" : "mx-4",
           )}
         >
-          <DevelopmentTools compact={isCollapsed} />
+          {developmentTools.desktop(isCollapsed)}
         </div>
       ) : null}
       <div
@@ -248,12 +248,14 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
             Log Out
           </span>
         </Button>
-        <p
-          className="sr-only"
-          id="logout-unavailable-description"
-        >
-          Authentication is introduced in a later phase.
-        </p>
+        {!canSignOut ? (
+          <p
+            className="sr-only"
+            id="logout-unavailable-description"
+          >
+            Sign out is unavailable in this runtime.
+          </p>
+        ) : null}
       </div>
     </aside>
   );

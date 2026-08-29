@@ -42,7 +42,7 @@ import {
   type HouseholdApplicationActions,
   type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
-import { DevelopmentToolsProvider } from "@/presentation/devtools/development-tools";
+import { DevelopmentToolsSlotsProvider } from "@/presentation/devtools/development-tools-slots";
 import { AppShell } from "@/presentation/shell/app-shell";
 
 /**
@@ -418,9 +418,9 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
 
   return (
     <ApplicationRuntimeProvider value={state}>
-      <DevelopmentToolsProvider value={undefined}>
+      <DevelopmentToolsSlotsProvider value={undefined}>
         <AppShell>{children}</AppShell>
-      </DevelopmentToolsProvider>
+      </DevelopmentToolsSlotsProvider>
       <Toaster closeButton position="top-right" richColors />
     </ApplicationRuntimeProvider>
   );

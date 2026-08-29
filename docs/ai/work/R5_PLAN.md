@@ -22,6 +22,8 @@ R5 adds no product feature, financial rule, privacy rule, schema, backend, datab
 
 Framework Next.js; Node 22; repository root; install `npm install`; build `npm run build`; output `.next`; request timeout 30 seconds. First integration deployment uses `feature/phase-13-appwrite`; the generated HTTPS origin is recorded into `HFT_APP_ORIGIN`, registered as an Appwrite Web platform, and followed by a redeployment. No generated hostname is hard-coded in source.
 
+Deployment retention: **1 month — selected from the provider-supported Console presets to preserve a practical rollback window without introducing additional privileged credentials.** The setting was applied through the Appwrite Console and verified without replacing the active feature-branch deployment, changing the generated production domain, or removing the registered Web platform.
+
 ## Acceptance gates
 
 1. Anonymous and authenticated HTTPS smoke proves the real Appwrite composition, existing Household data, no finance IndexedDB, no development identity tooling, no fake data, no localhost dependency, and no browser/hydration errors.

@@ -116,9 +116,13 @@ describe("Appwrite infrastructure containment", () => {
     expect(productionSources.length).toBeGreaterThan(0);
     for (const source of productionSources) {
       expect(source).not.toMatch(/LocalApplicationRuntime|DevelopmentIdentity|indexedDB|IndexedDb|indexeddb\/|local-runtime/);
+      expect(source).not.toMatch(/presentation\/devtools\/development-tools["']/);
     }
     const productLayout = read(join(SRC, "app", "(product)", "layout.tsx"));
-    expect(productLayout).toMatch(/composition === "appwrite"[\s\S]*<ProductionApplicationRuntime>/);
+    expect(productLayout).toMatch(/APP_COMPOSITION === "appwrite"[\s\S]*<SelectedApplicationRuntime composition=\{composition\}>/);
+    expect(productLayout).not.toMatch(/LocalApplicationRuntime|ProductionApplicationRuntime/);
+    const selectorSource = read(join(SRC, "app", "_providers", "selected-application-runtime.client.tsx"));
+    expect(selectorSource).toMatch(/dynamic\([\s\S]*local-product-runtime\.client[\s\S]*production-application-runtime\.client/);
   });
 
   it("keeps the Appwrite browser boundary free of server SDK and server modules", () => {

@@ -128,7 +128,7 @@ describe("responsive navigation", () => {
     const logout = screen.getByRole("button", { name: "Log Out" });
     expect(logout).toHaveAttribute("aria-disabled", "true");
     expect(logout).toHaveAccessibleDescription(
-      "Authentication is introduced in a later phase.",
+      "Sign out is unavailable in this runtime.",
     );
   });
 
