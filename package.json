@@ -16,7 +16,9 @@
     "appwrite:plan": "tsx src/infrastructure/appwrite/bootstrap/cli.ts plan",
     "appwrite:apply": "tsx src/infrastructure/appwrite/bootstrap/cli.ts apply",
     "appwrite:provision": "tsx scripts/appwrite-provision.mts",
-    "r5:receipt-fixtures": "tsx scripts/r5-receipt-fixtures.mts"
+    "r5:receipt-fixtures": "tsx scripts/r5-receipt-fixtures.mts",
+    "r5:decompression-fixture": "tsx scripts/r5-decompression-fixture.mts",
+    "r5:provider-status": "tsx scripts/appwrite-r5-provider-status.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
