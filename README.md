@@ -1,10 +1,10 @@
 # House Finance Tracker
 
-Local-first shared household expense tracking with exact integer-poisha financials, implemented through Raiyan's AIDOS workflow.
+Private shared household expense tracking with exact integer-poisha financials, implemented through Raiyan's AIDOS workflow.
 
 ## Current status
 
-The complete local application is frozen at tag `local-mvp-v1`. Appwrite foundation, production authentication/session, and the read-only production data plane are committed on `feature/phase-13-appwrite`; live schema v2 and provider transaction semantics are verified. The authorized R2 Household command core is in progress in the uncommitted working tree. Financial writes, receipt Storage/retention, final security QA, and deployment remain gated R3-R5 work. See [`docs/ai/work/EARLIEST_PRODUCTION_PLAN.md`](docs/ai/work/EARLIEST_PRODUCTION_PLAN.md) for the current critical path.
+The complete local application remains frozen at tag `local-mvp-v1`. The feature branch `feature/phase-13-appwrite` now runs the full production composition on Appwrite Sites at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network): Appwrite Auth, TablesDB reads and mutations, private Receipt Storage through trusted same-origin Route Handlers, and the independent daily maintenance Function. Live Schema V4 is clean. R5 production QA is complete except for the owner-restricted password-reset completion; merge to `main`, final release, and tag still require separate owner acceptance. See [`docs/ai/work/R5_PLAN.md`](docs/ai/work/R5_PLAN.md) for the deployment evidence and rollback runbook.
 
 ## Commands
 
@@ -16,6 +16,9 @@ The complete local application is frozen at tag `local-mvp-v1`. Appwrite foundat
 - `npm run test:architecture` - enforce source dependency boundaries.
 - `npm run test:e2e` - run the Playwright suites (Chromium; Firefox/WebKit via the cross-browser smoke spec).
 - `npm run build` - create a production build.
+- `npm run r5:receipt-fixtures` - create checksum-pinned Receipt acceptance fixtures outside Git.
+- `npm run r5:decompression-fixture` - create the deterministic decompression-heavy rejection fixture outside Git.
+- `npm run r5:provider-status -- --site <site-id>` - print a sanitized, read-only provider status when the local operator credential has the required scopes.
 
 ## Dependency boundaries
 

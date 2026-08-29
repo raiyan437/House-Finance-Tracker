@@ -2,7 +2,7 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP is frozen at `local-mvp-v1`; Phase 13A/13B and R1-R4 are committed. R5 Appwrite Sites production-readiness implementation, feature-branch deployment, and QA are authorized in `R5_PLAN.md`; merge, final release, and tag remain separately gated. The shortest current critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete five-phase release contract remains `PRODUCTION_RELEASE_PLAN.md`.
+The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP remains frozen at `local-mvp-v1`; Phase 13A/13B and R1-R4 are committed. R5 Appwrite Sites implementation and production QA are complete on `feature/phase-13-appwrite` as recorded in `R5_PLAN.md`; the branch is being finalized for owner acceptance. Merge to `main`, final production promotion, release, and tag remain separately gated. The shortest critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete release contract remains `PRODUCTION_RELEASE_PLAN.md`.
 
 ## Reconciliation findings
 

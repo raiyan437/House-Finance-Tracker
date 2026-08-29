@@ -112,6 +112,8 @@ All four approved accounts can log in; the single production Household operates 
 
 **User-visible result:** the finished production system, accepted and operable.
 
+**Implementation result (2026-08-30): ready for owner acceptance, not merged.** The feature branch is deployed on Appwrite Sites at `https://house-finance-tracker.appwrite.network` with Schema V4, every approved capability active, exact 10 MiB Receipt transport proven, private Storage and retention verified, real two-user financial/settlement history green, cross-browser authentication green across the combined approved suite, responsive/Axe/security gates green, maintenance HTTP 200, final binary backup verified, and Free-plan deployment artifacts reduced to a directly enumerated 718.9 MB before the final documentation deployment. Password-reset completion was not performed under the owner's explicit no-password-change restriction and is recorded for acceptance rather than marked passed. `main`, final promotion, release, and tag remain untouched pending explicit owner authorization.
+
 ---
 
 ## Feature enablement matrix

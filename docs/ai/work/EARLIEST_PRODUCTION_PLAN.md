@@ -2,12 +2,12 @@
 
 **Prepared:** 2026-08-26
 **Target:** the complete frozen production release defined in `PRODUCTION_RELEASE_PLAN.md`
-**Current phase:** R3 — IMPLEMENTED and verified; uncommitted for owner review
-**Planning status:** R3 is checkpointed at `01d82897e246aadee611d01ca977b1fb0cb3d1d4`. R4 implementation is authorized through `R4_PLAN.md`; R5 remains unauthorized.
+**Current phase:** R5 — production QA complete; awaiting owner acceptance
+**Planning status:** R4 is checkpointed. R5 is implemented and deployed from `feature/phase-13-appwrite`; merge to `main`, final release, and tag remain unauthorized.
 
 ## Executive position
 
-The Local MVP is frozen and thoroughly verified; Appwrite authentication, the production read plane, and R2 Household workflows are committed. Production Schema V3 is live and clean, provider transaction behavior has been proven, and the ten R2 Household commands reach the transaction kernel through the production browser transport.
+The Local MVP remains frozen and thoroughly verified. The complete production composition is live on Appwrite Sites at `https://house-finance-tracker.appwrite.network`: Appwrite authentication, Schema V4 TablesDB reads/mutations, private Receipt Storage through trusted Route Handlers, and the independent maintenance Function. R5 production QA is complete on the feature branch and awaits owner acceptance before merge or release.
 
 The fastest credible route to production is:
 
@@ -60,7 +60,7 @@ These are focused engineering-day ranges, not calendar promises. They assume imm
 | 4 | R3 Settlements — complete | Mark Paid/Confirm/Reject/Cancel, exact-current recommendation check, Pending-pair guards, immutable confirmation | two-account financial journey and concurrency matrix green | complete |
 | 5 | R4 Receipts | Trusted reservation/upload saga, quotas, private content reads/removal, orphan reconciliation | 10 MiB boundary, fault injection, privacy, and quota tests green | 1.5–2.5 days |
 | 6 | R4 Retention | Deploy and exercise the once-daily function; verify Dhaka cutoff, delete-before-mark, recovery, and manual fallback | one live authorized execution plus idempotent rerun green | 0.5–1 day |
-| 7 | R5 Release | Production-like deployment, full security/integration matrix, backup/runbook/rollback, owner smoke and launch | no critical/high findings; production smoke green; owner approves go-live | 2–3 days |
+| 7 | R5 Release | Production deployment, full security/integration matrix, backup/runbook/rollback, owner smoke | production gates complete; owner acceptance pending | awaiting approval |
 
 **Earliest responsible full release:** approximately **10–15 focused engineering days**, or roughly **2–3 calendar weeks** with prompt approvals and one uninterrupted implementation stream. Provider failures, a receipt-upload transport redesign, or newly discovered financial/security contradictions extend this range.
 
