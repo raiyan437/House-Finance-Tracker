@@ -170,6 +170,36 @@ describe("production application runtime composition", () => {
     expect(new Uint8Array(uploadCalls[0]!.init?.body as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]));
   });
 
+  it("serializes multiple Receipt sagas so quota transactions do not overlap", async () => {
+    currentPathname = "/household";
+    let activeUploads = 0;
+    let maxConcurrentUploads = 0;
+    const uploadedCommands: string[] = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const path = String(input);
+      if (path === "/api/app/bootstrap") return new Response(JSON.stringify(bootstrapPayload()), { status: 200 });
+      if (path === "/api/app/expense-create") {
+        return new Response(JSON.stringify({ data: { expense: { expenseId: "e_saved" } } }), { status: 200 });
+      }
+      if (path === "/api/app/receipt-upload") {
+        activeUploads += 1;
+        maxConcurrentUploads = Math.max(maxConcurrentUploads, activeUploads);
+        uploadedCommands.push(String((init?.headers as Record<string, string>)["x-command-id"]));
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        activeUploads -= 1;
+        return new Response(JSON.stringify({ data: { visibility: "private", receiptId: `r_${uploadedCommands.length}` } }), { status: 200 });
+      }
+      throw new Error(`Unexpected path ${path}`);
+    });
+
+    render(<ProductionApplicationRuntime><MultipleExpenseReceiptsProbe /></ProductionApplicationRuntime>);
+    (await screen.findByRole("button", { name: "save-with-multiple-receipts" })).click();
+
+    expect(await screen.findByText("saved:e_saved")).toBeVisible();
+    expect(uploadedCommands).toEqual(["receipt-command-1", "receipt-command-2", "receipt-command-3"]);
+    expect(maxConcurrentUploads).toBe(1);
+  });
+
   it("reads private Receipt bytes only through the trusted content endpoint", async () => {
     currentPathname = "/household";
     const paths: string[] = [];
@@ -201,6 +231,23 @@ function ExpenseReceiptProbe() {
     } as never).then((view) => setStatus(`saved:${String(view.expense.expenseId)}`)).catch((error: { code?: string }) => setStatus(error.code ?? "error"));
   };
   return <div><button onClick={invoke}>save-with-receipt</button><span>{status}</span></div>;
+}
+
+function MultipleExpenseReceiptsProbe() {
+  const runtime = useApplicationRuntime();
+  const [status, setStatus] = useState("idle");
+  if (runtime.status !== "ready") return null;
+  const invoke = () => {
+    void runtime.expenseActions.createExpense({
+      commandId: commandId("expense-command"),
+      receipts: [1, 2, 3].map((index) => ({
+        commandId: commandId(`receipt-command-${index}`),
+        originalFilename: `private-${index}.png`,
+        content: { mimeType: "image/png" as const, bytes: new Uint8Array([index]) },
+      })),
+    } as never).then((view) => setStatus(`saved:${String(view.expense.expenseId)}`)).catch((error: { code?: string }) => setStatus(error.code ?? "error"));
+  };
+  return <div><button onClick={invoke}>save-with-multiple-receipts</button><span>{status}</span></div>;
 }
 
 function ReceiptReadProbe() {

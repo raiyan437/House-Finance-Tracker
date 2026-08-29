@@ -177,16 +177,24 @@ function buildReadyState(
     removals: readonly string[],
     removalCommandIds: Readonly<Record<string, string>>,
   ): Promise<void> => {
-    const operations: Promise<void>[] = additions.map((receipt, index) =>
-      uploadReceipt(expenseIdValue, receipt, `${String(expenseIdValue)}:${index}:${String(receipt.commandId ?? "fallback")}`));
+    let failures = 0;
     for (const receiptIdValue of removals) {
       const retryKey = `/api/app/receipt-remove:${receiptIdValue}`;
       const receiptCommandId = removalCommandIds[receiptIdValue] ?? retryCommandIds.get(retryKey) ?? crypto.randomUUID();
       retryCommandIds.set(retryKey, receiptCommandId);
-      operations.push(removeReceipt(receiptIdValue, receiptCommandId));
+      try {
+        await removeReceipt(receiptIdValue, receiptCommandId);
+      } catch {
+        failures += 1;
+      }
     }
-    const outcomes = await Promise.allSettled(operations);
-    const failures = outcomes.filter((outcome) => outcome.status === "rejected").length;
+    for (const [index, receipt] of additions.entries()) {
+      try {
+        await uploadReceipt(expenseIdValue, receipt, `${String(expenseIdValue)}:${index}:${String(receipt.commandId ?? "fallback")}`);
+      } catch {
+        failures += 1;
+      }
+    }
     await refresh();
     if (failures > 0) throw new ReceiptSagaPartialSuccessError(String(expenseIdValue), failures);
   };
