@@ -6,9 +6,13 @@ import {
   Ellipsis,
   HandCoins,
   LayoutDashboard,
+  LoaderCircle,
+  LogOut,
   ReceiptText,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetClose,
@@ -78,7 +82,10 @@ function MobileLink({
 export function MobileNavigation() {
   const pathname = usePathname();
   const runtime = useApplicationRuntime();
+  const logoutInProgressRef = useRef(false);
+  const [logoutInProgress, setLogoutInProgress] = useState(false);
   const developmentTools = useDevelopmentToolsSlots();
+  const canSignOut = runtime.status === "ready" && typeof runtime.signOut === "function";
   const moreActive = moreNavigationItems.some((item) => item.isActive(pathname));
   const settlementActionCount = runtime.status === "ready"
     ? runtime.session.settlementActionCount
@@ -87,6 +94,18 @@ export function MobileNavigation() {
     ? runtime.household.joinRequests.length
     : 0;
   const joinRequestBadgeLabel = `${joinRequestCount} join request${joinRequestCount === 1 ? "" : "s"} waiting for your review`;
+
+  async function signOut() {
+    if (!canSignOut || logoutInProgressRef.current) return;
+    logoutInProgressRef.current = true;
+    setLogoutInProgress(true);
+    try {
+      await runtime.signOut?.();
+    } finally {
+      logoutInProgressRef.current = false;
+      setLogoutInProgress(false);
+    }
+  }
 
   return (
     <nav
@@ -154,7 +173,7 @@ export function MobileNavigation() {
               </span>
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom">
+          <SheetContent className="overflow-y-auto" side="bottom">
             <SheetHeader className="border-b p-6">
               <SheetTitle>More</SheetTitle>
               <SheetDescription>Additional House Finance destinations.</SheetDescription>
@@ -200,6 +219,31 @@ export function MobileNavigation() {
                   </SheetClose>
                 );
               })}
+              <div className="mt-2 border-t pt-4">
+                <Button
+                  aria-busy={logoutInProgress || undefined}
+                  aria-describedby={canSignOut ? undefined : "mobile-logout-unavailable-description"}
+                  aria-disabled={!canSignOut || logoutInProgress}
+                  aria-label="Log Out"
+                  className="min-h-12 w-full justify-start gap-3 rounded-md px-4 text-sm font-medium text-text-secondary hover:bg-secondary hover:text-foreground aria-disabled:cursor-not-allowed"
+                  disabled={logoutInProgress}
+                  onClick={() => void signOut()}
+                  type="button"
+                  variant="ghost"
+                >
+                  {logoutInProgress ? (
+                    <LoaderCircle aria-hidden="true" className="size-5 animate-spin" strokeWidth={1.8} />
+                  ) : (
+                    <LogOut aria-hidden="true" className="size-5" strokeWidth={1.8} />
+                  )}
+                  {logoutInProgress ? "Logging Out…" : "Log Out"}
+                </Button>
+                {!canSignOut ? (
+                  <p className="sr-only" id="mobile-logout-unavailable-description">
+                    Sign out is unavailable in this runtime.
+                  </p>
+                ) : null}
+              </div>
             </nav>
             {developmentTools?.mobile}
           </SheetContent>

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "./fixtures";
 
 async function openReadyShell(page: Page, path = "/dashboard") {
@@ -105,9 +106,11 @@ test.describe("responsive shell", () => {
     await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeHidden();
 
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+      .toBeLessThan(100);
     const collapsedBox = await sidebar.boundingBox();
     expect(collapsedBox?.width ?? 0).toBeGreaterThanOrEqual(64);
-    expect(collapsedBox?.width ?? 0).toBeLessThan(100);
 
     await expandButton.click();
     await expect(page.getByRole("button", { name: "Collapse sidebar" })).toBeVisible();
@@ -119,26 +122,55 @@ test.describe("responsive shell", () => {
     ).toBeLessThanOrEqual(1);
   });
 
-  test("mobile More sheet supports focus management and navigation", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openReadyShell(page, "/cards");
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 360, height: 800 },
+  ]) {
+    test(`mobile More sheet exposes a non-clipped Logout at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+      const consoleErrors: string[] = [];
+      const pageErrors: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") consoleErrors.push(message.text());
+      });
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      await page.setViewportSize(viewport);
+      await openReadyShell(page, "/cards");
 
-    const more = page.getByRole("button", { name: "More" });
-    await more.focus();
-    await page.keyboard.press("Enter");
-    const dialog = page.getByRole("dialog", { name: "More" });
-    await expect(dialog).toBeVisible();
-    await expect(page.getByRole("link", { name: "Cards" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    await expect(dialog.getByRole("heading", { name: "DEV · Development tools" })).toBeVisible();
-    const identityButton = dialog.getByTestId("mobile-development-identity-user-raiyan");
-    await expect(identityButton).toBeVisible();
-    expect((await identityButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-    await expect(page.getByTestId("development-tools-trigger")).toBeHidden();
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect(more).toBeFocused();
-  });
+      const more = page.getByRole("button", { name: "More" });
+      await more.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "More" });
+      await expect(dialog).toBeVisible();
+      await expect(page.getByRole("link", { name: "Cards" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      await expect(dialog.getByRole("heading", { name: "DEV · Development tools" })).toBeVisible();
+      const logout = dialog.getByRole("button", { name: "Log Out" });
+      await expect(logout).toBeVisible();
+      await expect(logout).toHaveAttribute("aria-disabled", "true");
+      const logoutBox = await logout.boundingBox();
+      expect(logoutBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(logoutBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((logoutBox?.x ?? viewport.width) + (logoutBox?.width ?? 1)).toBeLessThanOrEqual(viewport.width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      const axeResults = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+      expect(axeResults.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
+
+      const identityButton = dialog.getByTestId("mobile-development-identity-user-raiyan");
+      await identityButton.scrollIntoViewIfNeeded();
+      await expect(identityButton).toBeVisible();
+      expect((await identityButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(page.getByTestId("development-tools-trigger")).toBeHidden();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      await expect(more).toBeFocused();
+      expect(consoleErrors).toEqual([]);
+      expect(pageErrors).toEqual([]);
+      expect(consoleErrors.filter((message) => /hydration|server rendered html/i.test(message))).toEqual([]);
+    });
+  }
 });

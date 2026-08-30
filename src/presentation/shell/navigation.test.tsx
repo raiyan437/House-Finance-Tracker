@@ -18,6 +18,7 @@ function renderWithRuntime(
   children: React.ReactNode,
   settlementActionCount = 0,
   joinRequestCount = 0,
+  signOut?: () => Promise<void>,
 ) {
   return render(
     <ApplicationRuntimeProvider
@@ -58,6 +59,7 @@ function renderWithRuntime(
             createdAt: isoInstant("2026-08-22T10:00:00.000Z"),
           })),
         },
+        signOut,
         householdActions: {
           generateCode: vi.fn(),
           createHousehold: vi.fn(),
@@ -132,6 +134,16 @@ describe("responsive navigation", () => {
     );
   });
 
+  it("keeps the desktop logout wired to the runtime action", async () => {
+    const user = userEvent.setup();
+    const signOut = vi.fn(async () => undefined);
+    renderWithRuntime(<DesktopSidebar />, 0, 0, signOut);
+
+    await user.click(screen.getByRole("button", { name: "Log Out" }));
+
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
   it("smoothly collapses the desktop shell while keeping controls accessible", async () => {
     const user = userEvent.setup();
     renderWithRuntime(<DesktopSidebar />);
@@ -152,7 +164,7 @@ describe("responsive navigation", () => {
     expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
   });
 
-  it("exposes Cards, Household, and Profile through the mobile More sheet", async () => {
+  it("exposes destinations and the separated final Log Out action through the mobile More sheet", async () => {
     const user = userEvent.setup();
     renderWithRuntime(<MobileNavigation />);
 
@@ -170,6 +182,32 @@ describe("responsive navigation", () => {
       "href",
       "/profile",
     );
+    const logout = screen.getByRole("button", { name: "Log Out" });
+    expect(logout.parentElement).toHaveClass("border-t");
+    expect(logout).toHaveAttribute("aria-disabled", "true");
+    expect(logout).toHaveAccessibleDescription("Sign out is unavailable in this runtime.");
+    expect(logout).toHaveClass("min-h-12");
+  });
+
+  it("reuses the runtime logout action and blocks repeated mobile submissions", async () => {
+    const user = userEvent.setup();
+    let resolveSignOut: (() => void) | undefined;
+    const signOut = vi.fn(() => new Promise<void>((resolve) => {
+      resolveSignOut = resolve;
+    }));
+    renderWithRuntime(<MobileNavigation />, 0, 0, signOut);
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const logout = screen.getByRole("button", { name: "Log Out" });
+    await user.dblClick(logout);
+
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Log Out" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Log Out" })).toBeDisabled();
+    expect(screen.getByText("Logging Out…")).toBeVisible();
+
+    resolveSignOut?.();
+    expect(await screen.findByText("Log Out")).toBeVisible();
   });
 
   it("keeps Add distinct from the Expenses active state", () => {

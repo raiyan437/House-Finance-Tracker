@@ -240,6 +240,25 @@ test.describe("live Appwrite authentication", () => {
     await revokedContext.close();
   });
 
+  test("mobile More logout uses the production logout workflow", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/login");
+    await login(page);
+
+    await page.getByRole("button", { name: "More" }).click();
+    const dialog = page.getByRole("dialog", { name: "More" });
+    const logout = dialog.getByRole("button", { name: "Log Out" });
+    await expect(logout).toBeVisible();
+    expect((await logout.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await logout.click();
+
+    await expect(page).toHaveURL(/\/login$/, { timeout: 20000 });
+    const cookies = await page.context().cookies();
+    expect(cookies.some((cookie) => cookie.name === "hft_session" && cookie.value.length > 0)).toBe(false);
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
   test("browser HTML and client scripts contain no configured or session secrets", async ({ page }) => {
     await login(page);
     const cookie = (await page.context().cookies()).find((entry) => entry.name === "hft_session");

@@ -41,6 +41,12 @@ The complete local application remains the authoritative Local MVP baseline and 
 
 Implement and verify only the approved `work/R5_PLAN.md`, deploy the feature branch for production acceptance, then stop before merge/release/tag for owner approval.
 
+## Mobile logout hotfix (2026-08-30)
+
+- Mobile `More` now exposes `Log Out` as its visually separated final action, using the same runtime `signOut` operation as the unchanged desktop sidebar. The action has a 48px touch target, pending feedback, and synchronous/native repeat-submission guards; the capped bottom sheet scrolls instead of clipping at narrow heights.
+- Authentication semantics are unchanged: the existing `/api/auth/logout` route still owns current Appwrite-session revocation, `hft_session` clearing, remote-revocation warning handling, and the existing anonymous redirect to `/login`. No domain, financial, Household, Card, Expense, Settlement, Receipt, persistence, permission, or privacy rule changed.
+- Verification: focused navigation/auth tests 33/33; full Vitest 714/714 across 91 files; architecture 16/16; ESLint, TypeScript, and production build green; Chromium responsive shell 9/9 with exact 430x932, 390x844, and 360x800 coverage, keyboard focus return, no horizontal clipping, >=44px Logout target, and Axe serious/critical zero. Live credential-backed auth smoke was unavailable because `.env.auth-smoke.local` is absent; the separate agent-browser binary was blocked by Windows Application Control, while Playwright Chromium rendered successfully.
+
 ## Pre-Production Business Logic Hardening status (2026-08-22)
 
 - H1-H8 are complete and approved at the local checkpoint: Dhaka authoritative Expense business date/future rejection, Expense revision OCC, IndexedDB v5, backdated Create/Edit confirmation, derived late-recording context, creator/uploader Receipt privacy, creator-only management, three-file/50 MiB/1 GB admission, command outcomes/idempotent protected creates, integrated UI states, and full adversarial regression.
