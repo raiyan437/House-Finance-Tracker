@@ -157,3 +157,10 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Membership and leadership transitions that change financial authorization must touch the same per-Household financial guard as Expense and Settlement writes. Transaction-scoped membership rereads alone do not serialize a concurrently staged authorization change.
 - Private Card association identity belongs in the internal Expense financial fingerprint even though it must not appear in shared presentation. Without it, switching between two private Cards can be misclassified as a non-financial edit.
 - Measure transaction write envelopes with the provider-faithful test double, including upserts and every guard, private row, audit, and outcome. R3's observed maximum is seven operations for Card A -> Card B Expense edit, not the nominal business-row count.
+
+## 2026-08-30 - v1.1 allowlisted authentication
+
+- Ordinary self-signup belongs on a keyless Appwrite Account client behind the trusted same-origin boundary; adding a Users-admin credential to the Site runtime would unnecessarily broaden authority and couple normal account ownership to provisioning tooling.
+- Appwrite Auth account creation and TablesDB Profile bootstrap cannot be atomic. Create Auth first, immediately attempt the existing idempotent `ensureProfile`, and preserve trusted login/restore repair so a transient Profile failure never motivates deleting or recreating a production identity.
+- Password mutation is actor classification, not just credential validation: derive the session only from the HttpOnly cookie, re-check the approved email before mutation, call `Account.updatePassword` on the session client, and clear the local cookie afterward regardless of provider session-invalidation policy.
+- Authentication error logging should record only a safe failure class/name. Even when request payloads are never logged directly, forwarding raw provider messages creates an avoidable path for credential-like values to enter operational logs.

@@ -10,6 +10,7 @@ export function buildAuthCoreDeps(): AuthCoreDeps {
   }
   const clients = createAppwriteAuthClients(config.value);
   return {
+    publicAccount: clients.publicAccount,
     adminAccount: clients.adminAccount,
     sessionAccount: clients.sessionAccount,
     tablesDB: clients.tablesDB(),

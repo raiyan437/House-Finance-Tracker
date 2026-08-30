@@ -10,7 +10,12 @@ export function useAuthForm() {
   return {
     pending,
     error,
-    async submit(body: unknown, endpoint: string, onDone?: (payload: Record<string, unknown>) => void) {
+    async submit(
+      body: unknown,
+      endpoint: string,
+      onDone?: (payload: Record<string, unknown>) => void,
+      onFailed?: (payload: Record<string, unknown>) => void,
+    ) {
       setPending(true);
       setError(undefined);
       try {
@@ -22,6 +27,7 @@ export function useAuthForm() {
         const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
         if (!response.ok) {
           setError(typeof payload.error === "string" ? payload.error : "Something went wrong. Please try again.");
+          onFailed?.(payload);
           return;
         }
         onDone?.(payload);

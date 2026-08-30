@@ -182,12 +182,21 @@ test.describe("live Appwrite authentication", () => {
     await expect(page.getByText("If an account exists for that email, a recovery link has been sent. The link expires in one hour.")).toBeVisible();
   });
 
-  test("registration, verification, and production email-edit routes are unavailable", async ({ page }) => {
+  test("allowlisted Signup is canonical while verification and production email-edit routes remain unavailable", async ({ page }) => {
     await page.goto("/register");
-    await expect(page.getByRole("heading", { name: "Accounts are provided by the administrator" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Sign In" })).toBeVisible();
-    await expect(page.locator("form")).toHaveCount(0);
-    await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
+    await page.getByLabel("Email").fill(`not-allowed-${Date.now()}@example.com`);
+    await page.getByLabel("Password", { exact: true }).fill("unused-password");
+    await page.getByLabel("Confirm Password").fill("unused-password");
+    await page.getByRole("button", { name: "Create Account" }).click();
+    await expect(page.getByRole("alert")).toHaveText("Email not allowed. Contact admin.");
+
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: "Create Account" }).click();
+    await expect(page.getByRole("alert")).toHaveText("An account already exists for this email. Sign in or reset your password.");
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "reset your password" })).toBeVisible();
 
     const unavailable = await Promise.all([
       page.request.post("/api/auth/register", { data: {} }),
@@ -198,6 +207,28 @@ test.describe("live Appwrite authentication", () => {
 
     const removedPage = await page.request.get("/verify-email");
     expect(removedPage.status()).toBe(404);
+  });
+
+  test("Profile exposes the responsive Password section without changing a production password", async ({ page }) => {
+    await page.goto("/login");
+    await login(page);
+    for (const viewport of [
+      { width: 430, height: 932 },
+      { width: 390, height: 844 },
+      { width: 360, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/profile");
+      await expect(page.getByRole("heading", { name: "Password" })).toBeVisible();
+      await expect(page.getByLabel("Current Password")).toHaveAttribute("autocomplete", "current-password");
+      await expect(page.getByLabel("New Password")).toHaveAttribute("autocomplete", "new-password");
+      await expect(page.getByLabel("Confirm New Password")).toHaveAttribute("autocomplete", "new-password");
+      const button = page.getByRole("button", { name: "Update Password" });
+      expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      const axeResults = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(axeResults.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
+    }
   });
 
   test("reset-password rejects an incomplete link without mutating the account", async ({ page }) => {

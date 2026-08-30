@@ -4,7 +4,7 @@ Private shared household expense tracking with exact integer-poisha financials, 
 
 ## Current status
 
-The complete local application remains frozen at tag `local-mvp-v1`. The feature branch `feature/phase-13-appwrite` now runs the full production composition on Appwrite Sites at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network): Appwrite Auth, TablesDB reads and mutations, private Receipt Storage through trusted same-origin Route Handlers, and the independent daily maintenance Function. Live Schema V4 is clean. R5 production QA is complete except for the owner-restricted password-reset completion; merge to `main`, final release, and tag still require separate owner acceptance. See [`docs/ai/work/R5_PLAN.md`](docs/ai/work/R5_PLAN.md) for the deployment evidence and rollback runbook.
+Production v1.0.1 runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network), with live Schema V4 clean. The owner-authorized v1.1.0 change is currently uncommitted for review: approved emails can self-sign up through a trusted server-only allowlist without email verification, existing-account Signup remains non-destructive, and authenticated users can update their password from Profile before being returned to Login. Provider user limit `3` is recommended only after all three intended Auth accounts exist and remains an owner/Console action. No real account/password mutation, deployment, release, or tag is included in the local implementation authorization. See [`docs/ai/work/V1_1_AUTH_PLAN.md`](docs/ai/work/V1_1_AUTH_PLAN.md).
 
 ## Commands
 

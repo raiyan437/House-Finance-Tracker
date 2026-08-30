@@ -1,9 +1,11 @@
-import { AppwriteException, type Account } from "node-appwrite";
+import { AppwriteException, ID, type Account } from "node-appwrite";
 import { AuthError } from "./auth-errors.server";
 import type { AccountEmailConfiguration } from "../config";
 import { deriveAuthThrottleIdentity, enforceAuthThrottle } from "./throttle.server";
 
 export interface AuthCoreDeps {
+  /** Keyless Account API client used only for ordinary end-user account creation. */
+  readonly publicAccount: () => Account;
   readonly adminAccount: () => Account;
   readonly sessionAccount: (sessionSecret: string) => Account;
   readonly tablesDB: import("node-appwrite").TablesDB;
@@ -43,6 +45,7 @@ const GENERIC_CREDENTIALS_ERROR = "Invalid credentials.";
 
 export const AUTH_THROTTLE_RULES = {
   login: { scope: "auth-login", limit: 10, windowSeconds: 900 },
+  signup: { scope: "auth-signup", limit: 5, windowSeconds: 86_400 },
   recovery: { scope: "auth-recovery", limit: 3, windowSeconds: 3600 },
   reset: { scope: "auth-reset", limit: 5, windowSeconds: 900 },
   /** Approved with the Phase 13 rate-limit table; shared by lookup and generation reads. */
@@ -62,6 +65,101 @@ function isApprovedAccount(accountEmails: AccountEmailConfiguration, email: stri
 function displayNameFromEmail(email: string): string {
   const localPart = email.split("@")[0] ?? "Member";
   return localPart.charAt(0).toUpperCase() + localPart.slice(1);
+}
+
+function validateNewPassword(password: string): void {
+  if (password.length < 8 || password.length > 256) {
+    throw new AuthError("INVALID_INPUT", "Password must be between 8 and 256 characters.");
+  }
+}
+
+function validatePasswordConfirmation(password: string, confirmation: string): void {
+  if (password !== confirmation) throw new AuthError("INVALID_INPUT", "Passwords do not match.");
+}
+
+const EXISTING_ACCOUNT_MESSAGE = "An account already exists for this email. Sign in or reset your password.";
+
+export async function signupWithPassword(
+  deps: AuthCoreDeps,
+  identityParts: readonly string[],
+  input: Readonly<{ email: string; password: string; confirmPassword: string }>,
+): Promise<AuthOperationResult> {
+  const email = normalizeEmail(input.email);
+  validateNewPassword(input.password);
+  validatePasswordConfirmation(input.password, input.confirmPassword);
+  if (!isApprovedAccount(deps.accountEmails, email)) {
+    return { status: 403, body: { error: "Email not allowed. Contact admin." } };
+  }
+  await enforceAuthThrottle(deps.tablesDB, {
+    secret: deps.authSecret,
+    rule: AUTH_THROTTLE_RULES.signup,
+    identityParts,
+  });
+
+  let createdUser: { $id: string; email: string };
+  try {
+    createdUser = await deps.publicAccount().create({
+      userId: ID.unique(),
+      email,
+      password: input.password,
+    });
+  } catch (error) {
+    if (providerErrorMatches(error, { code: 409, types: ["user_already_exists", "user_email_already_exists"] })) {
+      return { status: 409, body: { code: "ACCOUNT_EXISTS", error: EXISTING_ACCOUNT_MESSAGE } };
+    }
+    throw new AuthError("PROVIDER_UNAVAILABLE", "The authentication service is temporarily unavailable.");
+  }
+
+  // Auth and TablesDB cannot be one transaction. A later trusted login/restore
+  // repairs this idempotently if this immediate bootstrap attempt fails.
+  await ensureProfile(deps.tablesDB, { id: createdUser.$id, email: createdUser.email });
+
+  let session: { secret: string; expire: string };
+  try {
+    session = await deps.publicAccount().createEmailPasswordSession({ email, password: input.password });
+  } catch {
+    throw new AuthError("PROVIDER_UNAVAILABLE", "Your account was created, but sign-in could not be completed. Please sign in.");
+  }
+  return {
+    status: 201,
+    body: { status: "authenticated", email },
+    cookie: { action: "set", secret: session.secret, expire: session.expire },
+  };
+}
+
+export async function updateCurrentPassword(
+  deps: AuthCoreDeps,
+  sessionSecret: string | undefined,
+  input: Readonly<{ currentPassword: string; newPassword: string; confirmPassword: string }>,
+): Promise<AuthOperationResult> {
+  if (!sessionSecret) throw new AuthError("AUTH_REQUIRED", "Sign in to update your password.");
+  if (!input.currentPassword || input.currentPassword.length > 256) {
+    throw new AuthError("INVALID_INPUT", "Current password is required.");
+  }
+  validateNewPassword(input.newPassword);
+  validatePasswordConfirmation(input.newPassword, input.confirmPassword);
+  if (input.currentPassword === input.newPassword) {
+    throw new AuthError("INVALID_INPUT", "New password must be different from current password.");
+  }
+
+  const account = deps.sessionAccount(sessionSecret);
+  try {
+    const user = await account.get();
+    if (!isApprovedAccount(deps.accountEmails, user.email.trim().toLowerCase())) {
+      return { status: 401, body: { error: "Sign in to update your password." }, cookie: { action: "clear" } };
+    }
+    await account.updatePassword({ password: input.newPassword, oldPassword: input.currentPassword });
+  } catch (error) {
+    if (providerErrorMatches(error, { types: ["user_invalid_credentials"] })) {
+      return { status: 400, body: { error: "Current password is incorrect." } };
+    }
+    if (providerErrorMatches(error, { code: 401, types: ["user_unauthorized", "general_unauthorized_scope"] })) {
+      return { status: 401, body: { error: "Your session has expired. Sign in again." }, cookie: { action: "clear" } };
+    }
+    throw new AuthError("PROVIDER_UNAVAILABLE", "The authentication service is temporarily unavailable.");
+  }
+
+  return { status: 200, body: { updated: true }, cookie: { action: "clear" } };
 }
 
 export async function ensureProfile(

@@ -4,6 +4,7 @@ import { loadAppwriteServerConfig, type AppwriteServerConfig } from "../config";
 type AppwriteClientConfig = Pick<AppwriteServerConfig, "endpoint" | "projectId" | "runtimeApiKey">;
 
 export interface AppwriteAuthClients {
+  readonly publicAccount: () => Account;
   readonly adminAccount: () => Account;
   readonly sessionAccount: (sessionSecret: string) => Account;
   readonly tablesDB: () => TablesDB;
@@ -16,6 +17,7 @@ function baseClient(config: AppwriteClientConfig): Client {
 
 export function createAppwriteAuthClients(config: AppwriteClientConfig = requireLoadedConfig()): AppwriteAuthClients {
   return {
+    publicAccount: () => new Account(baseClient(config)),
     adminAccount: () => new Account(baseClient(config).setKey(runtimeKey(config))),
     sessionAccount: (sessionSecret: string) => new Account(baseClient(config).setSession(sessionSecret)),
     tablesDB: () => new TablesDB(baseClient(config).setKey(runtimeKey(config))),

@@ -62,10 +62,12 @@ describe("Appwrite infrastructure containment", () => {
     expect(appSources).not.toMatch(/appwrite\/provisioning|appwrite-provision|APPWRITE_PROVISIONING_API_KEY/);
   });
 
-  it("has no public account-creation endpoint or command", () => {
+  it("exposes only the approved allowlisted signup endpoint for account creation", () => {
     expect(existsSync(join(SRC, "app", "api", "auth", "register", "route.ts"))).toBe(false);
     const activeSources = sourceFiles(SRC).filter((file) => !file.includes(".test.")).map(read).join("\n");
     expect(activeSources).not.toContain("/api/auth/register");
+    expect(existsSync(join(SRC, "app", "api", "auth", "signup", "route.ts"))).toBe(true);
+    expect(activeSources).toContain("/api/auth/signup");
   });
 
   it("confines the temporary provisioning credential to dedicated server configuration and tooling", () => {

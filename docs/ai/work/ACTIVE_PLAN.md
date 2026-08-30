@@ -2,7 +2,11 @@
 
 ## Status and authorization
 
-The roadmap and frozen implementation decisions through local Pre-Production Business Logic Hardening are approved. The Local MVP remains frozen at `local-mvp-v1`; Phase 13A/13B and R1-R4 are committed. R5 Appwrite Sites implementation and production QA are complete on `feature/phase-13-appwrite` as recorded in `R5_PLAN.md`; the branch is being finalized for owner acceptance. Merge to `main`, final production promotion, release, and tag remain separately gated. The shortest critical path is maintained in `EARLIEST_PRODUCTION_PLAN.md`; the complete release contract remains `PRODUCTION_RELEASE_PLAN.md`.
+The owner-authorized current phase is **v1.1 Allowlisted Self-Signup + Profile Password Update**, defined in `V1_1_AUTH_PLAN.md`. It supersedes only the earlier registration lockdown and recovery-only password-change policy. Implementation and local verification are authorized; production account creation/password mutation, Appwrite user-limit changes, deployment, commit, merge, release, and tag remain separately gated. The Local MVP and Schema V4 remain frozen, and R5 production evidence remains historical baseline context.
+
+### v1.1 authentication phase — authorized 2026-08-30
+
+**Entry:** production v1.0.1 is deployed; the owner supplied and authorized the controlled v1.1 authentication contract. **Exit achieved locally on 2026-08-30:** signup/password implementation plus tests/docs and all local quality gates are green; changes remain uncommitted for owner review before any real-account/password/provider/deployment action. Focused v1.1 57/57; full Vitest 739/739 across 94 files; architecture 16/16; lint/typecheck/build/audit/diff/bundle-secret gates green; Chromium 72/72 and Firefox/WebKit smoke 1/1 each; Signup 430/390/360 and Axe serious/critical zero. No Household, financial, Card, Expense, Settlement, Receipt, privacy, persistence, retention, maintenance, or Schema behavior changed.
 
 ## Reconciliation findings
 

@@ -7,6 +7,7 @@ import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { Surface } from "@/presentation/components/surface";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
+import { PasswordUpdateForm } from "./password-update-form.client";
 
 export function ProfilePageClient() {
   const runtime = useApplicationRuntime();
@@ -37,6 +38,7 @@ export function ProfilePageClient() {
 
   const { session } = runtime;
   const hasHousehold = Boolean(session.householdName);
+  const passwordUpdateAvailable = Boolean(runtime.signOut);
 
   return (
     <PageContainer>
@@ -94,10 +96,18 @@ export function ProfilePageClient() {
           <p className="mt-4 text-xs leading-5 text-text-muted">
             {profileEditingAvailable
               ? "Profile editing and authentication remain unavailable in the local development session."
-              : "Display name editing arrives with a later production update. Your sign-in email is managed by the account administrator."}
+              : "Your sign-in email is fixed for this approved account."}
           </p>
         </Surface>
       </div>
+
+      {passwordUpdateAvailable ? (
+        <Surface className="mt-4" padding="large" aria-labelledby="profile-password-heading">
+          <h2 className="panel-title" id="profile-password-heading">Password</h2>
+          <p className="mt-1 text-sm text-text-secondary">Update your password using your current password. You will sign in again afterward.</p>
+          <PasswordUpdateForm />
+        </Surface>
+      ) : null}
     </PageContainer>
   );
 }

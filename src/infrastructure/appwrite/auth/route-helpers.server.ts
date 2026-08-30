@@ -48,10 +48,19 @@ export async function runAuthMutation(
       return NextResponse.json({ error: "The authentication service is temporarily unavailable." }, { status: 503 });
     }
     if (error instanceof AuthError) {
-      const status = error.code === "RATE_LIMITED" ? 429 : 400;
+      const status = {
+        RATE_LIMITED: 429,
+        AUTH_REQUIRED: 401,
+        SESSION_INVALID: 401,
+        EMAIL_NOT_PERMITTED: 403,
+        PROVIDER_UNAVAILABLE: 503,
+        INVALID_INPUT: 400,
+      }[error.code];
       return NextResponse.json({ error: error.message }, { status });
     }
-    console.error("[auth-route]", error instanceof Error ? error.message : error);
+    console.error("[auth-route] unexpected authentication failure", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json({ error: "The authentication service is temporarily unavailable." }, { status: 503 });
   }
 }

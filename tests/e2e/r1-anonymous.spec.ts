@@ -36,11 +36,13 @@ test.describe("R1 anonymous production surface", () => {
     expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
   });
 
-  test("keeps registration disabled and leaves no local financial storage", async ({ page }) => {
+  test("renders canonical allowlisted Signup, redirects legacy Register, and leaves no local financial storage", async ({ page }) => {
     await diagnostics(page.context(), page);
     await page.goto("/register");
-    await expect(page.getByRole("heading", { name: "Accounts are provided by the administrator" })).toBeVisible();
-    await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(2);
     const databases = await page.evaluate(() => indexedDB.databases().then((entries) => entries.map((entry) => entry.name)));
     expect(databases.some((name) => typeof name === "string" && name.toLowerCase().includes("finance"))).toBe(false);
   });

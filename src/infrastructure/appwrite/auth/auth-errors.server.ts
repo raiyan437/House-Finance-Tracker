@@ -1,4 +1,10 @@
-export type AuthErrorCode = "RATE_LIMITED" | "INVALID_INPUT" | "SESSION_INVALID" | "PROVIDER_UNAVAILABLE" | "EMAIL_NOT_PERMITTED";
+export type AuthErrorCode =
+  | "RATE_LIMITED"
+  | "INVALID_INPUT"
+  | "AUTH_REQUIRED"
+  | "SESSION_INVALID"
+  | "PROVIDER_UNAVAILABLE"
+  | "EMAIL_NOT_PERMITTED";
 
 export class AuthError extends Error {
   constructor(readonly code: AuthErrorCode, message: string) {

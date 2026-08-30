@@ -13,7 +13,10 @@ function configure(): void {
   vi.stubEnv("HFT_APP_ORIGIN", "https://hft.appwrite.network");
 }
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 describe("production auth route envelope", () => {
   it("sets a host-only HttpOnly Secure SameSite=Lax cookie with Appwrite expiry", async () => {
@@ -60,5 +63,20 @@ describe("production auth route envelope", () => {
     expect(response.headers.get("set-cookie")).toBe(
       `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`,
     );
+  });
+
+  it("does not log raw provider messages or password-like values on unexpected failures", async () => {
+    configure();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const response = await runAuthMutation(
+      new NextRequest("https://hft.appwrite.network/api/auth/password", {
+        method: "POST",
+        headers: { origin: "https://hft.appwrite.network" },
+      }),
+      async () => { throw new Error("provider echoed forbidden-password-value"); },
+    );
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(logged.mock.calls)).not.toContain("forbidden-password-value");
+    logged.mockRestore();
   });
 });
