@@ -167,7 +167,7 @@ describe("Phase 6 household onboarding application flows", () => {
 
     const outsiderId = userId("user-other-leader");
     const now = isoInstant("2026-08-13T14:00:00.000Z");
-    const profile: UserProfile = { userId: outsiderId, displayName: "Other Leader", displayEmail: "other@local.test", emailKey: "other@local.test", createdAt: now, updatedAt: now };
+    const profile: UserProfile = { userId: outsiderId, displayName: "Other Leader", displayEmail: "other@local.test", emailKey: "other@local.test", version: 1, createdAt: now, updatedAt: now };
     const otherHouse = { householdId: householdId("household-other"), name: "Other House", code: "000000004", createdAt: now, updatedAt: now };
     await repositories.profiles.create(profile);
     await repositories.households.create(otherHouse);

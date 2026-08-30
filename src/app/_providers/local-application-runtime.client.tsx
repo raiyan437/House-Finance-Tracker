@@ -11,6 +11,7 @@ import {
   type CurrentSessionView,
   type ExpenseApplicationActions,
   type HouseholdApplicationActions,
+  type ProfileApplicationActions,
   type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { localCalendarMonthFromInstant } from "@/application/analytics/calendar-month";
@@ -105,6 +106,7 @@ async function loadSessionView(
       userId: profile.userId,
       displayName: profile.displayName,
       displayEmail: profile.displayEmail,
+      profileVersion: profile.version,
       roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
       settlementActionCount,
       ...(isLeader || isMember ? { householdName: household.household.name } : {}),
@@ -142,6 +144,7 @@ export function LocalApplicationRuntime({
     let settlementActions: SettlementApplicationActions;
     let cardActions: CardApplicationActions;
     let analyticsActions: AnalyticsApplicationActions;
+    let profileActions: ProfileApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -158,6 +161,7 @@ export function LocalApplicationRuntime({
             settlementActions,
             cardActions,
             analyticsActions,
+            profileActions,
           });
         }
       } catch {
@@ -276,6 +280,11 @@ export function LocalApplicationRuntime({
               month,
               localCalendarMonthFromInstant,
             ),
+        });
+        profileActions = Object.freeze<ProfileApplicationActions>({
+          updateDisplayName: async (displayName, expectedVersion, commandId) => {
+            await mutateAndReconstruct(() => runtime.application.profiles.updateCurrentProfile(displayName, expectedVersion, commandId));
+          },
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);

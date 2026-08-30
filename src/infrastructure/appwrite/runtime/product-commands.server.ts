@@ -46,6 +46,17 @@ export function deleteHousehold(context: ProductRequestContext) {
   return context.application.households.deleteCurrentHousehold();
 }
 
+export function updateProfileDisplayName(
+  context: ProductRequestContext,
+  input: Readonly<{ displayName: string; expectedVersion: number; commandId: string }>,
+) {
+  return context.application.profiles.updateCurrentProfile(
+    input.displayName,
+    input.expectedVersion,
+    input.commandId as never,
+  );
+}
+
 export function createCard(
   context: ProductRequestContext,
   input: Readonly<{ name: string; type: "debit" | "credit"; colorId: string; commandId: string }>,

@@ -8,6 +8,7 @@ import { Surface } from "@/presentation/components/surface";
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { PasswordUpdateForm } from "./password-update-form.client";
+import { DisplayNameForm } from "./display-name-form.client";
 
 export function ProfilePageClient() {
   const runtime = useApplicationRuntime();
@@ -55,7 +56,7 @@ export function ProfilePageClient() {
               displayName={session.displayName}
             />
             <div className="min-w-0">
-              <p className="compact-caption text-text-muted">Local account</p>
+              <p className="compact-caption text-text-muted">Account</p>
               <h2 className="mt-1 truncate text-h2" id="profile-account-heading">
                 {session.displayName}
               </h2>
@@ -93,13 +94,17 @@ export function ProfilePageClient() {
               <p className="text-sm font-semibold">{hasHousehold ? session.roleLabel : "No household"}</p>
             </div>
           </div>
-          <p className="mt-4 text-xs leading-5 text-text-muted">
-            {profileEditingAvailable
-              ? "Profile editing and authentication remain unavailable in the local development session."
-              : "Your sign-in email is fixed for this approved account."}
-          </p>
+          <p className="mt-4 text-xs leading-5 text-text-muted">Your sign-in email is fixed for this approved account.</p>
         </Surface>
       </div>
+
+      {profileEditingAvailable ? (
+        <Surface className="mt-4" padding="large" aria-labelledby="profile-display-name-heading">
+          <h2 className="panel-title" id="profile-display-name-heading">Display Name</h2>
+          <p className="mt-1 text-sm text-text-secondary">Change the name shown in current Household views. Historical snapshots remain unchanged.</p>
+          <DisplayNameForm />
+        </Surface>
+      ) : null}
 
       {passwordUpdateAvailable ? (
         <Surface className="mt-4" padding="large" aria-labelledby="profile-password-heading">

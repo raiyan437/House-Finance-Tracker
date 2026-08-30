@@ -20,6 +20,7 @@ function readyState(capabilities: typeof PRODUCTION_READ_ONLY_CAPABILITIES): App
       userId: "user-raiyan" as never,
       displayName: "Raiyan",
       displayEmail: "raiyan@test.io",
+      profileVersion: 1,
       roleLabel: "No active household",
       settlementActionCount: 0,
     },
@@ -44,6 +45,7 @@ function readyState(capabilities: typeof PRODUCTION_READ_ONLY_CAPABILITIES): App
     settlementActions: {} as never,
     cardActions: {} as never,
     analyticsActions: {} as never,
+    profileActions: { updateDisplayName: vi.fn() },
   };
 }
 

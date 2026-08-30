@@ -35,6 +35,7 @@ function runtimeFor(
       userId: ownerId,
       displayName: ownerId === alice ? "Alice" : "Bob",
       displayEmail: `${ownerId}@example.test`,
+      profileVersion: 1,
       roleLabel: "No active household",
       settlementActionCount: 0,
     },
@@ -62,6 +63,7 @@ function runtimeFor(
       deleteOrArchive: vi.fn(),
       ...overrides,
     },
+    profileActions: { updateDisplayName: vi.fn() },
     analyticsActions: {
       getDashboard: vi.fn(),
       getMonthlyReport: vi.fn(),

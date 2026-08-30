@@ -38,6 +38,7 @@ export interface UserProfile {
   readonly displayName: string;
   readonly displayEmail: string;
   readonly emailKey: string;
+  readonly version: number;
   readonly createdAt: IsoInstant;
   readonly updatedAt: IsoInstant;
 }
@@ -180,6 +181,9 @@ export function assertUserProfile(value: UserProfile): void {
   const email = normalizeEmail(value.displayEmail);
   if (email.emailKey !== value.emailKey) {
     throw new DomainError("INVALID_PROFILE", "The profile email key is not canonical.");
+  }
+  if (!Number.isSafeInteger(value.version) || value.version < 1) {
+    throw new DomainError("INVALID_PROFILE", "Profile version must be a positive safe integer.");
   }
   isoInstant(value.createdAt);
   isoInstant(value.updatedAt);

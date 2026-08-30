@@ -14,6 +14,7 @@ import {
   SEEDED_USER_IDS,
 } from "@/infrastructure/indexeddb/seed";
 import { IndexedDbRepositories } from "@/infrastructure/indexeddb/repositories";
+import { IndexedDbAtomicApplicationPersistence } from "@/infrastructure/indexeddb/atomic-persistence";
 import { HouseFinanceApplication, type ApplicationValues } from "@/application/services/application-services";
 import { localCalendarMonthFromInstant } from "@/application/analytics/calendar-month";
 import type {
@@ -26,6 +27,10 @@ import type { Expense } from "@/domain/records/domain-records";
 import type { IsoInstant } from "@/domain/shared/instant";
 import { createAppwriteReadRepositories } from "./read-repositories.server";
 import { InMemoryTablesReader } from "./in-memory-tables-reader.helper";
+import { createInMemoryTablesDB } from "./in-memory-tables-reader.helper";
+import { AppwriteCommandPersistence } from "../runtime/command-persistence.server";
+import { commandId } from "@/domain/shared/identifiers";
+import type { TablesDB } from "node-appwrite";
 
 globalThis.Blob = NodeBlob as unknown as typeof Blob;
 
@@ -172,6 +177,7 @@ describe("R1 read plane parity: Appwrite projections equal local projections", (
     reader.seed("cards", seed.cards.map((card) => cardRow(card)));
     reader.seed("receipt_metadata", [receiptRow(seed.receipt)]);
     reader.seed("audit_events", seed.audits.map((audit) => auditRow(audit)));
+    reader.seed("command_outcomes", []);
     reader.seed("settlements", [
       settlementRow(
         { ...seed.settlement },
@@ -187,21 +193,25 @@ describe("R1 read plane parity: Appwrite projections equal local projections", (
     await deleteLocalDatabase("hft-local");
   });
 
-  function appwriteApplication(actorEmail: string): HouseFinanceApplication {
+  function appwriteApplication(actorEmail: string, writable = false): HouseFinanceApplication {
     const repositories = createAppwriteReadRepositories(reader, ACTOR, actorEmail);
     return new HouseFinanceApplication({
       repositories: repositories as unknown as ApplicationRepositories,
-      atomic: placeholderAtomic(),
+      atomic: writable
+        ? new AppwriteCommandPersistence(createInMemoryTablesDB(reader).tablesDB as unknown as TablesDB)
+        : placeholderAtomic(),
       session: fixedSession(ACTOR),
       values: new FixedValues(),
     });
   }
 
-  function localApplication(): { application: HouseFinanceApplication; repositories: IndexedDbRepositories } {
+  function localApplication(writable = false): { application: HouseFinanceApplication; repositories: IndexedDbRepositories } {
     const repositories = new IndexedDbRepositories(connection as never);
     const application = new HouseFinanceApplication({
       repositories,
-      atomic: placeholderAtomic(),
+      atomic: writable
+        ? new IndexedDbAtomicApplicationPersistence(connection as never)
+        : placeholderAtomic(),
       session: fixedSession(ACTOR),
       values: new FixedValues(),
     });
@@ -273,5 +283,42 @@ describe("R1 read plane parity: Appwrite projections equal local projections", (
     await expect(local.application.receipts.getMyAvailableReceiptBytes()).resolves.toBe(
       await production.receipts.getMyAvailableReceiptBytes(),
     );
+  });
+
+  it("keeps local and Appwrite Profile rename projections and typed OCC failures equivalent", async () => {
+    const local = localApplication(true).application;
+    const production = appwriteApplication("raiyan@local.test", true);
+    const [localBefore, productionBefore] = await Promise.all([
+      local.profiles.getCurrentProfile(),
+      production.profiles.getCurrentProfile(),
+    ]);
+    expect(localBefore.version).toBe(productionBefore.version);
+
+    const [localUpdated, productionUpdated] = await Promise.all([
+      local.profiles.updateCurrentProfile("  Raiyan Current  ", localBefore.version, commandId("profile-parity-local")),
+      production.profiles.updateCurrentProfile("  Raiyan Current  ", productionBefore.version, commandId("profile-parity-appwrite")),
+    ]);
+    expect(productionUpdated).toEqual(localUpdated);
+    await expectParity(
+      local.analytics.getDashboard(SEEDED_HOUSEHOLD_ID, "2026-08" as never),
+      production.analytics.getDashboard(SEEDED_HOUSEHOLD_ID, "2026-08" as never),
+    );
+
+    const errorCode = async (operation: Promise<unknown>): Promise<string | undefined> => {
+      try {
+        await operation;
+        return undefined;
+      } catch (error) {
+        return (error as { code?: string }).code;
+      }
+    };
+    const localErrorCode = await errorCode(
+      local.profiles.updateCurrentProfile("Stale", localBefore.version, commandId("profile-stale-local")),
+    );
+    const productionErrorCode = await errorCode(
+      production.profiles.updateCurrentProfile("Stale", productionBefore.version, commandId("profile-stale-appwrite")),
+    );
+    expect(localErrorCode).toBe("PROFILE_VERSION_CONFLICT");
+    expect(productionErrorCode).toBe(localErrorCode);
   });
 });

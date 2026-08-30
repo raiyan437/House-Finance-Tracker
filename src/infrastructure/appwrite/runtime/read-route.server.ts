@@ -40,6 +40,7 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
       case "CONFLICT":
       case "HOUSEHOLD_STATE_CHANGED":
       case "EXPENSE_VERSION_CONFLICT":
+      case "PROFILE_VERSION_CONFLICT":
       case "IDEMPOTENCY_KEY_REUSED":
       case "IDEMPOTENCY_IN_PROGRESS":
       case "RECEIPT_COUNT_LIMIT_EXCEEDED":

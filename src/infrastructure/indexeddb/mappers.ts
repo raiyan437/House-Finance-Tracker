@@ -56,7 +56,7 @@ import type {
   MembershipRecordV1,
   ReceiptMetadataRecordV2,
   SettlementRecordV1,
-  UserProfileRecordV1,
+  UserProfileRecordV2,
 } from "./records";
 
 const recordVersion = z.literal(1);
@@ -67,7 +67,10 @@ const idText = trimmed;
 const instantText = z.string();
 const safeInteger = z.number().int().safe();
 
-const profileSchema = z.object({ recordVersion, id: idText, displayName: trimmed, displayEmail: trimmed, emailKey: trimmed, createdAt: instantText, updatedAt: instantText }).strict();
+const profileSchema = z.union([
+  z.object({ recordVersion, id: idText, displayName: trimmed, displayEmail: trimmed, emailKey: trimmed, createdAt: instantText, updatedAt: instantText }).strict(),
+  z.object({ recordVersion: z.literal(2), id: idText, displayName: trimmed, displayEmail: trimmed, emailKey: trimmed, version: safeInteger.refine((value) => value >= 1), createdAt: instantText, updatedAt: instantText }).strict(),
+]);
 const householdSchema = z.object({ recordVersion, id: idText, name: trimmed, code: z.string(), createdAt: instantText, updatedAt: instantText, deletedAt: instantText.optional(), deletedByUserId: idText.optional() }).strict();
 const membershipSchema = z.object({ recordVersion, key: trimmed, householdId: idText, userId: idText, status: z.enum(["active", "former"]), role: z.enum(["leader", "member"]), activeMembershipUserKey: trimmed.optional() }).strict();
 const joinRequestFields = {
@@ -156,14 +159,14 @@ function reconstructed<T>(store: string, key: string | undefined, build: () => T
   }
 }
 
-export const toProfileRecord = (value: UserProfile): UserProfileRecordV1 => {
+export const toProfileRecord = (value: UserProfile): UserProfileRecordV2 => {
   assertUserProfile(value);
-  return { recordVersion: 1, id: value.userId, displayName: value.displayName, displayEmail: value.displayEmail, emailKey: value.emailKey, createdAt: value.createdAt, updatedAt: value.updatedAt };
+  return { recordVersion: 2, id: value.userId, displayName: value.displayName, displayEmail: value.displayEmail, emailKey: value.emailKey, version: value.version, createdAt: value.createdAt, updatedAt: value.updatedAt };
 };
 export const fromProfileRecord = (raw: unknown, key?: string): UserProfile => {
   const value = parsed(profileSchema, raw, "userProfiles", key);
   return reconstructed("userProfiles", key, () => {
-    const domain = { userId: userId(value.id), displayName: value.displayName, displayEmail: value.displayEmail, emailKey: value.emailKey, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt) };
+    const domain = { userId: userId(value.id), displayName: value.displayName, displayEmail: value.displayEmail, emailKey: value.emailKey, version: value.recordVersion === 2 ? value.version : 1, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt) };
     assertUserProfile(domain);
     return Object.freeze(domain);
   });

@@ -42,7 +42,6 @@ import {
   assertJoinRequest,
   assertReceiptMetadata,
   assertUserProfile,
-  normalizeEmail,
   toBalanceExpense,
   type AuditEvent,
   type Card,
@@ -168,7 +167,20 @@ async function financialContext(repositories: ApplicationRepositories, household
 export class ProfileApplicationService {
   constructor(private readonly deps: Dependencies) {}
   async getCurrentProfile(): Promise<UserProfile> { const actor = await this.deps.session.getCurrentUserId(); const profile = await this.deps.repositories.profiles.getById(actor); if (!profile) throw new ApplicationError("NOT_FOUND", "Profile not found."); return profile; }
-  async updateCurrentProfile(displayName: string, emailInput: string): Promise<UserProfile> { const current = await this.getCurrentProfile(); const email = normalizeEmail(emailInput); const updated: UserProfile = { ...current, displayName: displayName.trim(), ...email, updatedAt: this.deps.values.now() }; assertUserProfile(updated); await this.deps.atomic.updateCurrentProfile({ profile: updated, expectedUpdatedAt: current.updatedAt }); return updated; }
+  async updateCurrentProfile(displayNameInput: string, expectedVersion: number, commandIdValue: CommandId): Promise<UserProfile> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const displayName = displayNameInput.trim();
+    const current = await this.getCurrentProfile();
+    assertUserProfile({ ...current, displayName });
+    const idempotency: IdempotencyDescriptor = {
+      actorId: actor,
+      commandType: "update-profile-display-name",
+      commandId: commandId(commandIdValue),
+      intentDigest: canonicalIntentDigest({ displayName }),
+    };
+    await this.deps.atomic.updateCurrentProfile({ actorId: actor, displayName, expectedVersion, occurredAt: this.deps.values.now(), idempotency });
+    return this.getCurrentProfile();
+  }
 }
 
 export class HouseholdApplicationService {

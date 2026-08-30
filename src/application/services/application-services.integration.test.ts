@@ -1257,32 +1257,116 @@ describe("Phase 4 application services with IndexedDB", () => {
     expect((await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((item) => item.settlementId === firstSettlement)).toHaveLength(1);
   });
 
-  it("updates the current profile atomically with transaction-time email uniqueness", async () => {
-    const updated = await application.profiles.updateCurrentProfile("Raiyan Updated", "Raiyan.Updated@Local.test");
+  it("updates only the current Profile Display Name with OCC and trims whitespace", async () => {
+    const before = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!;
+    const updated = await application.profiles.updateCurrentProfile("  Raiyan Updated  ", before.version, commandId("profile-rename-1"));
     expect(updated.displayName).toBe("Raiyan Updated");
-    expect(updated.displayEmail).toBe("Raiyan.Updated@Local.test");
-    expect(updated.emailKey).toBe("raiyan.updated@local.test");
+    expect(updated.displayEmail).toBe(before.displayEmail);
+    expect(updated.emailKey).toBe(before.emailKey);
+    expect(updated.userId).toBe(before.userId);
+    expect(updated.version).toBe(2);
     expect(updated.updatedAt).toBe("2026-08-13T13:00:00.000Z");
     const persisted = await repositories.profiles.getById(SEEDED_USER_IDS.raiyan);
-    expect(persisted?.emailKey).toBe("raiyan.updated@local.test");
-
-    await session.switchIdentity(SEEDED_USER_IDS.john);
-    await expect(application.profiles.updateCurrentProfile("John", "RAIYAN.UPDATED@Local.test")).rejects.toMatchObject({
-      code: "CONFLICT",
-      message: "That local email is already in use.",
-    });
-    const johnAfterConflict = await repositories.profiles.getById(SEEDED_USER_IDS.john);
-    expect(johnAfterConflict?.updatedAt).toBe("2026-08-13T00:00:00.000Z");
+    expect(persisted).toEqual(updated);
   });
 
-  it("rejects a stale profile save through the atomic expectedUpdatedAt gate", async () => {
-    const sarah = (await repositories.profiles.getById(SEEDED_USER_IDS.sarah))!;
-    const stale = { ...sarah, displayName: "Stale Sarah", updatedAt: isoInstant("2026-08-13T12:59:59.000Z") };
-    await expect(atomic.updateCurrentProfile({ profile: stale, expectedUpdatedAt: stale.updatedAt })).rejects.toMatchObject({
-      code: "CONFLICT",
-      message: "The profile changed before the save completed. Reload and try again.",
+  it("replays a committed Profile rename without another version increment and rejects changed intent reuse", async () => {
+    const before = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!;
+    const id = commandId("profile-replay");
+    const first = await application.profiles.updateCurrentProfile("Replay Name", before.version, id);
+    const replay = await application.profiles.updateCurrentProfile("Replay Name", before.version, id);
+    expect(replay).toEqual(first);
+    expect(replay.version).toBe(before.version + 1);
+    await expect(application.profiles.updateCurrentProfile("Changed intent", replay.version, id)).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
     });
-    expect((await repositories.profiles.getById(SEEDED_USER_IDS.sarah))?.displayName).toBe("Sarah");
+  });
+
+  it("treats an unchanged Profile name as a write-free no-op and rejects stale versions", async () => {
+    const before = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!;
+    const outcomesBefore = await db.count("commandOutcomes");
+    const unchanged = await application.profiles.updateCurrentProfile(`  ${before.displayName}  `, before.version - 1 || 1, commandId("profile-noop"));
+    expect(unchanged).toEqual(before);
+    expect(await db.count("commandOutcomes")).toBe(outcomesBefore);
+
+    await application.profiles.updateCurrentProfile("Concurrent Name", before.version, commandId("profile-concurrent"));
+    await expect(application.profiles.updateCurrentProfile("Stale editor", before.version, commandId("profile-stale"))).rejects.toMatchObject({
+      code: "PROFILE_VERSION_CONFLICT",
+      message: "This Profile changed while you were editing it.",
+    });
+    expect((await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))?.displayName).toBe("Concurrent Name");
+  });
+
+  it("refreshes live identity projections while preserving historical and financial records", async () => {
+    const preservedBefore = {
+      households: await db.getAll("households"),
+      memberships: await db.getAll("memberships"),
+      joinRequests: await db.getAll("joinRequests"),
+      expenses: await db.getAll("expenses"),
+      privateCardSnapshots: await db.getAll("expenseCardPrivateDetails"),
+      settlements: await db.getAll("settlements"),
+      cards: await db.getAll("cards"),
+      receiptMetadata: await db.getAll("receiptMetadata"),
+      audits: await db.getAll("auditEvents"),
+    };
+
+    const raiyan = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!;
+    await application.profiles.updateCurrentProfile(
+      "Raiyan Current",
+      raiyan.version,
+      commandId("profile-current-projections"),
+    );
+
+    const household = await application.households.getCurrentAccessState();
+    expect(household).toMatchObject({
+      status: "active-leader",
+      page: { leader: { displayName: "Raiyan Current" } },
+    });
+    expect(await application.expenses.listHouseholdMembers(SEEDED_HOUSEHOLD_ID)).toContainEqual(
+      expect.objectContaining({ userId: SEEDED_USER_IDS.raiyan, displayName: "Raiyan Current" }),
+    );
+    const dashboard = await application.analytics.getDashboard(
+      SEEDED_HOUSEHOLD_ID,
+      calendarMonth("2026-08"),
+    );
+    expect(dashboard.members).toContainEqual(
+      expect.objectContaining({ userId: SEEDED_USER_IDS.raiyan, displayName: "Raiyan Current" }),
+    );
+    expect(dashboard.recentExpenses).toContainEqual(
+      expect.objectContaining({ payer: expect.objectContaining({ userId: SEEDED_USER_IDS.raiyan, displayName: "Raiyan Current" }) }),
+    );
+    const settlementPage = await application.settlements.getSettlementPage(SEEDED_HOUSEHOLD_ID);
+    expect(settlementPage.recommendations).toContainEqual(
+      expect.objectContaining({ counterparty: expect.objectContaining({ userId: SEEDED_USER_IDS.john }) }),
+    );
+    expect(settlementPage.pending).toContainEqual(
+      expect.objectContaining({ receiver: expect.objectContaining({ userId: SEEDED_USER_IDS.raiyan, displayName: "Raiyan Current" }) }),
+    );
+
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    const alex = (await repositories.profiles.getById(SEEDED_USER_IDS.alex))!;
+    await application.profiles.updateCurrentProfile(
+      "Alex Current",
+      alex.version,
+      commandId("profile-current-join-request"),
+    );
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    expect(await application.households.getCurrentAccessState()).toMatchObject({
+      status: "active-leader",
+      joinRequests: [expect.objectContaining({ requesterName: "Alex Current" })],
+    });
+
+    expect({
+      households: await db.getAll("households"),
+      memberships: await db.getAll("memberships"),
+      joinRequests: await db.getAll("joinRequests"),
+      expenses: await db.getAll("expenses"),
+      privateCardSnapshots: await db.getAll("expenseCardPrivateDetails"),
+      settlements: await db.getAll("settlements"),
+      cards: await db.getAll("cards"),
+      receiptMetadata: await db.getAll("receiptMetadata"),
+      audits: await db.getAll("auditEvents"),
+    }).toEqual(preservedBefore);
   });
 
   it("uses a distinct typed error for malformed household codes", async () => {

@@ -11,6 +11,17 @@ export interface UserProfileRecordV1 {
   updatedAt: string;
 }
 
+export interface UserProfileRecordV2 {
+  recordVersion: 2;
+  id: string;
+  displayName: string;
+  displayEmail: string;
+  emailKey: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HouseholdRecordV1 {
   recordVersion: 1;
   id: string;
@@ -251,7 +262,7 @@ export interface CommandOutcomeRecordV1 {
 
 export interface HouseFinanceDatabase extends DBSchema {
   appMeta: { key: string; value: AppMetaRecordV1 };
-  userProfiles: { key: string; value: UserProfileRecordV1; indexes: { emailKey: string } };
+  userProfiles: { key: string; value: UserProfileRecordV1 | UserProfileRecordV2; indexes: { emailKey: string } };
   households: { key: string; value: HouseholdRecordV1; indexes: { code: string } };
   memberships: { key: string; value: MembershipRecordV1; indexes: { householdId: string; activeMembershipUserKey: string } };
   joinRequests: { key: string; value: JoinRequestRecordV1 | JoinRequestRecordV2; indexes: { householdId: string; pendingJoinUserKey: string } };

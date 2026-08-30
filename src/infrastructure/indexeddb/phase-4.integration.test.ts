@@ -579,7 +579,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     const name = databaseName("reopen");
     let db = await openLocalDatabase(name);
     const repositories = new IndexedDbRepositories(db);
-    const profile: UserProfile = { userId: userId("reopen-user"), displayName: "Reopen User", displayEmail: "Reopen@Example.test", emailKey: "reopen@example.test", createdAt: now, updatedAt: now };
+    const profile: UserProfile = { userId: userId("reopen-user"), displayName: "Reopen User", displayEmail: "Reopen@Example.test", emailKey: "reopen@example.test", version: 1, createdAt: now, updatedAt: now };
     await repositories.profiles.create(profile);
     db.close();
     db = await openLocalDatabase(name);
@@ -592,7 +592,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     const name = databaseName("base-unique");
     const db = await openLocalDatabase(name);
     const repositories = new IndexedDbRepositories(db);
-    const first: UserProfile = { userId: userId("profile-one"), displayName: "One", displayEmail: "One@Test.dev", emailKey: "one@test.dev", createdAt: now, updatedAt: now };
+    const first: UserProfile = { userId: userId("profile-one"), displayName: "One", displayEmail: "One@Test.dev", emailKey: "one@test.dev", version: 1, createdAt: now, updatedAt: now };
     await repositories.profiles.create(first);
     await expectApplicationCode(repositories.profiles.create({ ...first, userId: userId("profile-two") }), "CONFLICT");
     const firstHouse: Household = { householdId: householdId("house-one"), name: "One House", code: "000000001", createdAt: now, updatedAt: now };

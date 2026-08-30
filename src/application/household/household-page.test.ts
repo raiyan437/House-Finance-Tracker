@@ -44,6 +44,7 @@ function profile(id: UserId, displayName: string): UserProfile {
     displayName,
     displayEmail: `${id}@example.test`,
     emailKey: `${id}@example.test`,
+    version: 1,
     createdAt: now,
     updatedAt: now,
   };

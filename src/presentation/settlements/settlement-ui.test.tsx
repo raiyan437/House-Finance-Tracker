@@ -86,6 +86,7 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
       userId: alice,
       displayName: "Alice",
       displayEmail: "alice@example.test",
+      profileVersion: 1,
       roleLabel: "Member",
       householdName: "Test House",
       settlementActionCount: 1,
@@ -123,6 +124,7 @@ function renderPage(overrides: Partial<SettlementApplicationActions> = {}) {
       getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
+    profileActions: { updateDisplayName: vi.fn() },
     analyticsActions: {
       getDashboard: vi.fn(),
       getMonthlyReport: vi.fn(),

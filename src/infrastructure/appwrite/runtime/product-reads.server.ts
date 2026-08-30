@@ -28,6 +28,7 @@ async function sessionView(context: ProductRequestContext): Promise<CurrentSessi
     displayName: profile.displayName,
     // Appwrite Auth email is the single authoritative account email.
     displayEmail: context.actor.email,
+    profileVersion: profile.version,
     roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
     settlementActionCount,
     ...(isLeader || isMember ? { householdName: household.household.name } : {}),

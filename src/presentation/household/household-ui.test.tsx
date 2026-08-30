@@ -85,6 +85,7 @@ function readyState(
       userId: userId("user-alex"),
       displayName: "Alex",
       displayEmail: "alex@local.test",
+      profileVersion: 1,
       roleLabel: isLeader ? "Leader" : isMember ? "Member" : "No active household",
       settlementActionCount: 0,
       ...(isLeader || isMember ? { householdName: household.household.name } : {}),
@@ -97,6 +98,7 @@ function readyState(
       getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
+    profileActions: { updateDisplayName: vi.fn() },
     analyticsActions: {
       getDashboard: vi.fn(),
       getMonthlyReport: vi.fn(),

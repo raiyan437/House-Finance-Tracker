@@ -181,20 +181,35 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   }
 
   async updateCurrentProfile(input: Parameters<AtomicApplicationPersistence["updateCurrentProfile"]>[0]): Promise<void> {
-    const profile = toProfileRecord(input.profile);
-    const tx = (await this.db()).transaction("userProfiles", "readwrite");
+    if (input.idempotency.actorId !== input.actorId || input.idempotency.commandType !== "update-profile-display-name") {
+      throw new ApplicationError("CONFLICT", "Profile command identity is inconsistent.");
+    }
+    const tx = (await this.db()).transaction(["userProfiles", "commandOutcomes"], "readwrite");
     try {
-      const raw = await tx.objectStore("userProfiles").get(input.profile.userId);
+      const outcomeKey = commandOutcomeKey(input.idempotency);
+      const existingOutcome = await tx.objectStore("commandOutcomes").get(outcomeKey);
+      if (existingOutcome) {
+        assertIdempotentIntent(fromCommandOutcomeRecord(existingOutcome, outcomeKey), input.idempotency);
+        await tx.done;
+        return;
+      }
+      const raw = await tx.objectStore("userProfiles").get(input.actorId);
       if (!raw) throw new ApplicationError("NOT_FOUND", "Profile not found.");
-      const current = fromProfileRecord(raw, input.profile.userId);
-      if (current.updatedAt !== input.expectedUpdatedAt) {
-        throw new ApplicationError("CONFLICT", "The profile changed before the save completed. Reload and try again.");
+      const current = fromProfileRecord(raw, input.actorId);
+      if (current.displayName === input.displayName) {
+        await tx.done;
+        return;
       }
-      const conflicts = await tx.objectStore("userProfiles").index("emailKey").getAll(input.profile.emailKey);
-      if (conflicts.some((row) => row.id !== input.profile.userId)) {
-        throw new ApplicationError("CONFLICT", "That local email is already in use.");
+      if (current.version !== input.expectedVersion) {
+        throw new ApplicationError("PROFILE_VERSION_CONFLICT", "This Profile changed while you were editing it.");
       }
-      await tx.objectStore("userProfiles").put(profile);
+      const updated = { ...current, displayName: input.displayName, version: current.version + 1, updatedAt: input.occurredAt };
+      await tx.objectStore("userProfiles").put(toProfileRecord(updated));
+      await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({
+        ...input.idempotency,
+        resourceId: String(input.actorId),
+        completedAt: input.occurredAt,
+      }));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }

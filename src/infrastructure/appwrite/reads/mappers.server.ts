@@ -69,12 +69,12 @@ function safeInteger(raw: unknown): number {
   return value;
 }
 
-export interface ProfileDisplay { readonly userId: ReturnType<typeof userId>; readonly displayName: string; readonly createdAt: ReturnType<typeof isoInstant>; readonly updatedAt: ReturnType<typeof isoInstant>; }
+export interface ProfileDisplay { readonly userId: ReturnType<typeof userId>; readonly displayName: string; readonly version: number; readonly createdAt: ReturnType<typeof isoInstant>; readonly updatedAt: ReturnType<typeof isoInstant>; }
 
 export function mapProfileDisplay(raw: unknown): ProfileDisplay {
   return malformed("profiles", () => {
     const value = z.object({ displayName: trimmed, version: z.number().int().min(1), createdAt: z.string(), updatedAt: z.string() }).passthrough().parse(raw);
-    return Object.freeze({ userId: userId(rowId(raw)), displayName: value.displayName, createdAt: providerInstant(value.createdAt), updatedAt: providerInstant(value.updatedAt) });
+    return Object.freeze({ userId: userId(rowId(raw)), displayName: value.displayName, version: value.version, createdAt: providerInstant(value.createdAt), updatedAt: providerInstant(value.updatedAt) });
   }) as ProfileDisplay;
 }
 

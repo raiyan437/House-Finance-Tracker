@@ -109,6 +109,10 @@ beforeEach(() => {
   reader.seed("cards", []);
   reader.seed("expense_card_private_details", []);
   reader.seed("command_outcomes", []);
+  reader.seed("profiles", [
+    { $id: String(LEADER), displayName: "Raiyan", version: 3, createdAt: T0, updatedAt: T0 },
+    { $id: String(JOHN), displayName: "John", version: 1, createdAt: T0, updatedAt: T0 },
+  ]);
   reader.seed("coordination_guards", []);
   seedGuard("active-membership", String(LEADER), String(LEADER));
   seedGuard("active-membership", String(JOHN), String(JOHN));
@@ -128,6 +132,61 @@ async function codesOf(run: () => Promise<unknown>): Promise<string> {
 }
 
 describe("trusted Appwrite command kernel", () => {
+  describe("v1.1 Profile Display Name command", () => {
+    const profileDescriptor = (id: string, displayName: string): IdempotencyDescriptor => ({
+      actorId: LEADER,
+      commandType: "update-profile-display-name",
+      commandId: commandId(id),
+      intentDigest: canonicalIntentDigest({ displayName }),
+    });
+
+    it("updates only the actor Profile with OCC and replays without another increment", async () => {
+      const membershipsBefore = structuredClone(await reader.listRows("memberships"));
+      const requestsBefore = structuredClone(await reader.listRows("join_requests"));
+      const descriptor = profileDescriptor("profile-rename", "Raiyan Updated");
+      const input = { actorId: LEADER, displayName: "Raiyan Updated", expectedVersion: 3, occurredAt: T1, idempotency: descriptor };
+      await persistence.updateCurrentProfile(input);
+      expect(await reader.getRow("profiles", String(LEADER))).toMatchObject({ displayName: "Raiyan Updated", version: 4, createdAt: T0, updatedAt: T1 });
+      expect(await reader.getRow("profiles", String(JOHN))).toMatchObject({ displayName: "John", version: 1 });
+      expect(await reader.listRows("memberships")).toEqual(membershipsBefore);
+      expect(await reader.listRows("join_requests")).toEqual(requestsBefore);
+      expect(await reader.listRows("command_outcomes")).toHaveLength(1);
+
+      await persistence.updateCurrentProfile(input);
+      expect(await reader.getRow("profiles", String(LEADER))).toMatchObject({ displayName: "Raiyan Updated", version: 4 });
+      expect(await reader.listRows("command_outcomes")).toHaveLength(1);
+      await expect(persistence.updateCurrentProfile({
+        ...input,
+        displayName: "Changed intent",
+        expectedVersion: 4,
+        idempotency: profileDescriptor("profile-rename", "Changed intent"),
+      })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    });
+
+    it("rejects stale versions with zero write and treats an unchanged name as a write-free no-op", async () => {
+      const before = structuredClone(await reader.getRow("profiles", String(LEADER)));
+      await expect(persistence.updateCurrentProfile({
+        actorId: LEADER,
+        displayName: "Stale Name",
+        expectedVersion: 2,
+        occurredAt: T1,
+        idempotency: profileDescriptor("profile-stale", "Stale Name"),
+      })).rejects.toMatchObject({ code: "PROFILE_VERSION_CONFLICT" });
+      expect(await reader.getRow("profiles", String(LEADER))).toEqual(before);
+      expect(await reader.listRows("command_outcomes")).toEqual([]);
+
+      await persistence.updateCurrentProfile({
+        actorId: LEADER,
+        displayName: "Raiyan",
+        expectedVersion: 1,
+        occurredAt: T1,
+        idempotency: profileDescriptor("profile-noop", "Raiyan"),
+      });
+      expect(await reader.getRow("profiles", String(LEADER))).toEqual(before);
+      expect(await reader.listRows("command_outcomes")).toEqual([]);
+    });
+  });
+
   describe("protected creates", () => {
     it("creates a household atomically with leader membership, guards, audit, and outcome", async () => {
       const newHouseholdDescriptor = descriptor(String(DANA), "k_cmd_new", { name: "Alex House", code: "999999999" });

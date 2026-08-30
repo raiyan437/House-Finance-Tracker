@@ -16,7 +16,7 @@ const alex = userId("alex");
 const instant = isoInstant("2026-08-01T00:00:00.000Z");
 
 function profile(id: typeof raiyan, displayName: string): UserProfile {
-  return { userId: id, displayName, displayEmail: `${id}@example.test`, emailKey: `${id}@example.test`, createdAt: instant, updatedAt: instant };
+  return { userId: id, displayName, displayEmail: `${id}@example.test`, emailKey: `${id}@example.test`, version: 1, createdAt: instant, updatedAt: instant };
 }
 
 function source(): AnalyticsSourceSnapshot {

@@ -32,12 +32,13 @@ export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 /**
- * v4 (R3): non-destructively widens the existing required Card and Expense
- * name columns and adds separate capacity for the private historical Card name.
- * These values are provider storage capacities, never product validation rules.
+ * v5 (v1.1 Profile Display Name): non-destructively widens the existing required
+ * Profile Display Name column. These values are provider storage capacities,
+ * never product validation rules.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const SCHEMA_METADATA_ROW_ID = "active";
+export const PROFILE_DISPLAY_NAME_STORAGE_CAPACITY = 16_383;
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
 export const CARD_NAME_STORAGE_CAPACITY = 16_383;
 export const EXPENSE_NAME_STORAGE_CAPACITY = 16_383;
@@ -64,6 +65,13 @@ export const SAFE_STRING_CAPACITY_INCREASES = Object.freeze([
     fromSize: 64,
     toSize: EXPENSE_NAME_STORAGE_CAPACITY,
     schemaVersion: 4,
+  }),
+  Object.freeze({
+    tableId: "profiles",
+    columnKey: "displayName",
+    fromSize: 64,
+    toSize: PROFILE_DISPLAY_NAME_STORAGE_CAPACITY,
+    schemaVersion: 5,
   }),
 ]);
 
@@ -93,7 +101,7 @@ export const TABLES: readonly TableDefinition[] = [
   {
     id: "profiles",
     name: "Profiles",
-    columns: [text("displayName", 64, true), integer("version", true), iso("createdAt", true), iso("updatedAt", true)],
+    columns: [text("displayName", PROFILE_DISPLAY_NAME_STORAGE_CAPACITY, true), integer("version", true), iso("createdAt", true), iso("updatedAt", true)],
     indexes: [],
   },
   {

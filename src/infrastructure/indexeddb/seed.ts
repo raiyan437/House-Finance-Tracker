@@ -24,7 +24,7 @@ const createdAt = isoInstant("2026-08-13T00:00:00.000Z");
 
 function profile(id: UserId, displayName: string): UserProfile {
   const displayEmail = `${displayName.toLowerCase()}@local.test`;
-  return { userId: id, displayName, displayEmail, emailKey: displayEmail, createdAt, updatedAt: createdAt };
+  return { userId: id, displayName, displayEmail, emailKey: displayEmail, version: 1, createdAt, updatedAt: createdAt };
 }
 
 export function deterministicSeedData() {

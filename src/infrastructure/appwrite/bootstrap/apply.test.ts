@@ -98,6 +98,17 @@ function completeColumnsWithLegacyHouseholdName() {
   })));
 }
 
+function completeColumnsWithLegacyProfileDisplayName() {
+  return TABLES.flatMap((table) => table.columns.map((column) => ({
+    tableId: table.id,
+    key: column.key,
+    status: "available",
+    size: table.id === "profiles" && column.key === "displayName" ? 64 : column.size,
+    type: column.kind,
+    required: column.required,
+  })));
+}
+
 function completeIndexes() {
   return TABLES.flatMap((table) => table.indexes.map((index) => ({
     tableId: table.id,
@@ -164,6 +175,43 @@ describe("schema bootstrap applier", () => {
       safeStringCapacityIncreases: [{ tableId: "households", columnKey: "name", fromSize: 64, toSize: 16_383, required: true }],
     };
     await expect(applySchemaPlan(plan, clients, { dryRun: false })).rejects.toThrow(/provider rejected widening/);
+    expect(clients.calls).not.toContain(`row:${SCHEMA_METADATA_ROW_ID}`);
+  });
+
+  it("widens Profile Display Name, verifies capacity availability, then writes Schema V5 metadata last", async () => {
+    const clients = recordingClients(completeColumnsWithLegacyProfileDisplayName(), completeIndexes());
+    const plan: SchemaPlan = {
+      databaseExists: true, createDatabase: false, tables: [], existingCompleteTables: [],
+      bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
+      metadataRowVersion: 4, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
+      safeStringCapacityIncreases: [{ tableId: "profiles", columnKey: "displayName", fromSize: 64, toSize: 16_383, required: true }],
+    };
+    await applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 50 });
+    expect(clients.calls).toContain("col:widen:profiles.displayName:16383:null");
+    expect(clients.calls.at(-1)).toBe(`row:${SCHEMA_METADATA_ROW_ID}`);
+  });
+
+  it("keeps Schema V4 metadata when the Profile widening never becomes available", async () => {
+    const clients = recordingClients(completeColumnsWithLegacyProfileDisplayName(), completeIndexes());
+    const originalListColumns = (clients.tablesDB as unknown as { listColumns: (input: { tableId: string }) => Promise<{ columns: unknown[] }> }).listColumns;
+    (clients.tablesDB as unknown as { listColumns: (input: { tableId: string }) => Promise<{ columns: unknown[] }> }).listColumns = async (input) => {
+      const result = await originalListColumns(input);
+      if (input.tableId !== "profiles") return result;
+      return {
+        ...result,
+        columns: result.columns.map((column) => {
+          const value = column as { key?: string };
+          return value.key === "displayName" ? { ...value, status: "processing" } : value;
+        }),
+      };
+    };
+    const plan: SchemaPlan = {
+      databaseExists: true, createDatabase: false, tables: [], existingCompleteTables: [],
+      bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
+      metadataRowVersion: 4, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
+      safeStringCapacityIncreases: [{ tableId: "profiles", columnKey: "displayName", fromSize: 64, toSize: 16_383, required: true }],
+    };
+    await expect(applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 5 })).rejects.toThrow(/profiles\.displayName/);
     expect(clients.calls).not.toContain(`row:${SCHEMA_METADATA_ROW_ID}`);
   });
 });

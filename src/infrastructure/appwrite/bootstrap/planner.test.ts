@@ -6,6 +6,7 @@ import {
   EXPENSE_NAME_STORAGE_CAPACITY,
   HOUSEHOLD_NAME_STORAGE_CAPACITY,
   MAINTENANCE_FUNCTION,
+  PROFILE_DISPLAY_NAME_STORAGE_CAPACITY,
   TABLES,
 } from "../schema/definitions";
 import { planSchemaApplication, type AppwriteSchemaReader, type ExistingColumn } from "./planner";
@@ -95,10 +96,69 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved capacity is present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("plans only the explicitly approved profiles.displayName 64 -> 16383 widening for Schema V5", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.profiles = { columnOverrides: { displayName: { size: 64 } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([{
+      tableId: "profiles",
+      columnKey: "displayName",
+      fromSize: 64,
+      toSize: PROFILE_DISPLAY_NAME_STORAGE_CAPACITY,
+      required: true,
+    }]);
+    expect(plan.tables).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.provisioning).toEqual([]);
+    expect(plan.errors).toEqual([]);
+    expect(plan.createMetadataRow).toBe(true);
+    expect(plan.metadataRowVersion).toBe(4);
+  });
+
+  it("treats the approved profiles.displayName capacity as already correct", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.tables).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("refuses to shrink profiles.displayName from a capacity above the desired provider capacity", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.profiles = { columnOverrides: { displayName: { size: PROFILE_DISPLAY_NAME_STORAGE_CAPACITY + 1 } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts.join(" ")).toMatch(/profiles\.displayName.*capacity decreases are refused/);
+  });
+
+  it("refuses Profile Display Name type and required-state drift without planning a mutation", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.profiles = { columnOverrides: { displayName: { kind: "longtext" } } };
+    const typePlan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(typePlan.safeStringCapacityIncreases).toEqual([]);
+    expect(typePlan.drifts.join(" ")).toMatch(/profiles\.displayName.*type.*longtext.*expected.*string.*refused/);
+
+    tables.profiles = { columnOverrides: { displayName: { required: false } } };
+    const requiredPlan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(requiredPlan.safeStringCapacityIncreases).toEqual([]);
+    expect(requiredPlan.drifts.join(" ")).toMatch(/profiles\.displayName.*required=false.*expected true.*refused/);
+  });
+
+  it("leaves unrelated drift report-only while planning the approved Profile widening", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.profiles = { columnOverrides: { displayName: { size: 64 } } };
+    tables.households = { extraColumns: ["unmanaged"] };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    expect(plan.safeStringCapacityIncreases).toHaveLength(1);
+    expect(plan.drifts.join(" ")).toMatch(/households.*unmanaged/);
+    expect(plan.tables).toEqual([]);
   });
 
   it("plans exactly the approved Schema V4 delta from a clean Schema V3 project", async () => {
@@ -131,7 +191,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved Schema V4 capacities and private column are present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 4 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);

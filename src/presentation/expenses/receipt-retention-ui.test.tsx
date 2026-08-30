@@ -130,6 +130,7 @@ function readyState(actions: ExpenseApplicationActions): Extract<ApplicationRunt
       userId: SEEDED_USER_IDS.raiyan,
       displayName: "Raiyan",
       displayEmail: "raiyan@example.test",
+      profileVersion: 1,
       roleLabel: "Leader",
       householdName: seed.household.name,
       settlementActionCount: 0,
@@ -149,6 +150,7 @@ function readyState(actions: ExpenseApplicationActions): Extract<ApplicationRunt
     settlementActions: {} as never,
     cardActions: {} as never,
     analyticsActions: {} as never,
+    profileActions: { updateDisplayName: vi.fn() },
   };
 }
 

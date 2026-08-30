@@ -28,6 +28,7 @@ export const COMMAND_TYPES = [
   "transfer-leadership",
   "rename-household",
   "delete-household",
+  "update-profile-display-name",
 ] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 

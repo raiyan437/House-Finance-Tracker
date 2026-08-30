@@ -46,7 +46,7 @@ import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
 import { cancelSettlement, confirmSettlement, rejectSettlement } from "@/domain/settlements/settlement-lifecycle";
 import { commandOutcomeRowId, membershipRowId } from "../ids";
-import { mapCard, mapExpense, mapHousehold, mapJoinRequest, mapMembership, mapPrivateExpenseCard, mapSettlement } from "../reads/mappers.server";
+import { mapCard, mapExpense, mapHousehold, mapJoinRequest, mapMembership, mapPrivateExpenseCard, mapProfileDisplay, mapSettlement } from "../reads/mappers.server";
 import { settlementPairKey } from "../reads/read-repositories.server";
 import { createTablesReader, type TablesReader } from "../reads/tables.server";
 import { runCommandTransaction, type CommandTransaction } from "./tx-runner.server";
@@ -55,6 +55,7 @@ import { currentCommandEnvelope } from "./command-envelope.server";
 import { CommandGuardEngine } from "./guards.server";
 
 const TABLE = {
+  profiles: "profiles",
   households: "households",
   memberships: "memberships",
   joinRequests: "join_requests",
@@ -1304,13 +1305,51 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
     );
   }
 
+  // -- v1.1 Profile Display Name ------------------------------------------
+
+  async updateCurrentProfile(input: Parameters<AtomicApplicationPersistence["updateCurrentProfile"]>[0]): Promise<void> {
+    const tablesDB = this.tablesDB;
+    if (
+      input.idempotency.actorId !== input.actorId ||
+      input.idempotency.commandType !== "update-profile-display-name" ||
+      input.displayName.length === 0 ||
+      input.displayName.trim() !== input.displayName
+    ) {
+      throw new ApplicationError("INVALID_INPUT", "The Display Name command is invalid.");
+    }
+    await this.resolveDelivery(
+      tablesDB,
+      { actorId: String(input.actorId), intentSeed: { displayName: input.displayName } },
+      () => runCommandTransaction(tablesDB, async ({ tx }) => {
+        const tables = this.scoped(tablesDB, tx);
+        const raw = await tables.getRow(TABLE.profiles, String(input.actorId));
+        if (!raw) throw new ApplicationError("NOT_FOUND", "Profile not found.");
+        const current = mapProfileDisplay(raw);
+        if (current.displayName === input.displayName) return;
+        if (current.version !== input.expectedVersion) {
+          throw new ApplicationError("PROFILE_VERSION_CONFLICT", "This Profile changed while you were editing it.");
+        }
+        await tablesDB.updateRow({
+          databaseId: "hft",
+          tableId: TABLE.profiles,
+          rowId: String(input.actorId),
+          data: { displayName: input.displayName, version: current.version + 1, updatedAt: input.occurredAt },
+          transactionId: tx.id,
+        });
+        tx.recordStagedOperation();
+        await this.stageOutcome(tablesDB, tx, input.idempotency, String(input.actorId), input.occurredAt);
+      }),
+      () => undefined,
+      input.idempotency,
+    );
+  }
+
   // -- R4 placeholders -----------------------------------------------------
 
   private unavailable(): never {
     throw new ApplicationError("PERSISTENCE_FAILURE", "This command plane arrives with a later production slice.");
   }
 
-  updateCurrentProfile(): Promise<void> { return this.unavailable(); }
   createReceipt(): Promise<string> { return this.unavailable(); }
   deleteReceipt(): Promise<void> { return this.unavailable(); }
 }

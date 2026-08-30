@@ -122,6 +122,14 @@ export interface AnalyticsApplicationActions {
   ) => Promise<MonthlyReportPageView>;
 }
 
+export interface ProfileApplicationActions {
+  readonly updateDisplayName: (
+    displayName: string,
+    expectedVersion: number,
+    commandId: CommandId,
+  ) => Promise<void>;
+}
+
 export type ApplicationRuntimeState =
   | Readonly<{ status: "loading" }>
   | Readonly<{
@@ -137,6 +145,7 @@ export type ApplicationRuntimeState =
       settlementActions: SettlementApplicationActions;
       cardActions: CardApplicationActions;
       analyticsActions: AnalyticsApplicationActions;
+      profileActions: ProfileApplicationActions;
     }>
   | Readonly<{
       status: "error";

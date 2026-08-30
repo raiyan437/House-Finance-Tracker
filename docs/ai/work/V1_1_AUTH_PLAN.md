@@ -1,8 +1,8 @@
-# v1.1 Allowlisted Self-Signup + Profile Password Update
+# v1.1 Allowlisted Self-Signup + Profile Password and Display Name Update
 
 ## Status and authorization
 
-**Owner-authorized, committed, deployed, and safely production-verified on 2026-08-30.** Implementation commit `c64f95e8454f27bb73289ac8f72aae59baf882cd` is on `main`; Appwrite Sites deployment `6a9417ca3e48efb06950` is active at the unchanged production origin. This plan supersedes only the earlier pre-provisioned-account/signup-lockdown/password-recovery-only authentication policy. Schema V4 and all Household, financial, Card, Expense, Settlement, Receipt, privacy, retention, persistence, and maintenance behavior remain frozen. The unused third approved account, first real password mutation, provider user limit, and v1.1.0 tag remain owner-gated.
+**Signup/password base committed, deployed, and safely production-verified; Display Name extension approved for checkpoint and production deployment on 2026-08-31.** Base commit `c64f95e8454f27bb73289ac8f72aae59baf882cd` is on `main`; Appwrite Sites deployment `6a9417ca3e48efb06950` remains the pre-extension production checkpoint at the unchanged origin. The extension keeps the same v1.1.0 release and mutation architecture. The approved Schema V5 migration widened only `profiles.displayName` from 64 to 16,383 and advanced metadata last; no business row or identity value changed. The unused third approved account, first real password mutation, any real Display Name change, provider user limit, and v1.1.0 tag remain owner-gated.
 
 ## Intended outcome
 
@@ -11,15 +11,23 @@
 - Existing approved accounts receive a non-destructive Sign in/reset-password result. Non-approved email receives the explicit frozen error and no Appwrite account creation call.
 - Trusted actor/session restoration continues to re-check the approved allowlist, denying direct non-approved Appwrite accounts.
 - Production Profile adds Current/New/Confirm password fields. `POST /api/auth/password` derives identity only from `hft_session`, uses session `Account.updatePassword`, clears the local cookie on success, and returns the user to Login.
-- Email verification, OAuth, phone, invite flows, production email editing, privileged Users API password mutation, and Schema V5 remain absent.
+- Production Profile also adds a separate prefilled Display Name form. `POST /api/app/profile-display-name` accepts only `displayName`, `expectedVersion`, and `commandId`; actor authority comes only from `hft_session`. The application service trims/non-empty-validates without a product maximum, uses `Profile.version` OCC, and reuses the production outcome architecture for SHA-256 canonical-intent idempotency. Same-intent replay returns the original success without a second increment; changed-intent key reuse fails; unchanged name is a write-free no-op.
+- Current Household, Dashboard, Expense, Settlement, and live Join Request identity projections reconstruct from `profiles.displayName`. Historical audit/private Card/terminal identity snapshots remain unchanged. Email remains visible only in the current user's account projection and is non-editable; other-member identity remains `{ userId, displayName }` only.
+- Email verification, OAuth, phone, invite flows, production email editing, privileged Users API password mutation, and Appwrite Auth-name authority remain absent.
 
 ## Verification and stop boundary
 
-Run focused auth/signup/password tests, full Vitest, architecture guards, ESLint, TypeScript, production build, dependency audit, diff-check, built-client secret scans, Chromium, Firefox/WebKit smoke, 430/390/360 responsive checks, and serious/critical Axe checks. Do not create/delete a real production account, use the unused approved email, change a real production password, alter Appwrite project user limits, deploy, commit, tag, or release without separate owner authorization.
+Run focused auth/signup/password/Profile tests, OCC/idempotency and current-vs-historical projection tests, full Vitest, architecture guards, ESLint, TypeScript, production build, dependency audit, diff-check, built-client secret scans, Chromium, Firefox/WebKit smoke, 430/390/360 Profile responsive checks, and serious/critical Axe checks. Do not create/delete a real production account, use the unused approved email, change a real production password or Display Name, alter Appwrite project user limits, deploy, commit, tag, or release without separate owner authorization.
 
 ## Local verification result
 
 Complete on 2026-08-30: focused v1.1 tests 57/57; full Vitest 739/739 across 94 files; architecture guard 16/16; ESLint, TypeScript, Next.js 16.3 production build, zero-vulnerability audit, and `git diff --check` green. The built browser/HTML scan covered 85 files with zero server-secret names, allowlist names, or configured secret-value hits and zero password-logging source hits. Local Chromium passed 72/72; Firefox and WebKit smoke passed 1/1 each with explicit local composition. Signup passed 430/390/360 geometry, >=44px action sizing, keyboard/label semantics, and zero serious/critical Axe findings. The authenticated production Profile responsive/Axe test was implemented in the opt-in live suite; the real password-mutation step remains deliberately gated.
+
+## Display Name extension checkpoint
+
+Schema V5 completed safely on 2026-08-30. The exact pre-apply plan contained no database/bucket/function/table/index creation, no drop/delete, no drift/error/provisioning, metadata version 4, and exactly one safe widening: `profiles.displayName` 64 -> 16,383 with `required=true`. Fresh backup `C:\Users\raiya\hft-backups\hft-backup-2026-08-30T14-29-51.985Z` was created outside Git and its manifest/checksums verified. Apply widened that one column, waited for provider `available` at capacity 16,383, and advanced `schema_metadata.active` 4 -> 5 last. The immediate and final live plans report all 14 tables complete, metadata version 5, and zero creates/drift/provisioning/errors/safe widenings.
+
+The Display Name extension passed owner review and is approved for checkpoint/deployment. Focused schema/Profile/signup/password/command tests pass 147/147; the full suite passes 756/756 across 95 files; architecture 16/16; ESLint, TypeScript, production build, zero-vulnerability audit, diff-check, and an 87-file built-client scan are clean. The explicit local browser suite passes 74/74 in Chromium plus Firefox/WebKit smoke 1/1 each. Dedicated Profile checks cover 430/390/360, >=44px input/action targets, no overflow, keyboard validation/submit/focus, accessible success/error status, persisted reload, live Household refresh, mobile More/Logout visibility, and Axe serious/critical zero. Existing production-session component coverage confirms Display Name and Password remain separate and all Password controls remain present; no real password or Display Name was submitted. An exact owner-authorized old-name -> new-name acceptance mutation remains pending after deployment.
 
 ## Production checkpoint result
 

@@ -43,6 +43,7 @@ function readyRuntime(
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
     analyticsActions: { getDashboard: vi.fn(), getMonthlyReport: vi.fn() },
+    profileActions: { updateDisplayName: vi.fn() },
     ...(production ? { signOut: vi.fn() } : {}),
   };
 }
@@ -62,11 +63,12 @@ describe("Profile presentation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders existing local profile and active Household data read-only", () => {
+  it("renders existing local profile, fixed email, and editable Display Name", () => {
     renderPage(readyRuntime({
       userId: userId("profile-raiyan"),
       displayName: "Raiyan Ahmed",
       displayEmail: "raiyan@example.test",
+      profileVersion: 1,
       roleLabel: "Leader",
       householdName: "Lake View House",
       settlementActionCount: 0,
@@ -77,7 +79,8 @@ describe("Profile presentation", () => {
     expect(screen.getAllByText("raiyan@example.test")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Lake View House" })).toBeInTheDocument();
     expect(screen.getByText("Leader")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Display Name" })).toHaveValue("Raiyan Ahmed");
+    expect(screen.getByRole("button", { name: "Save Display Name" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Password" })).not.toBeInTheDocument();
     expect(screen.queryByText(/foundation ready/i)).not.toBeInTheDocument();
   });
@@ -87,6 +90,7 @@ describe("Profile presentation", () => {
       userId: userId("profile-alex"),
       displayName: "Alex",
       displayEmail: "alex@example.test",
+      profileVersion: 1,
       roleLabel: "No active household",
       settlementActionCount: 0,
     }));
@@ -107,9 +111,36 @@ describe("Profile presentation", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Local profile could not be loaded.");
   });
 
+  it("trims, validates, keyboard-submits, and reports Display Name saves accessibly", async () => {
+    const user = userEvent.setup();
+    const runtime = readyRuntime({
+      userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io", profileVersion: 3,
+      roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
+    });
+    const update = vi.mocked((runtime as Extract<ApplicationRuntimeState, { status: "ready" }>).profileActions.updateDisplayName);
+    update.mockResolvedValue(undefined);
+    renderPage(runtime);
+    const input = screen.getByRole("textbox", { name: "Display Name" });
+    await user.clear(input);
+    await user.type(input, "   ");
+    await user.click(screen.getByRole("button", { name: "Save Display Name" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Display Name is required.");
+    expect(input).toHaveFocus();
+    expect(update).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.type(input, "  Raiyan Updated  {Enter}");
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]?.[0]).toBe("Raiyan Updated");
+    expect(update.mock.calls[0]?.[1]).toBe(3);
+    expect(update.mock.calls[0]?.[2]).toEqual(expect.any(String));
+    expect(await screen.findByRole("status")).toHaveTextContent("Display Name updated successfully.");
+  });
+
   it("shows the password section only for an authenticated production session", () => {
     renderPage(readyRuntime({
       userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io",
+      profileVersion: 1,
       roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
     }, true));
     expect(screen.getByRole("heading", { name: "Password" })).toBeInTheDocument();
@@ -126,6 +157,7 @@ describe("Profile presentation", () => {
     const user = userEvent.setup();
     renderPage(readyRuntime({
       userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io",
+      profileVersion: 1,
       roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
     }, true));
     await user.type(screen.getByLabelText("Current Password"), "old-password");

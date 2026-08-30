@@ -29,6 +29,7 @@ function renderWithRuntime(
           userId: userId("user-raiyan"),
           displayName: "Raiyan Uddin",
           displayEmail: "raiyan@local.test",
+          profileVersion: 1,
           roleLabel: "Leader",
           householdName: "Raiyan House",
           settlementActionCount,
@@ -102,6 +103,7 @@ function renderWithRuntime(
           getMyCards: vi.fn(), createMyCard: vi.fn(), updateMyCard: vi.fn(),
           getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
         },
+        profileActions: { updateDisplayName: vi.fn() },
         analyticsActions: {
           getDashboard: vi.fn(),
           getMonthlyReport: vi.fn(),

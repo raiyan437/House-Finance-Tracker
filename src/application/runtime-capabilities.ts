@@ -79,4 +79,5 @@ export const PRODUCTION_R4_CONTENT_CAPABILITIES: ProductCapabilities = Object.fr
 export const PRODUCTION_R4_CAPABILITIES: ProductCapabilities = Object.freeze({
   ...PRODUCTION_R4_CONTENT_CAPABILITIES,
   receiptMutations: true,
+  profileMutations: true,
 });

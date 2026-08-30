@@ -40,6 +40,7 @@ import {
   type CardApplicationActions,
   type ExpenseApplicationActions,
   type HouseholdApplicationActions,
+  type ProfileApplicationActions,
   type SettlementApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { DevelopmentToolsSlotsProvider } from "@/presentation/devtools/development-tools-slots";
@@ -365,6 +366,17 @@ function buildReadyState(
       requestJson<MonthlyReportPageView>(`/api/app/monthly-report?householdId=${encodeURIComponent(householdIdValue)}&month=${month}`),
   });
 
+  const profileActions: ProfileApplicationActions = Object.freeze({
+    updateDisplayName: async (displayName: string, expectedVersion: number, commandId: CommandId) => {
+      try {
+        await postCommand("/api/app/profile-display-name", { displayName, expectedVersion, commandId });
+      } catch (error) {
+        if (error instanceof ApplicationError && error.code === "PROFILE_VERSION_CONFLICT") await refresh();
+        throw error;
+      }
+    },
+  });
+
   return Object.freeze({
     status: "ready" as const,
     session,
@@ -376,6 +388,7 @@ function buildReadyState(
     settlementActions,
     cardActions,
     analyticsActions,
+    profileActions,
   });
 }
 

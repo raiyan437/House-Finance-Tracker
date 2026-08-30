@@ -30,9 +30,9 @@ const memberships: readonly MembershipSnapshot[] = [alice, bob, chris].map((id) 
 }));
 
 const profiles: readonly UserProfile[] = [
-  { userId: alice, displayName: "Alice", displayEmail: "alice@example.test", emailKey: "alice@example.test", createdAt, updatedAt: createdAt },
-  { userId: bob, displayName: "Bob", displayEmail: "bob@example.test", emailKey: "bob@example.test", createdAt, updatedAt: createdAt },
-  { userId: chris, displayName: "Chris", displayEmail: "chris@example.test", emailKey: "chris@example.test", createdAt, updatedAt: createdAt },
+  { userId: alice, displayName: "Alice", displayEmail: "alice@example.test", emailKey: "alice@example.test", version: 1, createdAt, updatedAt: createdAt },
+  { userId: bob, displayName: "Bob", displayEmail: "bob@example.test", emailKey: "bob@example.test", version: 1, createdAt, updatedAt: createdAt },
+  { userId: chris, displayName: "Chris", displayEmail: "chris@example.test", emailKey: "chris@example.test", version: 1, createdAt, updatedAt: createdAt },
 ];
 
 function sheet(aliceBalance: number, bobBalance: number, chrisBalance = 0): HouseholdBalanceSheet {

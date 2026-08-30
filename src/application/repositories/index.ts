@@ -152,7 +152,13 @@ export interface DevelopmentIdentityController {
 }
 
 export interface AtomicApplicationPersistence {
-  updateCurrentProfile(input: Readonly<{ profile: UserProfile; expectedUpdatedAt: IsoInstant }>): Promise<void>;
+  updateCurrentProfile(input: Readonly<{
+    actorId: UserId;
+    displayName: string;
+    expectedVersion: number;
+    occurredAt: IsoInstant;
+    idempotency: IdempotencyDescriptor;
+  }>): Promise<void>;
   renameHousehold(input: Readonly<{
     householdId: HouseholdId;
     actorId: UserId;
