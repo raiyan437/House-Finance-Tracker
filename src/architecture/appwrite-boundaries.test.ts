@@ -136,6 +136,14 @@ describe("Appwrite infrastructure containment", () => {
     expect(violations).toEqual([]);
   });
 
+  it("keeps the production reset operator-only and outside deployed runtime source", () => {
+    const activeSources = sourceFiles(SRC).filter((file) => !file.includes(".test.")).map(read).join("\n");
+    expect(activeSources).not.toMatch(/appwrite-reset-production/);
+    const resetCli = read(join(ROOT, "scripts", "appwrite-reset-production.mts"));
+    expect(resetCli).toMatch(/parseResetArguments[\s\S]*executionBlocked[\s\S]*verifyBackupForInventory/);
+    expect(resetCli).not.toMatch(/HFT_APPWRITE_RUNTIME_API_KEY|HFT_ALLOWED_ACCOUNT_EMAILS|NEXT_PUBLIC_/);
+  });
+
   it("keeps every Appwrite adapter module server-only", () => {
     const violations = sourceFiles(join(SRC, "infrastructure", "appwrite"))
       .filter((file) => !file.endsWith(".test.ts") && read(file).startsWith('"use client"'))
