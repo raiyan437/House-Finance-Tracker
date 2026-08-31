@@ -9,6 +9,7 @@ import { toBalanceExpense } from "@/domain/records/domain-records";
 import { canonicalIntentDigest } from "@/application/idempotency/command-idempotency";
 import {
   assertExpense,
+  PROFILE_DISPLAY_NAME_MAX_LENGTH,
   type AuditEvent,
   type Card,
   type Expense,
@@ -1309,6 +1310,9 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
 
   async updateCurrentProfile(input: Parameters<AtomicApplicationPersistence["updateCurrentProfile"]>[0]): Promise<void> {
     const tablesDB = this.tablesDB;
+    if (input.displayName.length > PROFILE_DISPLAY_NAME_MAX_LENGTH) {
+      throw new ApplicationError("INVALID_INPUT", "Display name must be 20 characters or fewer.");
+    }
     if (
       input.idempotency.actorId !== input.actorId ||
       input.idempotency.commandType !== "update-profile-display-name" ||

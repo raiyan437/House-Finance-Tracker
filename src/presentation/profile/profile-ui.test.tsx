@@ -80,6 +80,7 @@ describe("Profile presentation", () => {
     expect(screen.getByRole("heading", { name: "Lake View House" })).toBeInTheDocument();
     expect(screen.getByText("Leader")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Display Name" })).toHaveValue("Raiyan Ahmed");
+    expect(screen.getByRole("textbox", { name: "Display Name" })).toHaveAttribute("maxlength", "20");
     expect(screen.getByRole("button", { name: "Save Display Name" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Password" })).not.toBeInTheDocument();
     expect(screen.queryByText(/foundation ready/i)).not.toBeInTheDocument();
@@ -137,6 +138,34 @@ describe("Profile presentation", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Display Name updated successfully.");
   });
 
+  it("accepts 1 and 20 trimmed characters and rejects longer Display Names", async () => {
+    const user = userEvent.setup();
+    const runtime = readyRuntime({
+      userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io", profileVersion: 3,
+      roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
+    });
+    const update = vi.mocked((runtime as Extract<ApplicationRuntimeState, { status: "ready" }>).profileActions.updateDisplayName);
+    update.mockResolvedValue(undefined);
+    renderPage(runtime);
+    const input = screen.getByRole("textbox", { name: "Display Name" });
+
+    await user.clear(input);
+    await user.type(input, "A");
+    await user.click(screen.getByRole("button", { name: "Save Display Name" }));
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith("A", 3, expect.any(String)));
+
+    await user.clear(input);
+    await user.type(input, "B".repeat(20));
+    await user.click(screen.getByRole("button", { name: "Save Display Name" }));
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith("B".repeat(20), 3, expect.any(String)));
+
+    await user.clear(input);
+    input.removeAttribute("maxlength");
+    await user.type(input, "C".repeat(21));
+    await user.click(screen.getByRole("button", { name: "Save Display Name" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Display name must be 20 characters or fewer.");
+  });
+
   it("shows the password section only for an authenticated production session", () => {
     renderPage(readyRuntime({
       userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io",
@@ -147,6 +176,26 @@ describe("Profile presentation", () => {
     expect(screen.getByLabelText("Current Password")).toHaveAttribute("autocomplete", "current-password");
     expect(screen.getByLabelText("New Password")).toHaveAttribute("autocomplete", "new-password");
     expect(screen.getByLabelText("Confirm New Password")).toHaveAttribute("type", "password");
+  });
+
+  it("keeps all three Profile password visibility controls independent", async () => {
+    const user = userEvent.setup();
+    renderPage(readyRuntime({
+      userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io",
+      profileVersion: 1, roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
+    }, true));
+    const current = screen.getByLabelText("Current Password");
+    const next = screen.getByLabelText("New Password");
+    const confirmation = screen.getByLabelText("Confirm New Password");
+    const toggles = screen.getAllByRole("button", { name: "Show password" });
+    expect(toggles).toHaveLength(3);
+    await user.click(toggles[1]!);
+    expect(current).toHaveAttribute("type", "password");
+    expect(next).toHaveAttribute("type", "text");
+    expect(confirmation).toHaveAttribute("type", "password");
+    expect(current).toHaveAttribute("autocomplete", "current-password");
+    expect(next).toHaveAttribute("autocomplete", "new-password");
+    expect(confirmation).toHaveAttribute("autocomplete", "new-password");
   });
 
   it("validates password confirmation without sending secrets and redirects to Login after success", async () => {

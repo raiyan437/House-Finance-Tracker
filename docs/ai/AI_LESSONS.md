@@ -171,3 +171,8 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Provider string capacity is infrastructure, not product validation. A no-arbitrary-maximum Display Name rule can coexist with Appwrite only after an explicit non-destructive capacity widening; metadata must remain at the old schema version until the widened column is reported available and verified.
 - Current identity labels should resolve from the narrow live Profile projection at read time. Editing `profiles.displayName` must never fan out writes into memberships, Expenses, Settlements, Join Requests, audits, or private snapshots; deliberately stored historical text retains its original value.
 - A Profile no-op is detected against the authoritative reread before OCC, performs no Profile/outcome/audit write, and does not increment version. A committed mutation still needs actor/type/command-id/canonical-intent idempotency so lost-response replay returns the original success exactly once.
+
+## 2026-08-31 - Profile/Auth control refinement
+
+- A form action aligned to a field wrapper that also contains help/error text aligns to the message block rather than the input. Keep the label and help/error association intact, but place the input and action in their own `align-items: end` grid row so equal control heights produce a true baseline without pixel nudges.
+- Password visibility is safest as a shared Input-composing control: independent local state per instance, `type="button"`, changing accessible name/pressed state, a 44px target, reserved input padding, and pointer focus preservation. This centralizes password-manager semantics without coupling visibility to form value, dirty, touched, validation, or persistence state.

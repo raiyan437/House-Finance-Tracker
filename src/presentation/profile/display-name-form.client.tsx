@@ -9,10 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CommandId } from "@/domain/shared/identifiers";
+import { PROFILE_DISPLAY_NAME_MAX_LENGTH } from "@/domain/records/domain-records";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 
 const displayNameSchema = z.object({
-  displayName: z.string().transform((value) => value.trim()).pipe(z.string().min(1, "Display Name is required.")),
+  displayName: z.string().transform((value) => value.trim()).pipe(
+    z.string()
+      .min(1, "Display Name is required.")
+      .max(PROFILE_DISPLAY_NAME_MAX_LENGTH, "Display name must be 20 characters or fewer."),
+  ),
 });
 
 type DisplayNameValues = z.input<typeof displayNameSchema>;
@@ -36,7 +41,7 @@ function ReadyDisplayNameForm({ runtime }: Readonly<{ runtime: Extract<ReturnTyp
 
   return (
     <form
-      className="mt-5 grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+      className="mt-5 min-w-0"
       noValidate
       onSubmit={form.handleSubmit(async (values) => {
         const displayName = values.displayName.trim();
@@ -64,14 +69,20 @@ function ReadyDisplayNameForm({ runtime }: Readonly<{ runtime: Extract<ReturnTyp
     >
       <div className="min-w-0 space-y-2">
         <Label htmlFor="profile-display-name">Display Name</Label>
-        <Input
-          id="profile-display-name"
-          autoComplete="name"
-          required
-          aria-invalid={Boolean(form.formState.errors.displayName)}
-          aria-describedby={form.formState.errors.displayName ? "profile-display-name-error" : "profile-display-name-help"}
-          {...form.register("displayName")}
-        />
+        <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <Input
+            id="profile-display-name"
+            autoComplete="name"
+            maxLength={PROFILE_DISPLAY_NAME_MAX_LENGTH}
+            required
+            aria-invalid={Boolean(form.formState.errors.displayName)}
+            aria-describedby={form.formState.errors.displayName ? "profile-display-name-error" : "profile-display-name-help"}
+            {...form.register("displayName")}
+          />
+          <Button className="min-h-11 w-full sm:w-auto" type="submit" disabled={form.formState.isSubmitting} aria-busy={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? "Saving Display Name…" : "Save Display Name"}
+          </Button>
+        </div>
         {form.formState.errors.displayName ? (
           <p id="profile-display-name-error" className="text-caption text-danger" role="alert">
             {form.formState.errors.displayName.message}
@@ -80,11 +91,8 @@ function ReadyDisplayNameForm({ runtime }: Readonly<{ runtime: Extract<ReturnTyp
           <p id="profile-display-name-help" className="text-caption text-text-muted">Shown to authorized members where current identity is used.</p>
         )}
       </div>
-      <Button className="min-h-11 w-full sm:w-auto" type="submit" disabled={form.formState.isSubmitting} aria-busy={form.formState.isSubmitting}>
-        {form.formState.isSubmitting ? "Saving Display Name…" : "Save Display Name"}
-      </Button>
       {status ? (
-        <p className={status.kind === "error" ? "text-caption text-danger sm:col-span-2" : "text-caption text-success sm:col-span-2"} role={status.kind === "error" ? "alert" : "status"}>
+        <p className={status.kind === "error" ? "mt-4 text-caption text-danger" : "mt-4 text-caption text-success"} role={status.kind === "error" ? "alert" : "status"}>
           {status.message}
         </p>
       ) : null}

@@ -23,6 +23,21 @@ describe("SignupForm", () => {
     expect(screen.queryByLabelText(/display name|phone|verification/i)).not.toBeInTheDocument();
   });
 
+  it("keeps Password and Confirm Password visibility independent", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    const password = screen.getByLabelText("Password");
+    const confirmation = screen.getByLabelText("Confirm Password");
+    const toggles = screen.getAllByRole("button", { name: "Show password" });
+    expect(toggles).toHaveLength(2);
+    await user.click(toggles[0]!);
+    expect(password).toHaveAttribute("type", "text");
+    expect(confirmation).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-controls", "signup-password");
+    await user.click(toggles[1]!);
+    expect(confirmation).toHaveAttribute("type", "text");
+  });
+
   it("blocks mismatched and short passwords before the request and focuses the first invalid field", async () => {
     const request = vi.fn();
     vi.stubGlobal("fetch", request);

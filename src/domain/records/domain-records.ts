@@ -43,6 +43,8 @@ export interface UserProfile {
   readonly updatedAt: IsoInstant;
 }
 
+export const PROFILE_DISPLAY_NAME_MAX_LENGTH = 20;
+
 /**
  * Privacy-safe member identity projection: the only member fields application
  * views may consume about *other* users. Contact data (email) exists solely on
@@ -178,6 +180,9 @@ export function normalizeEmail(input: string): { displayEmail: string; emailKey:
 export function assertUserProfile(value: UserProfile): void {
   userId(value.userId);
   assertTrimmedText(value.displayName);
+  if (value.displayName.length > PROFILE_DISPLAY_NAME_MAX_LENGTH) {
+    throw new DomainError("INVALID_PROFILE", "Display name must be 20 characters or fewer.");
+  }
   const email = normalizeEmail(value.displayEmail);
   if (email.emailKey !== value.emailKey) {
     throw new DomainError("INVALID_PROFILE", "The profile email key is not canonical.");

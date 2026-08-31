@@ -2,9 +2,11 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./fixtures";
 
 test("Profile Display Name validates, keyboard-submits, persists, and refreshes current projections", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto("/profile");
   const input = page.getByRole("textbox", { name: "Display Name" });
   await expect(input).toHaveValue("Raiyan");
+  await expect(input).toHaveAttribute("maxlength", "20");
 
   await input.fill("   ");
   await page.getByRole("button", { name: "Save Display Name" }).click();
@@ -44,8 +46,12 @@ test("Profile Display Name validates, keyboard-submits, persists, and refreshes 
   await expect(page.locator("#main-content").getByText("Raiyan Current", { exact: true })).toBeVisible();
 });
 
-test("Profile Display Name controls remain usable and accessible at the mobile matrix", async ({ page }) => {
+test("Profile layout remains aligned, equal-height, responsive, and accessible", async ({ page }) => {
+  test.setTimeout(90_000);
   for (const viewport of [
+    { width: 1440, height: 1024 },
+    { width: 1024, height: 900 },
+    { width: 768, height: 900 },
     { width: 430, height: 932 },
     { width: 390, height: 844 },
     { width: 360, height: 800 },
@@ -64,6 +70,20 @@ test("Profile Display Name controls remain usable and accessible at the mobile m
     expect(inputBox!.x).toBeGreaterThanOrEqual(0);
     expect(inputBox!.x + inputBox!.width).toBeLessThanOrEqual(viewport.width);
     expect(saveBox!.x + saveBox!.width).toBeLessThanOrEqual(viewport.width);
+    if (viewport.width >= 640) {
+      expect(Math.abs((inputBox!.y + inputBox!.height) - (saveBox!.y + saveBox!.height))).toBeLessThanOrEqual(1);
+      expect(Math.abs(inputBox!.height - saveBox!.height)).toBeLessThanOrEqual(1);
+    }
+    const accountBox = await page.locator('section[aria-labelledby="profile-account-heading"]').boundingBox();
+    const householdBox = await page.locator('section[aria-labelledby="profile-household-heading"]').boundingBox();
+    expect(accountBox).not.toBeNull();
+    expect(householdBox).not.toBeNull();
+    if (viewport.width >= 1024) {
+      expect(Math.abs(accountBox!.height - householdBox!.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(accountBox!.y - householdBox!.y)).toBeLessThanOrEqual(1);
+    } else {
+      expect(householdBox!.y).toBeGreaterThan(accountBox!.y + accountBox!.height);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
     const axe = await new AxeBuilder({ page })
@@ -71,10 +91,12 @@ test("Profile Display Name controls remain usable and accessible at the mobile m
       .analyze();
     expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
 
-    const more = page.getByRole("button", { name: /More/u });
-    await more.click();
-    await expect(page.getByRole("dialog", { name: "More" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Log Out" })).toBeVisible();
-    await page.keyboard.press("Escape");
+    if (viewport.width < 1024) {
+      const more = page.getByRole("button", { name: /More/u });
+      await more.click();
+      await expect(page.getByRole("dialog", { name: "More" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Log Out" })).toBeVisible();
+      await page.keyboard.press("Escape");
+    }
   }
 });

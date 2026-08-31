@@ -29,6 +29,7 @@ import {
 } from "@/domain/expenses/expense-financial-fingerprint";
 import {
   assertHousehold,
+  PROFILE_DISPLAY_NAME_MAX_LENGTH,
   toBalanceExpense,
   type AuditEvent,
   type Card,
@@ -181,6 +182,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   }
 
   async updateCurrentProfile(input: Parameters<AtomicApplicationPersistence["updateCurrentProfile"]>[0]): Promise<void> {
+    if (input.displayName.length > PROFILE_DISPLAY_NAME_MAX_LENGTH) {
+      throw new ApplicationError("INVALID_INPUT", "Display name must be 20 characters or fewer.");
+    }
     if (input.idempotency.actorId !== input.actorId || input.idempotency.commandType !== "update-profile-display-name") {
       throw new ApplicationError("CONFLICT", "Profile command identity is inconsistent.");
     }

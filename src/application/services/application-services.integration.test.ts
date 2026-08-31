@@ -1270,6 +1270,21 @@ describe("Phase 4 application services with IndexedDB", () => {
     expect(persisted).toEqual(updated);
   });
 
+  it("enforces the trimmed 1-to-20-character Profile Display Name boundary", async () => {
+    let version = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!.version;
+    const one = await application.profiles.updateCurrentProfile(" A ", version, commandId("profile-one-char"));
+    expect(one.displayName).toBe("A");
+    version = one.version;
+    const twenty = await application.profiles.updateCurrentProfile("B".repeat(20), version, commandId("profile-twenty-char"));
+    expect(twenty.displayName).toBe("B".repeat(20));
+    await expect(application.profiles.updateCurrentProfile("C".repeat(21), twenty.version, commandId("profile-twenty-one-char"))).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: "Display name must be 20 characters or fewer.",
+    });
+    await expect(application.profiles.updateCurrentProfile("   ", twenty.version, commandId("profile-whitespace"))).rejects.toBeDefined();
+    expect((await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))?.displayName).toBe("B".repeat(20));
+  });
+
   it("replays a committed Profile rename without another version increment and rejects changed intent reuse", async () => {
     const before = (await repositories.profiles.getById(SEEDED_USER_IDS.raiyan))!;
     const id = commandId("profile-replay");

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/password-field";
 import { useAuthForm } from "../use-auth-form";
 
 const signupSchema = z.object({
@@ -56,32 +57,22 @@ export function SignupForm() {
         />
         {form.formState.errors.email ? <p id="signup-email-error" className="text-caption text-danger">{form.formState.errors.email.message}</p> : null}
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="signup-password">Password</Label>
-        <Input
-          id="signup-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          aria-invalid={Boolean(form.formState.errors.password)}
-          aria-describedby={form.formState.errors.password ? "signup-password-error" : undefined}
-          {...form.register("password")}
-        />
-        {form.formState.errors.password ? <p id="signup-password-error" className="text-caption text-danger">{form.formState.errors.password.message}</p> : null}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-        <Input
-          id="signup-confirm-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          aria-invalid={Boolean(form.formState.errors.confirmPassword)}
-          aria-describedby={form.formState.errors.confirmPassword ? "signup-confirm-password-error" : undefined}
-          {...form.register("confirmPassword")}
-        />
-        {form.formState.errors.confirmPassword ? <p id="signup-confirm-password-error" className="text-caption text-danger">{form.formState.errors.confirmPassword.message}</p> : null}
-      </div>
+      <PasswordField
+        id="signup-password"
+        label="Password"
+        autoComplete="new-password"
+        required
+        error={form.formState.errors.password?.message}
+        {...form.register("password")}
+      />
+      <PasswordField
+        id="signup-confirm-password"
+        label="Confirm Password"
+        autoComplete="new-password"
+        required
+        error={form.formState.errors.confirmPassword?.message}
+        {...form.register("confirmPassword")}
+      />
       {error ? <p className="text-caption text-danger" role="alert">{error}</p> : null}
       {accountExists ? (
         <p className="text-caption text-text-secondary">

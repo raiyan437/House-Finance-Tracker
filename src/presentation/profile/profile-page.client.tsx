@@ -48,8 +48,8 @@ export function ProfilePageClient() {
         description="Your local account and current household membership."
       />
 
-      <div className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-        <Surface padding="large" aria-labelledby="profile-account-heading">
+      <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+        <Surface className="h-full" padding="large" aria-labelledby="profile-account-heading">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <MemberAvatar
               className="size-20 shrink-0 text-xl font-semibold ring-4 ring-brand-soft"
@@ -79,7 +79,7 @@ export function ProfilePageClient() {
           </dl>
         </Surface>
 
-        <Surface padding="large" aria-labelledby="profile-household-heading">
+        <Surface className="h-full" padding="large" aria-labelledby="profile-household-heading">
           <div className="flex size-11 items-center justify-center rounded-xl bg-brand-soft">
             {hasHousehold ? <House aria-hidden="true" className="size-5" /> : <UserRound aria-hidden="true" className="size-5" />}
           </div>

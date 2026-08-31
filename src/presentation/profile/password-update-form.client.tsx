@@ -3,11 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm, type UseFormRegisterReturn } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/password-field";
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required.").max(256, "Current password is too long."),
@@ -34,7 +33,7 @@ export function PasswordUpdateForm() {
 
   return (
     <form
-      className="mt-5 grid gap-4 sm:grid-cols-2"
+      className="mt-5 grid w-full max-w-xl gap-4"
       noValidate
       onSubmit={form.handleSubmit(async (values) => {
         setServerError(undefined);
@@ -67,54 +66,28 @@ export function PasswordUpdateForm() {
         label="Current Password"
         autoComplete="current-password"
         error={form.formState.errors.currentPassword?.message}
-        registration={form.register("currentPassword")}
-        className="sm:col-span-2"
+        {...form.register("currentPassword")}
       />
       <PasswordField
         id="profile-new-password"
         label="New Password"
         autoComplete="new-password"
         error={form.formState.errors.newPassword?.message}
-        registration={form.register("newPassword")}
+        {...form.register("newPassword")}
       />
       <PasswordField
         id="profile-confirm-password"
         label="Confirm New Password"
         autoComplete="new-password"
         error={form.formState.errors.confirmPassword?.message}
-        registration={form.register("confirmPassword")}
+        {...form.register("confirmPassword")}
       />
-      {serverError ? <p className="text-caption text-danger sm:col-span-2" role="alert">{serverError}</p> : null}
-      <div className="sm:col-span-2">
+      {serverError ? <p className="text-caption text-danger" role="alert">{serverError}</p> : null}
+      <div>
         <Button type="submit" disabled={form.formState.isSubmitting} aria-busy={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Updating password…" : "Update Password"}
         </Button>
       </div>
     </form>
-  );
-}
-
-function PasswordField({
-  id,
-  label,
-  autoComplete,
-  error,
-  registration,
-  className,
-}: Readonly<{
-  id: string;
-  label: string;
-  autoComplete: "current-password" | "new-password";
-  error?: string;
-  registration: UseFormRegisterReturn;
-  className?: string;
-}>) {
-  const errorId = `${id}-error`;
-  return (
-    <div className={`space-y-2 ${className ?? ""}`}>
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type="password" autoComplete={autoComplete} required aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} {...registration} />
-      {error ? <p id={errorId} className="text-caption text-danger">{error}</p> : null}
-    </div>
   );
 }

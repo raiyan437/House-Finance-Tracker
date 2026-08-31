@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { PasswordField } from "@/components/ui/password-field";
 import { Button } from "@/components/ui/button";
 import { useAuthForm } from "../use-auth-form";
 
@@ -22,12 +23,9 @@ export function LoginForm() {
     >
       <div className="space-y-2">
         <Label htmlFor="login-email">Email</Label>
-        <Input id="login-email" name="email" type="email" autoComplete="email" required />
+        <Input id="login-email" name="email" type="email" autoComplete="username" required />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="login-password">Password</Label>
-        <Input id="login-password" name="password" type="password" autoComplete="current-password" required />
-      </div>
+      <PasswordField id="login-password" name="password" label="Password" autoComplete="current-password" required />
       {error ? <p className="text-caption text-danger" role="alert">{error}</p> : null}
       <Button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Signing in…" : "Sign In"}</Button>
     </form>

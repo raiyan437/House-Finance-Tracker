@@ -185,6 +185,22 @@ describe("trusted Appwrite command kernel", () => {
       expect(await reader.getRow("profiles", String(LEADER))).toEqual(before);
       expect(await reader.listRows("command_outcomes")).toEqual([]);
     });
+
+    it("rejects an over-limit Display Name at the authoritative persistence boundary", async () => {
+      const displayName = "N".repeat(21);
+      await expect(persistence.updateCurrentProfile({
+        actorId: LEADER,
+        displayName,
+        expectedVersion: 3,
+        occurredAt: T1,
+        idempotency: profileDescriptor("profile-too-long", displayName),
+      })).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+        message: "Display name must be 20 characters or fewer.",
+      });
+      expect(await reader.getRow("profiles", String(LEADER))).toMatchObject({ displayName: "Raiyan", version: 3 });
+      expect(await reader.listRows("command_outcomes")).toEqual([]);
+    });
   });
 
   describe("protected creates", () => {

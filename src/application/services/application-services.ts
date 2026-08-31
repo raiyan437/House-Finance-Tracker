@@ -42,6 +42,7 @@ import {
   assertJoinRequest,
   assertReceiptMetadata,
   assertUserProfile,
+  PROFILE_DISPLAY_NAME_MAX_LENGTH,
   toBalanceExpense,
   type AuditEvent,
   type Card,
@@ -170,6 +171,9 @@ export class ProfileApplicationService {
   async updateCurrentProfile(displayNameInput: string, expectedVersion: number, commandIdValue: CommandId): Promise<UserProfile> {
     const actor = await this.deps.session.getCurrentUserId();
     const displayName = displayNameInput.trim();
+    if (displayName.length > PROFILE_DISPLAY_NAME_MAX_LENGTH) {
+      throw new ApplicationError("INVALID_INPUT", "Display name must be 20 characters or fewer.");
+    }
     const current = await this.getCurrentProfile();
     assertUserProfile({ ...current, displayName });
     const idempotency: IdempotencyDescriptor = {
