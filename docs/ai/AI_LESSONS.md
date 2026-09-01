@@ -176,3 +176,9 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 
 - A form action aligned to a field wrapper that also contains help/error text aligns to the message block rather than the input. Keep the label and help/error association intact, but place the input and action in their own `align-items: end` grid row so equal control heights produce a true baseline without pixel nudges.
 - Password visibility is safest as a shared Input-composing control: independent local state per instance, `type="button"`, changing accessible name/pressed state, a 44px target, reserved input padding, and pointer focus preservation. This centralizes password-manager semantics without coupling visibility to form value, dirty, touched, validation, or persistence state.
+
+## 2026-09-01 - Resumable production-data reset
+
+- A verified pre-reset backup is a monotonic coverage contract, not an equality contract after deletion begins. Initial execution should require exact inventory parity; a safe resume must accept only the same verified backup whose per-table/file counts are greater than or equal to every remaining live count, while still refusing any post-backup growth.
+- Maintenance restoration belongs in `finally` and must verify the same active deployment, enabled state, schedule, and empty client execute permissions even when deletion fails midway. A partial reset is recoverable only when infrastructure is restored before diagnosis or retry.
+- Destructive operator diagnostics should identify the fixed operation stage (Storage, table name, or Auth) without printing row identifiers, emails, payloads, provider messages, or secret material. This keeps failures actionable without turning the reset log into a production-data export.
