@@ -54,6 +54,23 @@ export interface ResetDeletionResult {
   readonly authUsers: { readonly deleted: number; readonly alreadyMissing: number };
 }
 
+export function assertBackupCoversInventory(
+  backupTableCounts: Readonly<Record<string, number>>,
+  backupStorageFileCount: number,
+  currentTableCounts: Readonly<Record<string, number>>,
+  currentStorageFileCount: number,
+): void {
+  for (const [tableId, currentCount] of Object.entries(currentTableCounts)) {
+    const backupCount = backupTableCounts[tableId];
+    if (!Number.isInteger(backupCount) || backupCount < currentCount) {
+      throw new Error(`Production reset refused: backup does not cover current ${tableId} rows.`);
+    }
+  }
+  if (backupStorageFileCount < currentStorageFileCount) {
+    throw new Error("Production reset refused: backup does not cover current Receipt files.");
+  }
+}
+
 function argumentValue(argv: readonly string[], name: string): string | undefined {
   const index = argv.indexOf(name);
   return index >= 0 ? argv[index + 1] : undefined;

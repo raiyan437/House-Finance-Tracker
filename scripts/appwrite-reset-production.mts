@@ -18,6 +18,7 @@ import {
   EXPECTED_SCHEMA_VERSION,
   PRODUCTION_ORIGIN,
   RESET_TABLE_ORDER,
+  assertBackupCoversInventory,
   assertExpectedProductionTarget,
   classifyAuthUsers,
   deleteProductionTestData,
@@ -164,12 +165,12 @@ function verifyBackupForInventory(directory: string, inventory: Inventory): stri
   if (verification.status !== 0) throw new Error("Production reset refused: external backup verification failed.");
   const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8")) as BackupManifestSummary;
   if (manifest.projectId !== inventory.projectId) throw new Error("Production reset refused: backup project does not match production.");
-  for (const [tableId, count] of Object.entries(inventory.rowCounts)) {
-    if (manifest.tableCounts[tableId] !== count) throw new Error(`Production reset refused: backup row count does not match ${tableId}.`);
-  }
-  if (manifest.receipts.length !== inventory.storageFileCount) {
-    throw new Error("Production reset refused: backup Receipt count does not match Storage.");
-  }
+  assertBackupCoversInventory(
+    manifest.tableCounts,
+    manifest.receipts.length,
+    inventory.rowCounts,
+    inventory.storageFileCount,
+  );
   return root;
 }
 
@@ -218,6 +219,12 @@ function resetOperations(tables: TablesDB, storage: Storage, users: Users): Rese
   };
 }
 
+function operationStage(error: unknown, stage: string): Error {
+  const providerCode = Number((error as { code?: unknown }).code);
+  const suffix = Number.isFinite(providerCode) && providerCode > 0 ? ` (provider ${providerCode})` : "";
+  return new Error(`Production reset stopped during ${stage}${suffix}.`, { cause: error });
+}
+
 async function main(): Promise<void> {
   const args = parseResetArguments(process.argv.slice(2));
   const env = loadProductionResetEnv();
@@ -251,7 +258,15 @@ async function main(): Promise<void> {
       throw new Error("Production reset stopped: maintenance schedule pause could not be verified.");
     }
     maintenancePaused = true;
-    deletionResult = await deleteProductionTestData(resetOperations(tables, storage, users));
+    const operations = resetOperations(tables, storage, users);
+    deletionResult = await deleteProductionTestData({
+      listStorageFileIds: () => operations.listStorageFileIds().catch((error) => { throw operationStage(error, "Storage listing"); }),
+      deleteStorageFile: (fileId) => operations.deleteStorageFile(fileId).catch((error) => { throw operationStage(error, "Storage deletion"); }),
+      listRowIds: (tableId) => operations.listRowIds(tableId).catch((error) => { throw operationStage(error, `${tableId} listing`); }),
+      deleteRow: (tableId, rowId) => operations.deleteRow(tableId, rowId).catch((error) => { throw operationStage(error, `${tableId} deletion`); }),
+      listAuthUserIds: () => operations.listAuthUserIds().catch((error) => { throw operationStage(error, "Auth listing"); }),
+      deleteAuthUser: (userId) => operations.deleteAuthUser(userId).catch((error) => { throw operationStage(error, "Auth deletion"); }),
+    });
   } catch (error) {
     resetError = error;
   } finally {

@@ -4,6 +4,7 @@ import {
   PRODUCTION_PROJECT_ID,
   RESET_CONFIRMATION,
   RESET_TABLE_ORDER,
+  assertBackupCoversInventory,
   assertExpectedProductionTarget,
   classifyAuthUsers,
   deleteProductionTestData,
@@ -58,6 +59,27 @@ describe("production reset safety", () => {
     ]);
     expect(JSON.stringify(users)).not.toContain("Person@Example.com");
     expect(JSON.stringify(users)).not.toContain("approved-id");
+  });
+
+  it("allows a verified pre-reset backup to cover resumable partial progress", () => {
+    expect(() => assertBackupCoversInventory(
+      { profiles: 3, schema_metadata: 1 },
+      3,
+      { profiles: 2, schema_metadata: 1 },
+      0,
+    )).not.toThrow();
+    expect(() => assertBackupCoversInventory(
+      { profiles: 2, schema_metadata: 1 },
+      3,
+      { profiles: 3, schema_metadata: 1 },
+      0,
+    )).toThrow("does not cover current profiles rows");
+    expect(() => assertBackupCoversInventory(
+      { profiles: 3, schema_metadata: 1 },
+      2,
+      { profiles: 3, schema_metadata: 1 },
+      3,
+    )).toThrow("does not cover current Receipt files");
   });
 
   it("deletes files, rows in dependency order, then users, and is resumable", async () => {
