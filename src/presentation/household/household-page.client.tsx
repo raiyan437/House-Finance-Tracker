@@ -183,7 +183,7 @@ function ActiveHouseholdView({
           <h2 className="panel-title">House Leader</h2>
         </div>
         <div className="mt-5 flex items-center gap-3 rounded-xl bg-secondary/45 p-4">
-          <MemberAvatar className="size-11" displayName={page.leader.displayName} />
+          <MemberAvatar className="size-11" displayName={page.leader.displayName} userId={page.leader.memberId} />
           <div className="min-w-0">
             <p className="break-words font-medium">{page.leader.displayName}</p>
             <p className="text-caption text-text-secondary">Leader</p>

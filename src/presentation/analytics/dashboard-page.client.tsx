@@ -127,6 +127,7 @@ function MemberAvatars({ members }: Pick<DashboardPageView, "members">) {
           <MemberAvatar
             className={`size-9 ring-2 ring-background ${index === 0 ? "[&_[data-slot=avatar-fallback]]:bg-[#282828] [&_[data-slot=avatar-fallback]]:text-white" : index === 1 ? "[&_[data-slot=avatar-fallback]]:bg-[#ddebff]" : index === 2 ? "[&_[data-slot=avatar-fallback]]:bg-[#e8e1ff]" : "[&_[data-slot=avatar-fallback]]:bg-[#cff4e2]"} [&_[data-slot=avatar-fallback]]:text-mini`}
             displayName={member.displayName}
+            userId={member.userId}
             key={member.userId}
           />
         ))}
@@ -214,7 +215,7 @@ function MemberContributionsCard({ month, contributions }: Readonly<{ month: str
         <ul className="mt-3 grid max-h-[76px] content-start gap-2 overflow-y-auto pr-1">
           {contributions.map((member) => (
             <li className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2" key={member.userId}>
-              <MemberAvatar className="size-6 [&_[data-slot=avatar-fallback]]:bg-secondary [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={member.displayName} />
+              <MemberAvatar className="size-6 [&_[data-slot=avatar-fallback]]:bg-secondary [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={member.displayName} userId={member.userId} />
               <p className="truncate text-row font-medium">{member.displayName}{member.isCurrentUser ? " (You)" : ""}{member.isFormerMember ? " · Former" : ""}</p>
               <p aria-label={`${member.displayName} paid ${formatBdt(member.paid)}`} className="financial-numerals text-row font-semibold">{formatBdt(member.paid)}</p>
             </li>
@@ -243,7 +244,7 @@ function HousemateBalances({ view }: Readonly<{ view: DashboardPageView }>) {
         <ul className="flex-1">
           {view.housemateBalances.map((member) => (
             <li className="grid h-[54px] grid-cols-[36px_minmax(0,1fr)_104px] items-center gap-3" key={member.userId}>
-              <MemberAvatar className="size-9 [&_[data-slot=avatar-fallback]]:bg-secondary [&_[data-slot=avatar-fallback]]:text-mini" displayName={member.displayName} />
+              <MemberAvatar className="size-9 [&_[data-slot=avatar-fallback]]:bg-secondary [&_[data-slot=avatar-fallback]]:text-mini" displayName={member.displayName} userId={member.userId} />
               <div className="min-w-0"><p className="truncate text-row font-semibold">{member.displayName}{member.isCurrentUser ? " (You)" : ""}</p><p className="text-fine text-text-muted">{member.state === "gets-back" ? "Gets back" : member.state === "owes" ? "Owes" : "Settled"}</p></div>
               <p className={`financial-numerals flex h-[30px] items-center justify-center rounded-full text-xs font-semibold ${member.state === "gets-back" ? "bg-success-soft text-success" : member.state === "owes" ? "bg-danger-soft text-danger" : "bg-secondary text-text-secondary"}`}>{member.state === "gets-back" ? "+" : member.state === "owes" ? "-" : ""}{formatBdt(absolutePoisha(member.balance))}</p>
             </li>

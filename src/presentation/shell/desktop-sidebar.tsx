@@ -210,8 +210,10 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps = {}
             title={isCollapsed ? `Open profile for ${runtime.session.displayName}` : undefined}
           >
             <MemberRow
+              avatarVersion={runtime.session.profileVersion}
               compact={isCollapsed}
               displayName={runtime.session.displayName}
+              userId={runtime.capabilities.avatarContentReads ? runtime.session.userId : undefined}
               secondaryText={runtime.session.roleLabel}
               className="w-full [&_[data-slot=avatar]]:size-[42px] [&_p:first-child]:text-row [&_p:last-child]:text-fine [&_p:last-child]:text-text-muted"
             />

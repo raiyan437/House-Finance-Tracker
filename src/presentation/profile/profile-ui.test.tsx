@@ -18,7 +18,7 @@ function readyRuntime(
 ): ApplicationRuntimeState {
   return {
     status: "ready",
-      capabilities: FULL_LOCAL_CAPABILITIES,
+    capabilities: production ? { ...FULL_LOCAL_CAPABILITIES, avatarContentReads: true, avatarMutations: true } : FULL_LOCAL_CAPABILITIES,
     session,
     household: { status: "no-household" },
     householdActions: {
@@ -43,7 +43,7 @@ function readyRuntime(
       getRemovalPreview: vi.fn(), deleteOrArchive: vi.fn(),
     },
     analyticsActions: { getDashboard: vi.fn(), getMonthlyReport: vi.fn() },
-    profileActions: { updateDisplayName: vi.fn() },
+    profileActions: { updateDisplayName: vi.fn(), replaceAvatar: vi.fn() },
     ...(production ? { signOut: vi.fn() } : {}),
   };
 }
@@ -176,6 +176,43 @@ describe("Profile presentation", () => {
     expect(screen.getByLabelText("Current Password")).toHaveAttribute("autocomplete", "current-password");
     expect(screen.getByLabelText("New Password")).toHaveAttribute("autocomplete", "new-password");
     expect(screen.getByLabelText("Confirm New Password")).toHaveAttribute("type", "password");
+  });
+
+  it("validates, previews, replaces, and revokes Profile Picture object URLs", async () => {
+    const createObjectURL = vi.fn()
+      .mockReturnValueOnce("blob:first")
+      .mockReturnValueOnce("blob:second");
+    const revokeObjectURL = vi.fn();
+    const NativeURL = URL;
+    class TestURL extends NativeURL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = revokeObjectURL;
+    }
+    vi.stubGlobal("URL", TestURL);
+    const user = userEvent.setup();
+    const runtime = readyRuntime({
+      userId: userId("profile-raiyan"), displayName: "Raiyan", displayEmail: "raiyan@test.io",
+      profileVersion: 3, roleLabel: "Leader", householdName: "Lake View House", settlementActionCount: 0,
+    }, true);
+    const replace = vi.mocked((runtime as Extract<ApplicationRuntimeState, { status: "ready" }>).profileActions.replaceAvatar!);
+    replace.mockResolvedValue(undefined);
+    const view = renderPage(runtime);
+    expect(screen.getByRole("heading", { name: "Profile Picture" })).toBeInTheDocument();
+    const input = screen.getByLabelText("Profile picture file");
+
+    await user.upload(input, new File([], "empty.png", { type: "image/png" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/valid JPEG, PNG or WebP/i);
+    expect(createObjectURL).not.toHaveBeenCalled();
+
+    await user.upload(input, new File([new Uint8Array([1])], "first.png", { type: "image/png" }));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    await user.upload(input, new File([new Uint8Array([2])], "second.webp", { type: "image/webp" }));
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:first"));
+    await user.click(screen.getByRole("button", { name: "Save Photo" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(expect.objectContaining({ name: "second.webp" }), 3, expect.any(String)));
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:second"));
+    expect(await screen.findByRole("status")).toHaveTextContent("Profile picture updated successfully.");
+    view.unmount();
   });
 
   it("keeps all three Profile password visibility controls independent", async () => {

@@ -8,7 +8,10 @@ const WORK_BUDGET_MS = 240_000;
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const LEASE_MS = 5 * 60 * 1000;
 const WARNING_BYTES = 800_000_000;
+const RECEIPT_STORAGE_PREFIX = "receipt_";
+const AVATAR_STORAGE_PREFIX = "avatar_";
 const TABLE = {
+  profiles: "profiles",
   receipts: "receipt_metadata",
   reservations: "receipt_reservations",
   guards: "coordination_guards",
@@ -23,15 +26,23 @@ function guardId(logicalKey) {
 }
 
 function storageIdFromReservation(reservationId) {
-  return reservationId.startsWith("q_") ? `f_${reservationId.slice(2)}` : undefined;
+  return reservationId.startsWith("q_") ? `${RECEIPT_STORAGE_PREFIX}${reservationId.slice(2)}` : undefined;
 }
 
 function metadataIdFromStorage(fileId) {
-  return fileId.startsWith("f_") ? `r_${fileId.slice(2)}` : undefined;
+  return fileId.startsWith(RECEIPT_STORAGE_PREFIX) ? `r_${fileId.slice(RECEIPT_STORAGE_PREFIX.length)}` : undefined;
 }
 
 function reservationIdFromStorage(fileId) {
-  return fileId.startsWith("f_") ? `q_${fileId.slice(2)}` : undefined;
+  return fileId.startsWith(RECEIPT_STORAGE_PREFIX) ? `q_${fileId.slice(RECEIPT_STORAGE_PREFIX.length)}` : undefined;
+}
+
+function isReceiptStorageId(fileId) {
+  return fileId.startsWith(RECEIPT_STORAGE_PREFIX) && fileId.length > RECEIPT_STORAGE_PREFIX.length;
+}
+
+function isAvatarStorageId(fileId) {
+  return fileId.startsWith(AVATAR_STORAGE_PREFIX) && fileId.length > AVATAR_STORAGE_PREFIX.length;
 }
 
 export function retainedReceiptCutoff(now = new Date()) {
@@ -164,6 +175,9 @@ async function retentionStage({ tables, storage, now, cutoff, withinBudget }) {
     }
     const current = await optional(() => tables.getRow({ databaseId: DATABASE_ID, tableId: TABLE.receipts, rowId: candidate.$id }));
     if (current && current.contentState === "available" && String(current.createdAt) < cutoff) {
+      if (!isReceiptStorageId(String(current.storageFileId))) {
+        throw new Error(`Receipt metadata ${current.$id} references a non-Receipt Storage resource.`);
+      }
       await storage.deleteFile({ bucketId: BUCKET_ID, fileId: String(current.storageFileId) }).catch((error) => {
         if (!isNotFound(error)) throw error;
       });
@@ -248,6 +262,10 @@ async function orphanStage({ tables, storage, nowMs, now, withinBudget }) {
       completedPage = false;
       break;
     }
+    if (!isReceiptStorageId(String(file.$id))) {
+      lastCursor = String(file.$id);
+      continue;
+    }
     const receiptId = metadataIdFromStorage(file.$id);
     const reservationId = reservationIdFromStorage(file.$id);
     const [metadata, reservation] = await Promise.all([
@@ -266,6 +284,36 @@ async function orphanStage({ tables, storage, nowMs, now, withinBudget }) {
   }
   const next = completedPage && page.files.length < PAGE_SIZE ? undefined : lastCursor;
   await saveCursor(tables, "orphans", next, now);
+  return processed;
+}
+
+async function avatarOrphanStage({ tables, storage, nowMs, now, withinBudget }) {
+  const previous = await cursor(tables, "avatar-orphans");
+  const queries = [Query.orderAsc("$createdAt"), Query.orderAsc("$id"), Query.limit(PAGE_SIZE)];
+  const [page, profiles] = await Promise.all([
+    storage.listFiles({ bucketId: BUCKET_ID, queries: previous ? [...queries, Query.cursorAfter(previous)] : queries }),
+    tables.listRows({ databaseId: DATABASE_ID, tableId: TABLE.profiles, queries: [Query.limit(5000)] }),
+  ]);
+  const authoritative = new Set(profiles.rows.map((profile) => profile.avatarFileId).filter((value) => typeof value === "string" && isAvatarStorageId(value)));
+  let processed = 0;
+  let lastCursor = previous;
+  let completedPage = true;
+  for (const file of page.files) {
+    if (!withinBudget()) {
+      completedPage = false;
+      break;
+    }
+    const fileId = String(file.$id);
+    if (isAvatarStorageId(fileId) && !authoritative.has(fileId) && Date.parse(file.$createdAt) <= nowMs - ORPHAN_GRACE_MS) {
+      await storage.deleteFile({ bucketId: BUCKET_ID, fileId }).catch((error) => {
+        if (!isNotFound(error)) throw error;
+      });
+      processed += 1;
+    }
+    lastCursor = fileId;
+  }
+  const next = completedPage && page.files.length < PAGE_SIZE ? undefined : lastCursor;
+  await saveCursor(tables, "avatar-orphans", next, now);
   return processed;
 }
 
@@ -336,6 +384,7 @@ export async function runMaintenance({ tables, storage, now = new Date(), log = 
     result.retention = await retentionStage({ tables, storage, now: nowIso, cutoff: retainedReceiptCutoff(now), withinBudget });
     if (withinBudget()) result.reservations = await staleReservationStage({ tables, storage, now: nowIso, withinBudget });
     if (withinBudget()) result.orphans = await orphanStage({ tables, storage, nowMs, now: nowIso, withinBudget });
+    if (withinBudget()) result.avatarOrphans = await avatarOrphanStage({ tables, storage, nowMs, now: nowIso, withinBudget });
     if (withinBudget()) result.quota = await quotaStage({ tables, now: nowIso });
     if (withinBudget()) result.terminalReservations = await terminalReservationStage({ tables, nowMs, now: nowIso });
     if (result.quota?.projectBytes >= WARNING_BYTES) log(`Receipt project usage warning: ${result.quota.projectBytes} bytes.`);

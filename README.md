@@ -4,7 +4,7 @@ Private shared household expense tracking with exact integer-poisha financials, 
 
 ## Current status
 
-Production v1.0.1 runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network), with live Schema V4 clean. The owner-authorized v1.1.0 change is currently uncommitted for review: approved emails can self-sign up through a trusted server-only allowlist without email verification, existing-account Signup remains non-destructive, and authenticated users can update their password from Profile before being returned to Login. Provider user limit `3` is recommended only after all three intended Auth accounts exist and remains an owner/Console action. No real account/password mutation, deployment, release, or tag is included in the local implementation authorization. See [`docs/ai/work/V1_1_AUTH_PLAN.md`](docs/ai/work/V1_1_AUTH_PLAN.md).
+Production runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). The v1.2.0 release adds the server-authoritative current-plus-previous-two Dhaka calendar-month Expense entry window and private one-picture-per-user Profile avatars. Live Schema V6 is additive and zero-drift; Receipt retention/quota remains Receipt-only, avatars have separate 24-hour orphan cleanup, and operator backup/restore covers authoritative Receipt and avatar binaries. Real Profile Picture mutation remains separately owner-gated.
 
 ## Commands
 

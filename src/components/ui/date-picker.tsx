@@ -51,6 +51,7 @@ interface CalendarMonthParts {
 
 interface DatePickerProps extends Omit<React.ComponentPropsWithoutRef<"button">, "children" | "onChange" | "value"> {
   readonly value?: string;
+  readonly min?: string;
   readonly max?: string;
   readonly onChange: (value: string) => void;
   readonly invalid?: boolean;
@@ -163,13 +164,29 @@ function sameDate(left: CalendarDateParts | undefined, right: CalendarDateParts)
   return left?.year === right.year && left.month === right.month && left.day === right.day;
 }
 
+function clampDate(
+  date: CalendarDateParts,
+  minimum: CalendarDateParts | undefined,
+  maximum: CalendarDateParts | undefined,
+): CalendarDateParts {
+  const key = dateKey(date);
+  if (minimum && key < dateKey(minimum)) return minimum;
+  if (maximum && key > dateKey(maximum)) return maximum;
+  return date;
+}
+
+function monthKey(month: CalendarMonthParts): number {
+  return month.year * 12 + month.month - 1;
+}
+
 const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function DatePicker(
-  { className, value, max, onChange, invalid = false, disabled, id, ...props },
+  { className, value, min, max, onChange, invalid = false, disabled, id, ...props },
   ref,
 ) {
   const selectedDate = parseDate(value);
+  const minimumDate = parseDate(min);
   const maximumDate = parseDate(max);
-  const initialDate = selectedDate ?? todayParts();
+  const initialDate = clampDate(selectedDate ?? todayParts(), minimumDate, maximumDate);
   const [open, setOpen] = React.useState(false);
   const [popoverSide, setPopoverSide] = React.useState<"bottom" | "top">("bottom");
   const [viewMonth, setViewMonth] = React.useState<CalendarMonthParts>(monthFromDate(initialDate));
@@ -181,13 +198,20 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
   const displayValue = formatDisplayDate(selectedDate);
   const selectedKey = selectedDate ? dateKey(selectedDate) : undefined;
   const focusKey = dateKey(focusDate);
+  const previousMonthUnavailable = Boolean(
+    minimumDate && monthKey(addMonths(viewMonth, -1)) < monthKey(monthFromDate(minimumDate)),
+  );
+  const nextMonthUnavailable = Boolean(
+    maximumDate && monthKey(addMonths(viewMonth, 1)) > monthKey(monthFromDate(maximumDate)),
+  );
 
   React.useEffect(() => {
     const nextSelectedDate = parseDate(value);
     if (!nextSelectedDate) return;
-    setViewMonth(monthFromDate(nextSelectedDate));
-    setFocusDate(nextSelectedDate);
-  }, [value]);
+    const next = clampDate(nextSelectedDate, parseDate(min), parseDate(max));
+    setViewMonth(monthFromDate(next));
+    setFocusDate(next);
+  }, [value, min, max]);
 
   function focusCalendarDate(nextDate: CalendarDateParts) {
     setFocusDate(nextDate);
@@ -203,6 +227,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
   }
 
   function selectDate(nextDate: CalendarDateParts) {
+    if (minimumDate && dateKey(nextDate) < dateKey(minimumDate)) return;
     if (maximumDate && dateKey(nextDate) > dateKey(maximumDate)) return;
     onChange(dateKey(nextDate));
     setViewMonth(monthFromDate(nextDate));
@@ -250,14 +275,14 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
     }
 
     event.preventDefault();
-    if (nextDate) focusCalendarDate(nextDate);
+    if (nextDate) focusCalendarDate(clampDate(nextDate, minimumDate, maximumDate));
   }
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (nextOpen) {
       setPopoverSide(window.innerWidth < 1024 ? "top" : "bottom");
-      const anchor = parseDate(value) ?? todayParts();
+      const anchor = clampDate(parseDate(value) ?? todayParts(), minimumDate, maximumDate);
       setViewMonth(monthFromDate(anchor));
       setFocusDate(anchor);
     }
@@ -306,6 +331,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
                 setViewMonth(nextMonth);
                 setFocusDate({ ...nextMonth, day: 1 });
               }}
+              disabled={previousMonthUnavailable}
               type="button"
             >
               <ChevronLeft aria-hidden="true" className="size-4" />
@@ -321,6 +347,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
                 setViewMonth(nextMonth);
                 setFocusDate({ ...nextMonth, day: 1 });
               }}
+              disabled={nextMonthUnavailable}
               type="button"
             >
               <ChevronRight aria-hidden="true" className="size-4" />
@@ -349,7 +376,9 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
                     const selected = key === selectedKey;
                     const todayDate = sameDate(today, date);
                     const inCurrentMonth = date.month === viewMonth.month && date.year === viewMonth.year;
+                    const beforeMinimum = Boolean(minimumDate && key < dateKey(minimumDate));
                     const afterMaximum = Boolean(maximumDate && key > dateKey(maximumDate));
+                    const unavailable = beforeMinimum || afterMaximum;
                     return (
                       <td className="p-0.5 text-center" key={key}>
                         <button
@@ -361,15 +390,15 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
                             !inCurrentMonth && "text-text-muted/50",
                             todayDate && !selected && "border border-brand bg-brand-soft text-foreground",
                             selected && "bg-primary font-semibold text-primary-foreground hover:bg-brand-hover",
-                            afterMaximum && "cursor-not-allowed text-text-disabled hover:bg-transparent",
+                            unavailable && "cursor-not-allowed text-text-disabled hover:bg-transparent",
                           )}
-                          disabled={afterMaximum}
+                          disabled={unavailable}
                           onClick={() => selectDate(date)}
                           onKeyDown={(event) => handleDayKeyDown(event, date)}
                           ref={(element) => {
                             dayRefs.current[key] = element;
                           }}
-                          tabIndex={focusKey === key ? 0 : -1}
+                          tabIndex={!unavailable && focusKey === key ? 0 : -1}
                           type="button"
                         >
                           {date.day}

@@ -18,7 +18,8 @@ import type { TablesReader } from "../reads/tables.server";
 import { ActorRequiredError, type TrustedActorResolution } from "./actor.server";
 import { createServerBackdatedConfirmationAuthority } from "./backdated-confirmation.server";
 import { ReceiptOperations } from "./receipt-operations.server";
-import { AppwriteReceiptStorage } from "./receipt-storage.server";
+import { AppwritePrivateImageStorage } from "./receipt-storage.server";
+import { AvatarOperations } from "./avatar-operations.server";
 
 export interface TrustedActor {
   readonly userId: UserId;
@@ -39,6 +40,7 @@ export interface ProductRequestContext {
   readonly dependencies: Dependencies;
   readonly application: HouseFinanceApplication;
   readonly receiptOperations: ReceiptOperations;
+  readonly avatarOperations: AvatarOperations;
   readonly capabilities: ProductCapabilities;
   /** Opaque HMAC-windowed throttle for house-code lookup/generation reads. */
   enforceHouseCodeThrottle(identityParts: readonly string[]): Promise<void>;
@@ -155,12 +157,14 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
     backdatedConfirmationAuthority,
   };
   const application = new HouseFinanceApplication(dependencies);
+  const privateImageStorage = new AppwritePrivateImageStorage(clients.storage());
   const receiptOperations = new ReceiptOperations(
     tablesDB,
-    new AppwriteReceiptStorage(clients.storage()),
+    privateImageStorage,
     actor.userId,
     () => String(values.now()),
   );
+  const avatarOperations = new AvatarOperations(tablesDB, privateImageStorage, actor.userId, () => String(values.now()));
   return Object.freeze({
     actor,
     repositories,
@@ -168,6 +172,7 @@ export function buildProductRequestContext(actor: TrustedActor): ProductRequestC
     dependencies,
     application,
     receiptOperations,
+    avatarOperations,
     capabilities: PRODUCTION_R4_CAPABILITIES,
     enforceHouseCodeThrottle: async (identityParts: readonly string[]) => {
       if (!authSecret) {

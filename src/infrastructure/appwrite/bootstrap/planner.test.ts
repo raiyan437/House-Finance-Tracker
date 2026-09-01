@@ -96,7 +96,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved capacity is present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
@@ -123,11 +123,37 @@ describe("schema bootstrap planner", () => {
 
   it("treats the approved profiles.displayName capacity as already correct", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("plans exactly the additive Profile avatar fields and metadata bump from clean Schema V5", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.profiles = {
+      columns: TABLES.find((table) => table.id === "profiles")!.columns
+        .map((column) => column.key)
+        .filter((key) => key !== "avatarFileId" && key !== "avatarUpdatedAt"),
+    };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
+    expect(plan.tables).toHaveLength(1);
+    expect(plan.tables[0]).toMatchObject({
+      tableExists: true,
+      table: { id: "profiles" },
+      columns: [
+        { key: "avatarFileId", kind: "string", size: 64, required: false },
+        { key: "avatarUpdatedAt", kind: "datetime", required: false },
+      ],
+      indexes: [],
+    });
+    expect(plan.safeStringCapacityIncreases).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.provisioning).toEqual([]);
+    expect(plan.errors).toEqual([]);
+    expect(plan.createMetadataRow).toBe(true);
+    expect(plan.metadataRowVersion).toBe(5);
   });
 
   it("refuses to shrink profiles.displayName from a capacity above the desired provider capacity", async () => {
@@ -191,7 +217,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved Schema V4 capacities and private column are present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 5 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);

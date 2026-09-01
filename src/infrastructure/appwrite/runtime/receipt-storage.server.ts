@@ -6,22 +6,25 @@ import { createHash } from "node:crypto";
 import { BUCKET_ID } from "../schema/definitions";
 import { isProviderNotFound, normalizedProviderFailure } from "../reads/provider-errors.server";
 
-export interface ReceiptStorageFile {
+export interface PrivateStorageFile {
   readonly id: string;
   readonly sizeBytes: number;
   readonly mimeType: string;
   readonly createdAt: string;
 }
 
-export interface ReceiptStoragePort {
-  create(fileId: string, bytes: Uint8Array, filename: string): Promise<ReceiptStorageFile>;
-  get(fileId: string): Promise<ReceiptStorageFile | undefined>;
+export interface PrivateImageStoragePort {
+  create(fileId: string, bytes: Uint8Array, filename: string): Promise<PrivateStorageFile>;
+  get(fileId: string): Promise<PrivateStorageFile | undefined>;
   read(fileId: string): Promise<Uint8Array | undefined>;
   remove(fileId: string): Promise<"deleted" | "missing">;
-  list(cursor?: string, limit?: number): Promise<readonly ReceiptStorageFile[]>;
+  list(cursor?: string, limit?: number): Promise<readonly PrivateStorageFile[]>;
 }
 
-function mapFile(file: Models.File): ReceiptStorageFile {
+export type ReceiptStorageFile = PrivateStorageFile;
+export type ReceiptStoragePort = PrivateImageStoragePort;
+
+function mapFile(file: Models.File): PrivateStorageFile {
   return Object.freeze({ id: file.$id, sizeBytes: file.sizeOriginal, mimeType: file.mimeType, createdAt: file.$createdAt });
 }
 
@@ -29,10 +32,10 @@ export function sha256Bytes(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-export class AppwriteReceiptStorage implements ReceiptStoragePort {
+export class AppwritePrivateImageStorage implements PrivateImageStoragePort {
   constructor(private readonly storage: Storage) {}
 
-  async create(fileId: string, bytes: Uint8Array, filename: string): Promise<ReceiptStorageFile> {
+  async create(fileId: string, bytes: Uint8Array, filename: string): Promise<PrivateStorageFile> {
     try {
       const file = await this.storage.createFile({
         bucketId: BUCKET_ID,
@@ -46,7 +49,7 @@ export class AppwriteReceiptStorage implements ReceiptStoragePort {
     }
   }
 
-  async get(fileId: string): Promise<ReceiptStorageFile | undefined> {
+  async get(fileId: string): Promise<PrivateStorageFile | undefined> {
     try {
       return mapFile(await this.storage.getFile({ bucketId: BUCKET_ID, fileId }));
     } catch (error) {
@@ -74,7 +77,7 @@ export class AppwriteReceiptStorage implements ReceiptStoragePort {
     }
   }
 
-  async list(cursor?: string, limit = 25): Promise<readonly ReceiptStorageFile[]> {
+  async list(cursor?: string, limit = 25): Promise<readonly PrivateStorageFile[]> {
     try {
       const queries = [Query.orderAsc("$createdAt"), Query.orderAsc("$id"), Query.limit(limit)];
       const result = await this.storage.listFiles({ bucketId: BUCKET_ID, queries: cursor ? [...queries, Query.cursorAfter(cursor)] : queries });
@@ -84,3 +87,5 @@ export class AppwriteReceiptStorage implements ReceiptStoragePort {
     }
   }
 }
+
+export class AppwriteReceiptStorage extends AppwritePrivateImageStorage {}

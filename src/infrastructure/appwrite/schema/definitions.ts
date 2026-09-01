@@ -1,3 +1,5 @@
+import { MAX_AVATAR_BYTES } from "@/domain/profile/avatar-policy";
+
 export type ColumnKind = "string" | "bigint" | "integer" | "datetime" | "boolean" | "enum";
 
 export interface ColumnDefinition {
@@ -27,16 +29,16 @@ export const DATABASE_NAME = "House Finance Tracker";
 
 export const BUCKET_ID = "receipts";
 export const RECEIPT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const AVATAR_MAX_FILE_BYTES = MAX_AVATAR_BYTES;
 
 export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 /**
- * v5 (v1.1 Profile Display Name): non-destructively widens the existing required
- * Profile Display Name column. These values are provider storage capacities,
- * never product validation rules.
+ * v6 (v1.2 Profile Picture): adds two optional private Profile infrastructure
+ * fields. The earlier v5 Display Name widening remains unchanged.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const SCHEMA_METADATA_ROW_ID = "active";
 export const PROFILE_DISPLAY_NAME_STORAGE_CAPACITY = 16_383;
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
@@ -101,7 +103,14 @@ export const TABLES: readonly TableDefinition[] = [
   {
     id: "profiles",
     name: "Profiles",
-    columns: [text("displayName", PROFILE_DISPLAY_NAME_STORAGE_CAPACITY, true), integer("version", true), iso("createdAt", true), iso("updatedAt", true)],
+    columns: [
+      text("displayName", PROFILE_DISPLAY_NAME_STORAGE_CAPACITY, true),
+      text("avatarFileId", 64, false),
+      iso("avatarUpdatedAt", false),
+      integer("version", true),
+      iso("createdAt", true),
+      iso("updatedAt", true),
+    ],
     indexes: [],
   },
   {

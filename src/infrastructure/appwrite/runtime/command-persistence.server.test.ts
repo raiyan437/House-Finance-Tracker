@@ -730,10 +730,63 @@ describe("trusted Appwrite command kernel", () => {
         receipts: [], auditEvent: expenseAudit("e_future"), idempotency: expenseDescriptor("e_future"),
       })).rejects.toMatchObject({ code: "EXPENSE_DATE_IN_FUTURE" });
 
+      const tooOld = { ...expenseRecord("e_too_old"), expenseDate: expenseDate("2026-05-31") };
+      await expect(persistence.createExpense({
+        expense: tooOld, actorId: LEADER, commandId: expenseDescriptor("e_too_old").commandId,
+        receipts: [], auditEvent: expenseAudit("e_too_old"), idempotency: expenseDescriptor("e_too_old"),
+      })).rejects.toMatchObject({ code: "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW" });
+      expect(await reader.getRow("expenses", "e_too_old")).toBeUndefined();
+
       await expect(persistence.createExpense({
         expense: expenseRecord("e_receipt"), actorId: LEADER, commandId: expenseDescriptor("e_receipt").commandId,
         receipts: [{ metadata: {} as never, content: {} as never }], auditEvent: expenseAudit("e_receipt"), idempotency: expenseDescriptor("e_receipt"),
       })).rejects.toMatchObject({ code: "COMMANDS_UNAVAILABLE" });
+    });
+
+    it("allows an old Expense name edit but rejects changing it to another out-of-window date", async () => {
+      const original = expenseRecord("e_historical");
+      await persistence.createExpense({
+        expense: original, actorId: LEADER, commandId: expenseDescriptor("e_historical").commandId,
+        receipts: [], auditEvent: expenseAudit("e_historical"), idempotency: expenseDescriptor("e_historical"),
+      });
+      reader.seed("expenses", (await reader.listRows("expenses")).map((row) => (
+        row.$id === "e_historical" ? { ...row, expenseDate: "2026-05-31" } : row
+      )));
+
+      const historical: Expense = { ...original, expenseDate: expenseDate("2026-05-31") };
+      const renamed: Expense = {
+        ...historical,
+        name: "Historical renamed",
+        revision: 2,
+        updatedAt: isoInstant("2026-08-26T10:00:00.000Z"),
+      };
+      await runWithCommandEnvelope(
+        { commandType: "edit-expense", commandId: "k_edit_historical", intentSeed: { expenseId: "e_historical", name: renamed.name } },
+        () => persistence.editExpense({
+          expectedExpenseId: historical.expenseId, actorId: LEADER, commandId: commandId("k_edit_historical"),
+          expense: renamed, expectedRevision: 1, backdatedConfirmationApplicable: false,
+          auditEvents: [{ ...expenseAudit("e_historical", "edited", renamed.updatedAt), auditEventId: auditEventId("a_e_historical_renamed") }],
+        }),
+      );
+      expect(await reader.getRow("expenses", "e_historical")).toMatchObject({
+        name: "Historical renamed", expenseDate: "2026-05-31", revision: 2,
+      });
+
+      const changedDate: Expense = {
+        ...renamed,
+        expenseDate: expenseDate("2026-05-30"),
+        revision: 3,
+        updatedAt: isoInstant("2026-08-26T11:00:00.000Z"),
+      };
+      await expect(runWithCommandEnvelope(
+        { commandType: "edit-expense", commandId: "k_edit_historical_date", intentSeed: { expenseId: "e_historical", expenseDate: changedDate.expenseDate } },
+        () => persistence.editExpense({
+          expectedExpenseId: historical.expenseId, actorId: LEADER, commandId: commandId("k_edit_historical_date"),
+          expense: changedDate, expectedRevision: 2, backdatedConfirmationApplicable: false,
+          auditEvents: [{ ...expenseAudit("e_historical", "edited", changedDate.updatedAt), auditEventId: auditEventId("a_e_historical_date") }],
+        }),
+      )).rejects.toMatchObject({ code: "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW" });
+      expect(await reader.getRow("expenses", "e_historical")).toMatchObject({ expenseDate: "2026-05-31", revision: 2 });
     });
 
     it("enforces revision OCC and the Confirmed-Settlement financial lock while allowing name-only edit", async () => {

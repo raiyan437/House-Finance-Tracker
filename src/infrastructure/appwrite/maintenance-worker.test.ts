@@ -33,7 +33,7 @@ function guard(logicalKey: string, counter: number) {
 function receipt(id: string, createdAt: string, overrides: Record<string, unknown> = {}) {
   return {
     $id: id,
-    storageFileId: `f_${id.slice(2)}`,
+    storageFileId: `receipt_${id.slice(2)}`,
     uploaderId: "u_creator",
     householdId: "h_house",
     expenseId: "e_expense",
@@ -68,6 +68,7 @@ function instrumentedTables(reader: InMemoryTablesReader): { tables: TablesDB; c
 }
 
 function seedBase(reader: InMemoryTablesReader) {
+  reader.seed("profiles", []);
   reader.seed("receipt_metadata", []);
   reader.seed("receipt_reservations", []);
   reader.seed("coordination_guards", []);
@@ -87,15 +88,15 @@ describe("bounded Appwrite maintenance worker", () => {
       guard("receipt-project-bytes", 200),
     ]);
     const storage = new MaintenanceStorage();
-    storage.files.set("f_old", { $id: "f_old", $createdAt: "2026-05-31T17:59:59.999Z" });
-    storage.files.set("f_equal", { $id: "f_equal", $createdAt: "2026-05-31T18:00:00.000Z" });
+    storage.files.set("receipt_old", { $id: "receipt_old", $createdAt: "2026-05-31T17:59:59.999Z" });
+    storage.files.set("receipt_equal", { $id: "receipt_equal", $createdAt: "2026-05-31T18:00:00.000Z" });
     const instrumented = instrumentedTables(reader);
 
     await expect(runMaintenance({ tables: instrumented.tables, storage, now: NOW })).resolves.toMatchObject({ status: "completed" });
     expect(await reader.getRow("receipt_metadata", "r_old")).toMatchObject({ contentState: "retention-expired", contentRemovedAt: NOW.toISOString(), contentRemovedByUserId: null });
     expect(await reader.getRow("receipt_metadata", "r_equal")).toMatchObject({ contentState: "available" });
-    expect(storage.files.has("f_old")).toBe(false);
-    expect(storage.files.has("f_equal")).toBe(true);
+    expect(storage.files.has("receipt_old")).toBe(false);
+    expect(storage.files.has("receipt_equal")).toBe(true);
     expect(Math.max(...instrumented.committedOperationCounts)).toBeLessThanOrEqual(25);
   });
 
@@ -107,14 +108,14 @@ describe("bounded Appwrite maintenance worker", () => {
       state: "reserved", expiresAt: "2026-08-27T10:00:00.000Z", createdAt: "2026-08-27T09:00:00.000Z",
     }]);
     const storage = new MaintenanceStorage();
-    storage.files.set("f_saga", { $id: "f_saga", $createdAt: "2026-08-27T09:30:00.000Z" });
+    storage.files.set("receipt_saga", { $id: "receipt_saga", $createdAt: "2026-08-27T09:30:00.000Z" });
     storage.beforeDelete = async () => {
       expect(await reader.getRow("receipt_reservations", "q_saga")).toMatchObject({ state: "abandoned" });
     };
     const { tables } = instrumentedTables(reader);
 
     await runMaintenance({ tables, storage, now: NOW });
-    expect(storage.files.has("f_saga")).toBe(false);
+    expect(storage.files.has("receipt_saga")).toBe(false);
     expect(await reader.getRow("receipt_reservations", "q_saga")).toMatchObject({ state: "released" });
   });
 
@@ -126,20 +127,20 @@ describe("bounded Appwrite maintenance worker", () => {
       state: "reserved", expiresAt: "2026-08-27T10:00:00.000Z", createdAt: "2026-08-27T09:00:00.000Z",
     }]);
     const storage = new MaintenanceStorage();
-    storage.files.set("f_retry", { $id: "f_retry", $createdAt: "2026-08-27T09:30:00.000Z" });
+    storage.files.set("receipt_retry", { $id: "receipt_retry", $createdAt: "2026-08-27T09:30:00.000Z" });
     storage.failNextDelete = true;
     const { tables } = instrumentedTables(reader);
 
     await expect(runMaintenance({ tables, storage, now: NOW })).rejects.toThrow("temporary Storage failure");
     expect(await reader.getRow("receipt_reservations", "q_retry")).toMatchObject({ state: "abandoned" });
-    expect(storage.files.has("f_retry")).toBe(true);
+    expect(storage.files.has("receipt_retry")).toBe(true);
 
     await expect(runMaintenance({ tables, storage, now: NOW })).resolves.toMatchObject({ status: "completed" });
     expect(await reader.getRow("receipt_reservations", "q_retry")).toMatchObject({ state: "released" });
-    expect(storage.files.has("f_retry")).toBe(false);
+    expect(storage.files.has("receipt_retry")).toBe(false);
   });
 
-  it("deletes only untracked files older than the 24-hour grace and repairs quota counters", async () => {
+  it("deletes only untracked Receipt files, leaves foreign resources alone, and repairs Receipt-only quota counters", async () => {
     const reader = new InMemoryTablesReader();
     seedBase(reader);
     reader.seed("receipt_metadata", [receipt("r_kept", "2026-08-20T00:00:00.000Z")]);
@@ -149,17 +150,53 @@ describe("bounded Appwrite maintenance worker", () => {
       guard("receipt-project-bytes", 999),
     ]);
     const storage = new MaintenanceStorage();
-    storage.files.set("f_kept", { $id: "f_kept", $createdAt: "2026-08-20T00:00:00.000Z" });
+    storage.files.set("receipt_kept", { $id: "receipt_kept", $createdAt: "2026-08-20T00:00:00.000Z" });
     storage.files.set("foreign_old", { $id: "foreign_old", $createdAt: "2026-08-26T11:59:59.999Z" });
     storage.files.set("foreign_new", { $id: "foreign_new", $createdAt: "2026-08-26T12:00:00.001Z" });
     const { tables } = instrumentedTables(reader);
 
     await runMaintenance({ tables, storage, now: NOW });
-    expect(storage.files.has("foreign_old")).toBe(false);
+    expect(storage.files.has("foreign_old")).toBe(true);
     expect(storage.files.has("foreign_new")).toBe(true);
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-count:e_expense"))).toMatchObject({ counter: 1 });
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-uploader-bytes:u_creator"))).toMatchObject({ counter: 100 });
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-project-bytes"))).toMatchObject({ counter: 100 });
+  });
+
+  it("cleans only unreferenced avatar resources after 24 hours without applying Receipt retention", async () => {
+    const reader = new InMemoryTablesReader();
+    seedBase(reader);
+    reader.seed("profiles", [{
+      $id: "u_owner", displayName: "Owner", avatarFileId: "avatar_kept", avatarUpdatedAt: "2026-08-20T00:00:00.000Z",
+      version: 2, createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-20T00:00:00.000Z",
+    }]);
+    const storage = new MaintenanceStorage();
+    storage.files.set("avatar_kept", { $id: "avatar_kept", $createdAt: "2026-05-01T00:00:00.000Z" });
+    storage.files.set("avatar_orphan_old", { $id: "avatar_orphan_old", $createdAt: "2026-08-26T11:59:59.999Z" });
+    storage.files.set("avatar_orphan_new", { $id: "avatar_orphan_new", $createdAt: "2026-08-26T12:00:00.001Z" });
+    storage.files.set("receipt_untracked_old", { $id: "receipt_untracked_old", $createdAt: "2026-08-26T11:59:59.999Z" });
+    const { tables } = instrumentedTables(reader);
+
+    await expect(runMaintenance({ tables, storage, now: NOW })).resolves.toMatchObject({
+      status: "completed", orphans: 1, avatarOrphans: 1,
+    });
+    expect(storage.files.has("avatar_kept")).toBe(true);
+    expect(storage.files.has("avatar_orphan_old")).toBe(false);
+    expect(storage.files.has("avatar_orphan_new")).toBe(true);
+    expect(storage.files.has("receipt_untracked_old")).toBe(false);
+  });
+
+  it("fails closed instead of deleting an avatar referenced by Receipt metadata", async () => {
+    const reader = new InMemoryTablesReader();
+    seedBase(reader);
+    reader.seed("receipt_metadata", [receipt("r_corrupt", "2026-05-01T00:00:00.000Z", { storageFileId: "avatar_private" })]);
+    const storage = new MaintenanceStorage();
+    storage.files.set("avatar_private", { $id: "avatar_private", $createdAt: "2026-05-01T00:00:00.000Z" });
+    const { tables } = instrumentedTables(reader);
+
+    await expect(runMaintenance({ tables, storage, now: NOW })).rejects.toThrow(/non-Receipt Storage resource/);
+    expect(storage.files.has("avatar_private")).toBe(true);
+    expect(await reader.getRow("receipt_metadata", "r_corrupt")).toMatchObject({ contentState: "available" });
   });
 
   it("skips overlapping executions while a live lease exists", async () => {

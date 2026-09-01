@@ -1184,14 +1184,63 @@ describe("Phase 4 application services with IndexedDB", () => {
     expect((await repositories.expenses.getById(original.expenseId))?.name).toBe("First editor");
   });
 
-  it("preserves legacy future records but blocks future creates and financial edits until repaired", async () => {
+  it("preserves unchanged legacy future dates but rejects a newly proposed future date", async () => {
     const original = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
     const future = { ...original, expenseId: expenseId("expense-legacy-future"), name: "Legacy future", expenseDate: expenseDate("2026-08-14") };
     await db.add("expenses", toExpenseRecord(future));
     const renamed = await application.expenses.editExpense({ expenseId: future.expenseId, expectedRevision: 1, name: "Legacy future renamed", amount: future.amount, expenseDate: future.expenseDate, splitMethod: future.splitMethod, allocations: future.allocations, payment: { kind: "preserve" } });
     expect(renamed.expense.expenseDate).toBe(future.expenseDate);
-    await expect(application.expenses.editExpense({ expenseId: future.expenseId, expectedRevision: 2, name: renamed.expense.name, amount: positivePoisha(future.amount + 1), expenseDate: future.expenseDate, splitMethod: "amount", allocations: [{ participantId: future.creatorId, share: positivePoisha(future.amount + 1) }], payment: { kind: "preserve" } })).rejects.toMatchObject({ code: "EXPENSE_DATE_IN_FUTURE" });
+    const financial = await application.expenses.editExpense({ expenseId: future.expenseId, expectedRevision: 2, name: renamed.expense.name, amount: positivePoisha(future.amount + 1), expenseDate: future.expenseDate, splitMethod: "amount", allocations: [{ participantId: future.creatorId, share: positivePoisha(future.amount + 1) }], payment: { kind: "preserve" } });
+    expect(financial.expense.expenseDate).toBe(future.expenseDate);
+    await expect(application.expenses.editExpense({ expenseId: future.expenseId, expectedRevision: 3, name: financial.expense.name, amount: financial.expense.amount, expenseDate: expenseDate("2026-08-15"), splitMethod: financial.expense.splitMethod, allocations: financial.expense.allocations, payment: { kind: "preserve" } })).rejects.toMatchObject({ code: "EXPENSE_DATE_IN_FUTURE" });
     await expect(application.expenses.createExpense({ householdId: SEEDED_HOUSEHOLD_ID, name: "Tomorrow", amount: positivePoisha(1), expenseDate: expenseDate("2026-08-14"), splitMethod: "amount", allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: positivePoisha(1) }], payment: { method: "cash" } })).rejects.toMatchObject({ code: "EXPENSE_DATE_IN_FUTURE" });
+  });
+
+  it("rejects out-of-window creates and date changes while preserving old name-only edits", async () => {
+    const original = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
+    const historical = {
+      ...original,
+      expenseId: expenseId("expense-historical-window"),
+      name: "Historical window expense",
+      expenseDate: expenseDate("2026-05-31"),
+    };
+    await db.add("expenses", toExpenseRecord(historical));
+
+    const renamed = await application.expenses.editExpense({
+      expenseId: historical.expenseId,
+      expectedRevision: historical.revision,
+      name: "Historical expense renamed",
+      amount: historical.amount,
+      expenseDate: historical.expenseDate,
+      splitMethod: historical.splitMethod,
+      allocations: historical.allocations,
+      payment: { kind: "preserve" },
+    });
+    expect(renamed.expense).toMatchObject({
+      name: "Historical expense renamed",
+      expenseDate: "2026-05-31",
+    });
+
+    await expect(application.expenses.editExpense({
+      expenseId: historical.expenseId,
+      expectedRevision: renamed.expense.revision,
+      name: renamed.expense.name,
+      amount: historical.amount,
+      expenseDate: expenseDate("2026-05-30"),
+      splitMethod: historical.splitMethod,
+      allocations: historical.allocations,
+      payment: { kind: "preserve" },
+    })).rejects.toMatchObject({ code: "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW" });
+
+    await expect(application.expenses.createExpense({
+      householdId: SEEDED_HOUSEHOLD_ID,
+      name: "Too old",
+      amount: positivePoisha(1),
+      expenseDate: expenseDate("2026-05-31"),
+      splitMethod: "amount",
+      allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: positivePoisha(1) }],
+      payment: { method: "cash" },
+    })).rejects.toMatchObject({ code: "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW" });
   });
 
   it("projects private Receipts only to the creator or historical uploader and keeps management creator-only", async () => {

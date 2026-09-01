@@ -79,6 +79,8 @@ describe("production capability gating", () => {
       receiptMutations: true,
       receiptContentReads: true,
       profileMutations: true,
+      avatarContentReads: true,
+      avatarMutations: true,
     });
     render(
       <ApplicationRuntimeProvider value={state}>

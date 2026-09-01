@@ -30,10 +30,11 @@ function expectMalformed(table: string, build: () => unknown): void {
 
 describe("strict provider row mappers", () => {
   it("maps a profile and merges only the authoritative Auth email", () => {
-    const profile = mapCurrentProfile(row("user_1", { displayName: "Raiyan", version: 1, createdAt: INSTANT, updatedAt: INSTANT }), "Raiyan@Test.io");
+    const profile = mapCurrentProfile(row("user_1", { displayName: "Raiyan", avatarFileId: "avatar_private", avatarUpdatedAt: INSTANT, version: 1, createdAt: INSTANT, updatedAt: INSTANT }), "Raiyan@Test.io");
     expect(profile.displayEmail).toBe("Raiyan@Test.io");
     expect(profile.emailKey).toBe("raiyan@test.io");
     expect(profile.displayName).toBe("Raiyan");
+    expect(JSON.stringify(profile)).not.toMatch(/avatarFileId|avatarUpdatedAt|storage/i);
   });
 
   it("normalizes Appwrite timezone offsets and fractional precision to canonical UTC instants", () => {

@@ -9,10 +9,13 @@ import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { PasswordUpdateForm } from "./password-update-form.client";
 import { DisplayNameForm } from "./display-name-form.client";
+import { ProfilePictureForm } from "./profile-picture-form.client";
 
 export function ProfilePageClient() {
   const runtime = useApplicationRuntime();
   const profileEditingAvailable = useCapability("profileMutations");
+  const avatarReadingAvailable = useCapability("avatarContentReads");
+  const avatarEditingAvailable = useCapability("avatarMutations");
 
   if (runtime.status === "loading") {
     return (
@@ -54,6 +57,8 @@ export function ProfilePageClient() {
             <MemberAvatar
               className="size-20 shrink-0 text-xl font-semibold ring-4 ring-brand-soft"
               displayName={session.displayName}
+              userId={avatarReadingAvailable ? session.userId : undefined}
+              avatarVersion={session.profileVersion}
             />
             <div className="min-w-0">
               <p className="compact-caption text-text-muted">Account</p>
@@ -97,6 +102,14 @@ export function ProfilePageClient() {
           <p className="mt-4 text-xs leading-5 text-text-muted">Your sign-in email is fixed for this approved account.</p>
         </Surface>
       </div>
+
+      {avatarEditingAvailable ? (
+        <Surface className="mt-4" padding="large" aria-labelledby="profile-picture-heading">
+          <h2 className="panel-title" id="profile-picture-heading">Profile Picture</h2>
+          <p className="mt-1 text-sm text-text-secondary">Choose the private picture shown to you and active members of your current Household.</p>
+          <ProfilePictureForm />
+        </Surface>
+      ) : null}
 
       {profileEditingAvailable ? (
         <Surface className="mt-4" padding="large" aria-labelledby="profile-display-name-heading">

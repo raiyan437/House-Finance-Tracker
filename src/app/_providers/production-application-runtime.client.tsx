@@ -375,6 +375,23 @@ function buildReadyState(
         throw error;
       }
     },
+    replaceAvatar: async (file: File, expectedVersion: number, commandId: CommandId) => {
+      try {
+        await requestJson("/api/app/profile-avatar", {
+          method: "POST",
+          headers: {
+            "content-type": file.type,
+            "x-command-id": commandId,
+            "x-profile-version": String(expectedVersion),
+          },
+          body: file,
+        });
+        await refresh();
+      } catch (error) {
+        if (error instanceof ApplicationError && error.code === "PROFILE_VERSION_CONFLICT") await refresh();
+        throw error;
+      }
+    },
   });
 
   return Object.freeze({

@@ -49,8 +49,11 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
         return { status: 409, body: { error: error.message, code: error.code } };
       case "INVALID_HOUSEHOLD_CODE":
       case "INVALID_INPUT":
+      case "EXPENSE_DATE_IN_FUTURE":
+      case "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW":
       case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":
       case "RECEIPT_CONTENT_MISMATCH":
+      case "AVATAR_CONTENT_MISMATCH":
         return { status: 400, body: { error: error.message, code: error.code } };
       case "MALFORMED_PERSISTED_DATA":
         console.error("[product-read] malformed persisted data", { store: error.context?.store ?? "unknown" });

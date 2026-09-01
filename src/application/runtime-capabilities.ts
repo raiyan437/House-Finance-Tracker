@@ -3,9 +3,8 @@
  *
  * The composition root reports honestly which product mutation families the
  * active backend can execute. Presentation disables unavailable actions with a
- * restrained explanation instead of letting them fail at runtime. Local mode
- * reports every capability as available; the R1 production read plane reports
- * every write family as unavailable.
+ * restrained explanation instead of letting them fail at runtime. Provider-
+ * backed avatar Storage remains unavailable in local-only mode.
  */
 export interface ProductCapabilities {
   readonly householdMutations: boolean;
@@ -17,6 +16,8 @@ export interface ProductCapabilities {
   /** Reading stored receipt binaries (previews). */
   readonly receiptContentReads: boolean;
   readonly profileMutations: boolean;
+  readonly avatarContentReads: boolean;
+  readonly avatarMutations: boolean;
 }
 
 export const FULL_LOCAL_CAPABILITIES: ProductCapabilities = Object.freeze({
@@ -27,6 +28,8 @@ export const FULL_LOCAL_CAPABILITIES: ProductCapabilities = Object.freeze({
   receiptMutations: true,
   receiptContentReads: true,
   profileMutations: true,
+  avatarContentReads: false,
+  avatarMutations: false,
 });
 
 /** R1 production read plane: every source of truth readable, nothing writable yet (R2+ owns commands). */
@@ -38,6 +41,8 @@ export const PRODUCTION_READ_ONLY_CAPABILITIES: ProductCapabilities = Object.fre
   receiptMutations: false,
   receiptContentReads: false,
   profileMutations: false,
+  avatarContentReads: false,
+  avatarMutations: false,
 });
 
 /** R2 production plane: Household commands are complete; later mutation families remain disabled. */
@@ -49,6 +54,8 @@ export const PRODUCTION_R2_CAPABILITIES: ProductCapabilities = Object.freeze({
   receiptMutations: false,
   receiptContentReads: false,
   profileMutations: false,
+  avatarContentReads: false,
+  avatarMutations: false,
 });
 
 /** R3B production plane: Cards are complete; financial Household writes remain gated. */
@@ -80,4 +87,6 @@ export const PRODUCTION_R4_CAPABILITIES: ProductCapabilities = Object.freeze({
   ...PRODUCTION_R4_CONTENT_CAPABILITIES,
   receiptMutations: true,
   profileMutations: true,
+  avatarContentReads: true,
+  avatarMutations: true,
 });

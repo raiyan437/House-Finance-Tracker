@@ -1,11 +1,14 @@
 import { cn } from "@/lib/utils";
 import { MemberAvatar } from "./member-avatar";
+import type { UserId } from "@/domain/shared/identifiers";
 
 interface MemberRowProps extends React.ComponentProps<"div"> {
   readonly displayName: string;
   readonly secondaryText?: string;
   readonly trailing?: React.ReactNode;
   readonly compact?: boolean;
+  readonly userId?: UserId;
+  readonly avatarVersion?: string | number;
 }
 
 export function MemberRow({
@@ -13,6 +16,8 @@ export function MemberRow({
   secondaryText,
   trailing,
   compact = false,
+  userId,
+  avatarVersion,
   className,
   ...props
 }: MemberRowProps) {
@@ -22,7 +27,7 @@ export function MemberRow({
       data-slot="member-row"
       {...props}
     >
-      <MemberAvatar displayName={displayName} />
+      <MemberAvatar avatarVersion={avatarVersion} displayName={displayName} userId={userId} />
       <div
         aria-hidden={compact}
         className={cn(

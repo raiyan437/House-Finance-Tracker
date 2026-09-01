@@ -285,6 +285,9 @@ export function LocalApplicationRuntime({
           updateDisplayName: async (displayName, expectedVersion, commandId) => {
             await mutateAndReconstruct(() => runtime.application.profiles.updateCurrentProfile(displayName, expectedVersion, commandId));
           },
+          replaceAvatar: async () => {
+            throw new Error("Profile pictures require the production private Storage service.");
+          },
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);

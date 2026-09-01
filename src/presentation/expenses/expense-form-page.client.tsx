@@ -33,6 +33,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
 import { DomainError } from "@/domain/shared/domain-error";
+import { expenseDateWindowForBusinessDate } from "@/domain/dates/business-calendar";
+import { expenseDate } from "@/domain/dates/expense-date";
 import { commandId, expenseId as parseExpenseId, receiptId as parseReceiptId } from "@/domain/shared/identifiers";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
@@ -156,6 +158,9 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     defaultValues: emptyValues,
   });
   const values = useWatch({ control: form.control });
+  const earliestExpenseDate = businessDate
+    ? expenseDateWindowForBusinessDate(expenseDate(businessDate)).earliestAllowedDate
+    : undefined;
 
   const household = runtime.status === "ready" &&
     (runtime.household.status === "active-member" || runtime.household.status === "active-leader")
@@ -628,7 +633,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             <div className="expense-details-fields grid gap-3 sm:grid-cols-2">
               <div className="expense-name-field space-y-2 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(nameIssue)} aria-describedby={nameIssue ? "expense-name-error" : undefined} {...form.register("name")} />{nameIssue ? <p id="expense-name-error" className="text-caption text-danger">{nameIssue}</p> : null}</div>
               <div className="space-y-2"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(amountIssue)} aria-describedby={amountIssue ? "expense-amount-error" : undefined} {...form.register("amountText")} />{amountIssue ? <p id="expense-amount-error" className="text-caption text-danger">{amountIssue}</p> : null}</div>
-               <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
+               <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} min={earliestExpenseDate} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
               <div className="space-y-2"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>
             </div>
             <fieldset disabled={financialLocked || (Boolean(original) && !ownerEditing && original?.expense.payment.method === "cash")}>
@@ -649,7 +654,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
               <legend className="text-label font-medium">Participants</legend>
               <p className="mt-1 text-sm text-text-secondary">Select at least one household member. You may exclude yourself.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {members.filter((member) => member.status === "active" || draft.participantIds.includes(member.userId)).map((member) => { const selected = draft.participantIds.includes(member.userId); return <label key={member.userId} className={`relative flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-secondary" : "bg-card"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="checkbox" checked={selected} onChange={(event) => toggleParticipant(member.userId, event.target.checked)} /><MemberAvatar className="size-7 [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={member.displayName} /><span className="min-w-0 flex-1 truncate text-xs font-medium">{member.userId === currentUserId ? "You" : member.displayName}{member.status === "former" ? " (Former member)" : ""}</span>{selected ? <Check aria-hidden="true" className="size-4" /> : null}</label>; })}
+                {members.filter((member) => member.status === "active" || draft.participantIds.includes(member.userId)).map((member) => { const selected = draft.participantIds.includes(member.userId); return <label key={member.userId} className={`relative flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-secondary" : "bg-card"}`}><input className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" type="checkbox" checked={selected} onChange={(event) => toggleParticipant(member.userId, event.target.checked)} /><MemberAvatar className="size-7 [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={member.displayName} userId={member.userId} /><span className="min-w-0 flex-1 truncate text-xs font-medium">{member.userId === currentUserId ? "You" : member.displayName}{member.status === "former" ? " (Former member)" : ""}</span>{selected ? <Check aria-hidden="true" className="size-4" /> : null}</label>; })}
               </div>
               {participantsIssue ? <p className="mt-2 text-sm text-danger" role="alert">{participantsIssue}</p> : null}
             </fieldset>

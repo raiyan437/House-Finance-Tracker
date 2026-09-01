@@ -151,7 +151,10 @@ test("expense list composes filters and opens accessible desktop rows", async ({
 
   await page.goto("/expenses");
   await expect(page.getByRole("heading", { name: "Expenses" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Month", exact: true })).toContainText("August 2026");
+  const month = page.getByRole("combobox", { name: "Month", exact: true });
+  await expect(month).toContainText("September 2026");
+  await month.click();
+  await page.getByRole("option", { name: "August 2026", exact: true }).click();
   const paymentMethod = page.getByRole("combobox", { name: "Payment Method", exact: true });
   await expect(paymentMethod).toContainText("Payment Method");
   await expect(paymentMethod).not.toContainText("All Payment Methods");
@@ -167,6 +170,8 @@ test("expense list composes filters and opens accessible desktop rows", async ({
 
   await page.getByRole("button", { name: "Clear Filters" }).click();
   await expect(paymentMethod).toContainText("Payment Method");
+  await month.click();
+  await page.getByRole("option", { name: "August 2026", exact: true }).click();
 
   await page.getByRole("link", { name: "Open Internet expense details" }).focus();
   await expect(page.getByRole("link", { name: "Open Internet expense details" })).toBeFocused();
@@ -265,6 +270,49 @@ for (const viewport of [
     await expect(dateTrigger).toBeFocused();
   });
 }
+
+test("Expense Date calendar disables dates and navigation outside the Dhaka entry window", async ({ page }) => {
+  await page.goto("/expenses/new");
+  await page.locator('[data-slot="date-picker-trigger"]').click();
+
+  const calendar = page.locator("table[aria-label]");
+  await expect(calendar).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Previous month" }).click();
+  await page.getByRole("button", { name: "Previous month" }).click();
+  await expect(page.getByRole("button", { name: "Previous month" })).toBeDisabled();
+
+  const earliestMonth = await calendar.getAttribute("aria-label");
+  expect(earliestMonth).toMatch(/^\w+ \d{4}$/u);
+  await expect(page.getByRole("button", { name: new RegExp(`^1 ${earliestMonth}(?:,|$)`, "u") })).toBeEnabled();
+
+  const disabledVisibleDates = calendar.locator("button:disabled");
+  expect(await disabledVisibleDates.count()).toBeGreaterThan(0);
+  await expect(disabledVisibleDates.first()).toHaveAttribute("aria-label", /\d/u);
+
+  const axe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
+});
+
+test("Expense Date bounds stay server-authoritative across browser timezones", async ({ page }) => {
+  const session = await page.context().newCDPSession(page);
+  let authoritativeMonth: string | null = null;
+
+  for (const timezoneId of ["UTC", "Asia/Dhaka", "America/Los_Angeles"]) {
+    await session.send("Emulation.setTimezoneOverride", { timezoneId });
+    await page.goto("/expenses/new");
+    await page.locator('[data-slot="date-picker-trigger"]').click();
+    const calendar = page.locator("table[aria-label]");
+    const month = await calendar.getAttribute("aria-label");
+    authoritativeMonth ??= month;
+    expect(month).toBe(authoritativeMonth);
+    await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+  }
+});
 
 test("creates and reloads an exact percentage expense with a receipt", async ({ page }) => {
   await page.goto("/expenses/new");
@@ -400,6 +448,8 @@ test("rejects structurally valid but undecodable receipt content before persiste
 test("mobile expense cards and the one-page form remain clear of bottom navigation", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/expenses");
+  await page.getByRole("combobox", { name: "Month", exact: true }).click();
+  await page.getByRole("option", { name: "August 2026", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open Groceries expense details" })).toBeVisible();
   await page.goto("/expenses/new");
   await expect(page.getByRole("heading", { name: "Add Expense" })).toBeVisible();

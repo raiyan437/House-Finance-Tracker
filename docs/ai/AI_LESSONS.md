@@ -182,3 +182,10 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - A verified pre-reset backup is a monotonic coverage contract, not an equality contract after deletion begins. Initial execution should require exact inventory parity; a safe resume must accept only the same verified backup whose per-table/file counts are greater than or equal to every remaining live count, while still refusing any post-backup growth.
 - Maintenance restoration belongs in `finally` and must verify the same active deployment, enabled state, schedule, and empty client execute permissions even when deletion fails midway. A partial reset is recoverable only when infrastructure is restored before diagnosis or retry.
 - Destructive operator diagnostics should identify the fixed operation stage (Storage, table name, or Auth) without printing row identifiers, emails, payloads, provider messages, or secret material. This keeps failures actionable without turning the reset log into a production-data export.
+
+## 2026-09-01 - Shared private Storage resource classes
+
+- A private bucket shared by features needs an explicit provider-safe ID namespace before the second resource class is enabled. Orphan scans that interpret every untracked file as a Receipt can silently apply the wrong lifecycle even when table-driven retention itself is correct.
+- External binary replacement is safest as upload, transactional/OCC pointer swap plus idempotent outcome, then best-effort old-file deletion. Cleanup must re-read the pointer before deleting a losing upload; a short orphan grace handles failures without racing in-flight commands.
+- Private infrastructure pointers belong in narrow server-only row parsing. Normal Profile/member mappers should continue constructing allowlisted projections so adding a provider column cannot expand browser JSON accidentally.
+- Backup integrity for pointer-based binaries is bidirectional: every pointer needs exactly one decoded/checksummed binary, and every manifest binary needs one pointer. Restore the binary and verify it before writing the pointer.

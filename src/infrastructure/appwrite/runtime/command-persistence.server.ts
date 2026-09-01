@@ -26,7 +26,7 @@ import {
 } from "@/application/expenses/backdated-expense-confirmation";
 import { BackdatedExpenseConfirmationRequiredError } from "@/application/errors/application-error";
 import { assertHouseholdFinancialState } from "@/domain/balances/household-financial-state";
-import { assertExpenseDateNotInFuture } from "@/domain/dates/business-calendar";
+import { assertExpenseDateWithinEntryWindow } from "@/domain/dates/business-calendar";
 import { isBackdatedAfterSettlement, latestConfirmedSettlementBefore } from "@/domain/expenses/backdated-expense-policy";
 import {
   assertConfirmedSettlementFinancialChangeAllowed,
@@ -802,7 +802,7 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       async () => runCommandTransaction(tablesDB, async ({ tx }) => {
         const tables = this.scoped(tablesDB, tx);
         assertExpense(expense);
-        assertExpenseDateNotInFuture(expense.expenseDate, expense.createdAt);
+        assertExpenseDateWithinEntryWindow(expense.expenseDate, expense.createdAt);
         if (input.receipts.length > 0) {
           throw new ApplicationError("COMMANDS_UNAVAILABLE", "Receipt uploads arrive in the receipt production phase.");
         }
@@ -965,7 +965,8 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
         assertFormerMemberChangeAllowed(currentFingerprint, proposedFingerprint, memberships);
         assertLegacyPercentageChangeAllowed(currentFingerprint, proposedFingerprint);
         const financialChanged = !expenseFinancialFingerprintsEqual(currentFingerprint, proposedFingerprint);
-        if (financialChanged) assertExpenseDateNotInFuture(proposed.expenseDate, proposed.updatedAt);
+        const dateChanged = proposed.expenseDate !== current.expenseDate;
+        if (dateChanged) assertExpenseDateWithinEntryWindow(proposed.expenseDate, proposed.updatedAt);
         const recomputedIntentDigest = expenseRelevantIntentDigest({
           amount: proposed.amount,
           expenseDate: proposed.expenseDate,

@@ -15,6 +15,11 @@ async function dashboardReady(page: Page) {
   await expect(page.getByText("Spending Trend", { exact: true })).toBeVisible();
 }
 
+async function selectDashboardMonth(page: Page, month: string) {
+  await page.getByRole("combobox", { name: "Select month" }).click();
+  await page.getByRole("option", { name: month, exact: true }).click();
+}
+
 async function expectDailyDayLabels(page: Page, dayCount: number) {
   const chart = page.locator('[data-slot="daily-spending-chart"]').first();
   const labels = chart.locator("svg text");
@@ -40,8 +45,9 @@ test("Dashboard uses the selected Expense Date month while current financial sta
   await createJulyOnlyExpense(page);
   await dashboardReady(page);
 
-  await expect(page.getByRole("combobox", { name: "Select month" })).toContainText("August 2026");
+  await expect(page.getByRole("combobox", { name: "Select month" })).toContainText("September 2026");
   await expect(page.getByRole("group", { name: "Active household members: Raiyan, John, Sarah" })).toBeVisible();
+  await selectDashboardMonth(page, "August 2026");
   const spent = page.locator('[data-slot="surface"]').filter({ hasText: /^Spent/ });
   await expect(spent).toContainText("৳450.00");
   const outstanding = page.locator('[data-slot="surface"]').filter({ hasText: /^Outstanding/ });
@@ -64,8 +70,7 @@ test("Dashboard uses the selected Expense Date month while current financial sta
 
   const currentOutstandingText = await outstanding.textContent();
   const currentHealthText = await health.textContent();
-  await page.getByRole("combobox", { name: "Select month" }).click();
-  await page.getByRole("option", { name: "July 2026", exact: true }).click();
+  await selectDashboardMonth(page, "July 2026");
   await expect(spent).toContainText("৳0.01");
   await expect(page.getByText("July-only fixture expense", { exact: true })).toBeVisible();
   expect(await outstanding.textContent()).toBe(currentOutstandingText);
@@ -89,7 +94,7 @@ test("Monthly Report route validates month and exposes exact report semantics", 
   await expect(page.getByText("John Credit")).toHaveCount(0);
 
   await page.goto("/reports/monthly?month=not-a-month");
-  await expect(page.getByRole("combobox", { name: "Select Monthly Report month" })).toContainText("August 2026");
+  await expect(page.getByRole("combobox", { name: "Select Monthly Report month" })).toContainText("September 2026");
   await page.goto("/reports/monthly?month=2028-02");
   await expect(page).toHaveURL(/month=2028-02/);
   await expect(page.getByRole("heading", { name: "February 2028" })).toBeVisible();
@@ -106,6 +111,7 @@ test("Dashboard reconstructs after Expense creation, Settlement confirmation, an
   await page.getByRole("button", { name: "Create Expense" }).click();
   await expect(page.getByRole("heading", { name: "Dashboard refresh expense" })).toBeVisible();
   await dashboardReady(page);
+  await selectDashboardMonth(page, "August 2026");
   await expect(page.locator('[data-slot="surface"]').filter({ hasText: /^Spent/ })).toContainText("৳460.00");
 
   await page.goto("/settlements");
@@ -135,7 +141,7 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
   ]) {
     await page.setViewportSize(viewport);
     await dashboardReady(page);
-    const { chart, labels } = await expectDailyDayLabels(page, 31);
+    const { chart, labels } = await expectDailyDayLabels(page, 30);
     const measurements = await chart.evaluate((element) => {
       const center = (node: Element | null) => {
         if (!node) return undefined;
@@ -170,11 +176,11 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
     } else {
       expect(measurements.canvasScrollWidth).toBeLessThanOrEqual(measurements.scrollerClientWidth + 1);
     }
-    expect(Math.abs((measurements.finalTickCenter ?? 0) - (measurements.firstTickCenter ?? 0) - measurements.tickStep * 30)).toBeLessThanOrEqual(3);
+    expect(Math.abs((measurements.finalTickCenter ?? 0) - (measurements.firstTickCenter ?? 0) - measurements.tickStep * 29)).toBeLessThanOrEqual(3);
     expect(measurements.barAlignmentDistances.every((distance) => distance <= 2)).toBe(true);
     expect(measurements.labelsOverlap, `date labels overlap at ${viewport.width}px`).toBe(false);
     await expect(labels.first()).toHaveText("1");
-    await expect(labels.last()).toHaveText("31");
+    await expect(labels.last()).toHaveText("30");
   }
 });
 
@@ -248,6 +254,7 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await dashboardReady(page);
+    await selectDashboardMonth(page, "August 2026");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     const monthControl = await page.getByLabel("Select month").boundingBox();
@@ -264,14 +271,14 @@ test("selecting a past month keeps the current month selectable and survives in-
   await createJulyOnlyExpense(page);
   await dashboardReady(page);
 
-  // Select July while August itself has no expenses.
+  // Select July while the current September has no expenses.
   await selector.click();
   await page.getByRole("option", { name: "July 2026" }).click();
   await expect(selector).toContainText("July 2026");
 
-  // Regression: August must not disappear from the options after selection.
+  // Regression: the current month must not disappear from the options after selection.
   await selector.click();
-  await expect(page.getByRole("option", { name: "August 2026" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "September 2026" })).toBeVisible();
   await page.keyboard.press("Escape");
 
   // In-session navigation away and back preserves the chosen month.
@@ -281,5 +288,5 @@ test("selecting a past month keeps the current month selectable and survives in-
   await expect(page.getByText("Spending Trend", { exact: true })).toBeVisible();
   await expect(selector).toContainText("July 2026");
   await selector.click();
-  await expect(page.getByRole("option", { name: "August 2026" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "September 2026" })).toBeVisible();
 });

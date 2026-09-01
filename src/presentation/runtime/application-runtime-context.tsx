@@ -128,6 +128,11 @@ export interface ProfileApplicationActions {
     expectedVersion: number,
     commandId: CommandId,
   ) => Promise<void>;
+  readonly replaceAvatar?: (
+    file: File,
+    expectedVersion: number,
+    commandId: CommandId,
+  ) => Promise<void>;
 }
 
 export type ApplicationRuntimeState =
@@ -183,4 +188,8 @@ export function useApplicationRuntime(): ApplicationRuntimeState {
   }
 
   return value;
+}
+
+export function useOptionalApplicationRuntime(): ApplicationRuntimeState | null {
+  return useContext(ApplicationRuntimeContext);
 }

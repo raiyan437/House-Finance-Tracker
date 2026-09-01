@@ -43,7 +43,7 @@ describe("production reset safety", () => {
       projectId: PRODUCTION_PROJECT_ID,
       schemaVersion: 4,
       approvedEmailCount: 3,
-    })).toThrow("schema version must remain 5");
+    })).toThrow("schema version must remain 6");
   });
 
   it("classifies users without exposing ids or email addresses", () => {

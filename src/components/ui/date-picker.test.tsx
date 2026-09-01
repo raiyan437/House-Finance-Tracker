@@ -47,4 +47,28 @@ describe("shared DatePicker", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+
+  it("keeps old and future dates visible but disabled and bounds month navigation", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <DatePicker
+        aria-label="Expense Date"
+        min="2026-07-01"
+        max="2026-09-15"
+        onChange={onChange}
+        value="2026-09-15"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Expense Date" }));
+    expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(screen.getByRole("button", { name: "Previous month" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "30 June 2026" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "1 July 2026" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "1 July 2026" }));
+    expect(onChange).toHaveBeenCalledWith("2026-07-01");
+  });
 });

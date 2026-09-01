@@ -26,6 +26,62 @@ export function businessDateAt(instant: IsoInstant): ExpenseDate {
   return expenseDate(`${year}-${month}-${day}`);
 }
 
+export interface ExpenseDateWindow {
+  readonly earliestAllowedDate: ExpenseDate;
+  readonly latestAllowedDate: ExpenseDate;
+}
+
+/**
+ * Returns the inclusive Expense entry window using calendar months only.
+ * The input is already the trusted Asia/Dhaka business date; no Date or
+ * browser timezone participates in the month subtraction.
+ */
+export function expenseDateWindowForBusinessDate(
+  currentBusinessDate: ExpenseDate,
+): ExpenseDateWindow {
+  expenseDate(currentBusinessDate);
+  const year = Number(currentBusinessDate.slice(0, 4));
+  const month = Number(currentBusinessDate.slice(5, 7));
+  const zeroBasedTarget = year * 12 + month - 1 - 2;
+  const targetYear = Math.floor(zeroBasedTarget / 12);
+  const targetMonth = zeroBasedTarget - targetYear * 12 + 1;
+  return Object.freeze({
+    earliestAllowedDate: expenseDate(
+      `${targetYear.toString().padStart(4, "0")}-${targetMonth.toString().padStart(2, "0")}-01`,
+    ),
+    latestAllowedDate: currentBusinessDate,
+  });
+}
+
+export function expenseDateWindowAt(
+  authoritativeInstant: IsoInstant,
+): ExpenseDateWindow {
+  return expenseDateWindowForBusinessDate(businessDateAt(authoritativeInstant));
+}
+
+export function assertExpenseDateNotBeforeAllowedWindow(
+  proposedDate: ExpenseDate,
+  authoritativeInstant: IsoInstant,
+): void {
+  expenseDate(proposedDate);
+  const { earliestAllowedDate } = expenseDateWindowAt(authoritativeInstant);
+  if (proposedDate < earliestAllowedDate) {
+    throw new DomainError(
+      "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW",
+      "Expenses can only be added for the current month and the previous two months.",
+    );
+  }
+}
+
+export function assertExpenseDateWithinEntryWindow(
+  proposedDate: ExpenseDate,
+  authoritativeInstant: IsoInstant,
+): void {
+  // Keep the lower-bound and future failures distinct for presentation.
+  assertExpenseDateNotBeforeAllowedWindow(proposedDate, authoritativeInstant);
+  assertExpenseDateNotInFuture(proposedDate, authoritativeInstant);
+}
+
 export function assertExpenseDateNotInFuture(
   proposedDate: ExpenseDate,
   authoritativeInstant: IsoInstant,

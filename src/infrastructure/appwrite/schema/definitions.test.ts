@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUCKET,
+  AVATAR_MAX_FILE_BYTES,
   CARD_NAME_STORAGE_CAPACITY,
   EXPENSE_NAME_STORAGE_CAPACITY,
   HOUSEHOLD_NAME_STORAGE_CAPACITY,
@@ -17,7 +18,7 @@ function columns(table: TableDefinition): Map<string, string> {
   return new Map(table.columns.map((column) => [column.key, column.kind]));
 }
 
-describe("Appwrite schema definitions (approved Rev 5 + corrections)", () => {
+describe("Appwrite schema definitions (approved Schema V6)", () => {
   it("stores every exact monetary value in a bigint column", () => {
     expect(columns(tableById("expenses")!).get("amountPoisha")).toBe("bigint");
     const settlements = columns(tableById("settlements")!);
@@ -73,9 +74,21 @@ describe("Appwrite schema definitions (approved Rev 5 + corrections)", () => {
   });
 
   it("exposes a stable schema version and lookup helper", () => {
-    expect(SCHEMA_VERSION).toBe(5);
+    expect(SCHEMA_VERSION).toBe(6);
     expect(TABLES.every((table) => table.id.length <= 36 && /^[a-z_]+$/.test(table.id))).toBe(true);
     expect(tableById("missing")).toBeUndefined();
+  });
+
+  it("adds only optional private avatar infrastructure to Profiles", () => {
+    const profileColumns = tableById("profiles")!.columns;
+    expect(profileColumns.find((column) => column.key === "avatarFileId")).toEqual({
+      key: "avatarFileId", kind: "string", size: 64, required: false,
+    });
+    expect(profileColumns.find((column) => column.key === "avatarUpdatedAt")).toEqual({
+      key: "avatarUpdatedAt", kind: "datetime", required: false,
+    });
+    expect(tableById("profiles")!.indexes).toEqual([]);
+    expect(AVATAR_MAX_FILE_BYTES).toBe(5_242_880);
   });
 
   it("treats Profile Display Name length as provider capacity rather than a product maximum", () => {

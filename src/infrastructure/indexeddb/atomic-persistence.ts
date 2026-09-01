@@ -7,7 +7,7 @@ import type { AtomicApplicationPersistence } from "@/application/repositories";
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { assertHouseholdFinancialState } from "@/domain/balances/household-financial-state";
 import { generateSettlementRecommendations } from "@/domain/balances/settlement-recommendations";
-import { assertExpenseDateNotInFuture } from "@/domain/dates/business-calendar";
+import { assertExpenseDateWithinEntryWindow } from "@/domain/dates/business-calendar";
 import { isBackdatedAfterSettlement, latestConfirmedSettlementBefore } from "@/domain/expenses/backdated-expense-policy";
 import {
   assertConfirmedSettlementFinancialChangeAllowed,
@@ -469,7 +469,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     const expense = toExpenseRecord(input.expense);
     const actorId = input.actorId ?? input.expense.creatorId;
     const activeCommandId = input.commandId ?? commandId(`local-create:${input.expense.expenseId}`);
-    assertExpenseDateNotInFuture(input.expense.expenseDate, input.expense.createdAt);
+    assertExpenseDateWithinEntryWindow(input.expense.expenseDate, input.expense.createdAt);
     if (input.expense.revision !== 1 || input.expense.updatedAt !== input.expense.createdAt || input.auditEvent.occurredAt !== input.expense.createdAt) {
       throw new ApplicationError("CONFLICT", "New Expense lifecycle metadata is inconsistent.");
     }
@@ -759,8 +759,8 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
         currentFingerprint,
         proposedFingerprint,
       );
-      if (!expenseFinancialFingerprintsEqual(currentFingerprint, proposedFingerprint)) {
-        assertExpenseDateNotInFuture(input.expense.expenseDate, input.expense.updatedAt);
+      if (input.expense.expenseDate !== current.expenseDate) {
+        assertExpenseDateWithinEntryWindow(input.expense.expenseDate, input.expense.updatedAt);
       }
       assertHouseholdFinancialState(
         current.householdId,

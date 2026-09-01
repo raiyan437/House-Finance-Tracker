@@ -62,7 +62,7 @@ import { cancelSettlement, confirmSettlement, rejectSettlement } from "@/domain/
 import type { SettlementRecommendation, SettlementStatus } from "@/domain/settlements/settlement-types";
 import type { PercentageSplitEntry, SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
-import { assertExpenseDateNotInFuture, businessDateAt } from "@/domain/dates/business-calendar";
+import { assertExpenseDateWithinEntryWindow, businessDateAt } from "@/domain/dates/business-calendar";
 import { isBackdatedAfterSettlement, latestConfirmedSettlementBefore } from "@/domain/expenses/backdated-expense-policy";
 import { expenseFinancialFingerprintsEqual } from "@/domain/expenses/expense-financial-fingerprint";
 import type { PositivePoisha } from "@/domain/money/poisha";
@@ -747,7 +747,7 @@ export class ExpenseApplicationService {
         "Only percentage expenses may include percentage source entries.",
       );
     }
-    assertExpenseDateNotInFuture(command.expenseDate, now);
+    assertExpenseDateWithinEntryWindow(command.expenseDate, now);
     const expense: Expense = { expenseId: id, householdId: command.householdId, creatorId: actor, payerId: actor, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(command.splitMethod === "percentage" ? { percentageEntries: command.percentageEntries } : {}), allocations: command.allocations, payment: command.payment.method === "cash" ? { method: "cash" } : { method: "card", cardReference: expensePrivateReference(id) }, revision: 1, createdAt: now, updatedAt: now };
     assertExpense(expense);
     assertExpenseParticipantsBelongToHousehold(expense, memberships, true);
@@ -908,7 +908,8 @@ export class ExpenseApplicationService {
       return this.view(original, actor, memberships, settlements, existingSnapshot);
     }
     const commandInstant = this.deps.values.now();
-    if (financialChanged) assertExpenseDateNotInFuture(proposed.expenseDate, commandInstant);
+    const dateChanged = proposed.expenseDate !== original.expenseDate;
+    if (dateChanged) assertExpenseDateWithinEntryWindow(proposed.expenseDate, commandInstant);
     const relevantIntentDigest = expenseRelevantIntentDigest({
       amount: proposed.amount,
       expenseDate: proposed.expenseDate,

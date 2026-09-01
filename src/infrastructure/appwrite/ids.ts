@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 
 const APPWRITE_ROW_ID_PATTERN = /^[A-Za-z0-9._-]{1,36}$/;
 const DIGEST_LENGTH = 34;
+const RECEIPT_RESOURCE_DIGEST_LENGTH = 28;
+const AVATAR_RESOURCE_DIGEST_LENGTH = 29;
+
+export const RECEIPT_STORAGE_PREFIX = "receipt_";
+export const AVATAR_STORAGE_PREFIX = "avatar_";
 
 export const GUARD_KINDS = [
   "active-membership",
@@ -18,9 +23,11 @@ export function assertAppwriteRowId(id: string): void {
   if (!APPWRITE_ROW_ID_PATTERN.test(id)) throw new Error(`Generated Appwrite row ID violates provider constraints: ${id.length} chars.`);
 }
 
-function derivePrefixedId(prefix: string, logicalKey: string): string {
+function derivePrefixedId(prefix: string, logicalKey: string, digestLength = DIGEST_LENGTH): string {
   if (!logicalKey || logicalKey.trim() !== logicalKey) throw new Error("A logical key is required to derive an infrastructure row ID.");
-  return `${prefix}${createHash("sha256").update(logicalKey).digest("hex").slice(0, DIGEST_LENGTH)}`;
+  const value = `${prefix}${createHash("sha256").update(logicalKey).digest("hex").slice(0, digestLength)}`;
+  assertAppwriteRowId(value);
+  return value;
 }
 
 export function guardRowId(logicalKey: string): string {
@@ -36,15 +43,27 @@ function receiptCommandKey(actorId: string, commandType: string, commandId: stri
 }
 
 export function receiptReservationRowId(actorId: string, commandId: string): string {
-  return derivePrefixedId("q_", receiptCommandKey(actorId, "upload-receipt", commandId));
+  return derivePrefixedId("q_", receiptCommandKey(actorId, "upload-receipt", commandId), RECEIPT_RESOURCE_DIGEST_LENGTH);
 }
 
 export function receiptMetadataRowId(actorId: string, commandId: string): string {
-  return derivePrefixedId("r_", receiptCommandKey(actorId, "upload-receipt", commandId));
+  return derivePrefixedId("r_", receiptCommandKey(actorId, "upload-receipt", commandId), RECEIPT_RESOURCE_DIGEST_LENGTH);
 }
 
 export function receiptStorageFileId(actorId: string, commandId: string): string {
-  return derivePrefixedId("f_", receiptCommandKey(actorId, "upload-receipt", commandId));
+  return derivePrefixedId(RECEIPT_STORAGE_PREFIX, receiptCommandKey(actorId, "upload-receipt", commandId), RECEIPT_RESOURCE_DIGEST_LENGTH);
+}
+
+export function avatarStorageFileId(actorId: string, commandId: string): string {
+  return derivePrefixedId(AVATAR_STORAGE_PREFIX, JSON.stringify([actorId, "replace-avatar", commandId]), AVATAR_RESOURCE_DIGEST_LENGTH);
+}
+
+export function isReceiptStorageFileId(fileId: string): boolean {
+  return /^receipt_[a-f0-9]{28}$/.test(fileId);
+}
+
+export function isAvatarStorageFileId(fileId: string): boolean {
+  return /^avatar_[a-f0-9]{29}$/.test(fileId);
 }
 
 export function receiptAuditRowId(actorId: string, commandType: "upload-receipt" | "remove-receipt", commandId: string): string {

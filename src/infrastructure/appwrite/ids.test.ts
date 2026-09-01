@@ -7,6 +7,10 @@ import {
   assertGuardIdentity,
   GUARD_KINDS,
   QUOTA_COUNTER_KINDS,
+  avatarStorageFileId,
+  receiptStorageFileId,
+  isAvatarStorageFileId,
+  isReceiptStorageFileId,
 } from "./ids";
 
 describe("appwrite row id derivation", () => {
@@ -39,6 +43,20 @@ describe("appwrite row id derivation", () => {
     expect(commandOutcomeRowId({ actorId: "user_1", commandType: "create-expense", commandId: "x" })).toBe(
       commandOutcomeRowId({ actorId: "user_1", commandType: "create-expense", commandId: "x" }),
     );
+  });
+
+  it("domain-separates Receipt and avatar Storage identities without filenames", () => {
+    const receipt = receiptStorageFileId("user_1", "same-command");
+    const avatar = avatarStorageFileId("user_1", "same-command");
+    expect(receipt).toMatch(/^receipt_[a-f0-9]{28}$/);
+    expect(avatar).toMatch(/^avatar_[a-f0-9]{29}$/);
+    expect(receipt).not.toBe(avatar);
+    expect(isReceiptStorageFileId(receipt)).toBe(true);
+    expect(isAvatarStorageFileId(avatar)).toBe(true);
+    expect(isReceiptStorageFileId(avatar)).toBe(false);
+    expect(isAvatarStorageFileId(receipt)).toBe(false);
+    expect(() => assertAppwriteRowId(receipt)).not.toThrow();
+    expect(() => assertAppwriteRowId(avatar)).not.toThrow();
   });
 
   it("verifies the stored logical key against the derived id before a guard is trusted", () => {

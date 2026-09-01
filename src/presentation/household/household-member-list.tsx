@@ -31,7 +31,7 @@ export function HouseholdMemberList({
       {members.map((member, index) => (
         <li className="py-4" key={member.memberId}>
           <div className="flex min-w-0 items-center gap-3">
-            <MemberAvatar className="size-11" displayName={member.displayName} />
+            <MemberAvatar className="size-11" displayName={member.displayName} userId={member.memberId} />
             <div className="min-w-0 flex-1">
               <p className="break-words font-medium">
                 {member.displayName}
