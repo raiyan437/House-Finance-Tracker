@@ -51,6 +51,7 @@ const COMPACT_ID_PREFIX: Record<GeneratedIdKind, string> = {
   household: "h",
   "join-request": "j",
   expense: "e",
+  "expense-comment": "m",
   settlement: "s",
   card: "c",
   receipt: "r",

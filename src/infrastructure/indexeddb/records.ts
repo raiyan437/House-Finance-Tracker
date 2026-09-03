@@ -116,6 +116,7 @@ export interface ExpenseRecordV3 {
   creatorId: string;
   payerId: string;
   name: string;
+  iconCategory?: "internet" | "gas" | "groceries" | "food" | "entertainment" | "cigarettes" | "pets" | "repairs" | "housing" | "others";
   amountPoisha: number;
   expenseDate: string;
   splitMethod: "equal" | "amount" | "percentage";
@@ -127,6 +128,16 @@ export interface ExpenseRecordV3 {
   updatedAt: string;
   deletedAt?: string;
   deletedByUserId?: string;
+}
+
+export interface ExpenseCommentRecordV1 {
+  recordVersion: 1;
+  id: string;
+  householdId: string;
+  expenseId: string;
+  authorUserId: string;
+  body: string;
+  createdAt: string;
 }
 
 export interface ExpenseCardPrivateRecordV1 {
@@ -267,6 +278,7 @@ export interface HouseFinanceDatabase extends DBSchema {
   memberships: { key: string; value: MembershipRecordV1; indexes: { householdId: string; activeMembershipUserKey: string } };
   joinRequests: { key: string; value: JoinRequestRecordV1 | JoinRequestRecordV2; indexes: { householdId: string; pendingJoinUserKey: string } };
   expenses: { key: string; value: ExpenseRecordV3; indexes: { householdId: string; creatorId: string; payerId: string } };
+  expenseComments: { key: string; value: ExpenseCommentRecordV1; indexes: { expenseCreatedAtId: [string, string, string]; householdId: string } };
   expenseCardPrivateDetails: { key: string; value: ExpenseCardPrivateRecordV2; indexes: { ownerId: string; cardId: string } };
   settlements: { key: string; value: SettlementRecordV1; indexes: { householdId: string; pendingSettlementPairKey: string } };
   cards: { key: string; value: CardRecordV2; indexes: { ownerId: string } };

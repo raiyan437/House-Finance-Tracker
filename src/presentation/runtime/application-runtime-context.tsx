@@ -15,6 +15,7 @@ import type {
   ExpenseMemberView,
   ReceiptView,
   ExpenseView,
+  ExpenseCommentView,
   JoinableHouseholdView,
 } from "@/application/services/application-services";
 import type { CardFormValues } from "@/application/validation/card-form.schema";
@@ -84,6 +85,8 @@ export interface ExpenseApplicationActions {
   readonly listActivity: (
     expenseId: ExpenseId,
   ) => Promise<readonly ExpenseActivityView[]>;
+  readonly listComments?: (expenseId: ExpenseId) => Promise<readonly ExpenseCommentView[]>;
+  readonly createComment?: (expenseId: ExpenseId, body: string, commandId: CommandId) => Promise<ExpenseCommentView>;
 }
 
 export interface CardApplicationActions {

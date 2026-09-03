@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   Card,
   Expense,
+  ExpenseComment,
   ExpenseCardPrivateSnapshot,
   Household,
   JoinRequest,
@@ -64,6 +65,11 @@ export interface ExpenseRepository {
   listHouseholdHistory(householdId: HouseholdId): Promise<readonly Expense[]>;
   listActiveForBalances(householdId: HouseholdId): Promise<readonly Expense[]>;
   getPrivateCardSnapshot(expenseId: ExpenseId, ownerId: UserId): Promise<ExpenseCardPrivateSnapshot | undefined>;
+}
+
+export interface ExpenseCommentRepository {
+  listForExpense(expenseId: ExpenseId): Promise<readonly ExpenseComment[]>;
+  countForExpenses(householdId: HouseholdId, expenseIds: readonly ExpenseId[]): Promise<ReadonlyMap<ExpenseId, number>>;
 }
 
 export interface SettlementRepository {
@@ -137,6 +143,7 @@ export interface ApplicationRepositories {
   readonly memberships: MembershipRepository;
   readonly joinRequests: JoinRequestRepository;
   readonly expenses: ExpenseRepository;
+  readonly expenseComments: ExpenseCommentRepository;
   readonly settlements: SettlementRepository;
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository;
@@ -219,6 +226,7 @@ export interface AtomicApplicationPersistence {
     receiptRemovals?: readonly ReceiptMetadata[];
     auditEvents: readonly AuditEvent[];
   }>): Promise<void>;
+  createExpenseComment(input: Readonly<{ comment: ExpenseComment }> & IdempotentCreateInput): Promise<string>;
   createSettlement(input: Readonly<{ settlement: SettlementRecord; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   transitionSettlement(input: Readonly<{ settlement: SettlementRecord; expectedStatus: SettlementStatus; auditEvent: AuditEvent }>): Promise<void>;
   createCard(input: Readonly<{ card: Card }> & IdempotentCreateInput): Promise<string>;

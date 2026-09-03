@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { EXPENSE_ICON_CATEGORIES } from "@/domain/expenses/expense-icon-category";
 
 export const expenseFormSchema = z.object({
   name: z.string().trim().min(1, "Expense Name is required."),
+  iconCategory: z.enum(EXPENSE_ICON_CATEGORIES),
   amountText: z.string(),
   expenseDateText: z.string(),
   paymentMethod: z.enum(["cash", "card"]),

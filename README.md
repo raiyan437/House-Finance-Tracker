@@ -4,7 +4,7 @@ Private shared household expense tracking with exact integer-poisha financials, 
 
 ## Current status
 
-Production runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). The v1.2.0 release adds the server-authoritative current-plus-previous-two Dhaka calendar-month Expense entry window and private one-picture-per-user Profile avatars. Live Schema V6 is additive and zero-drift; Receipt retention/quota remains Receipt-only, avatars have separate 24-hour orphan cleanup, and operator backup/restore covers authoritative Receipt and avatar binaries. Real Profile Picture mutation remains separately owner-gated.
+Production runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). The uncommitted v1.3.0 owner-review candidate adds ten semantic Expense categories and private append-only Expense comments with derived counts, while preserving every financial rule. Live Schema V7 is additive and zero-drift; the Site has not been deployed and no production comment was created. Receipt retention/quota, Profile avatars, authentication, Household behavior, and Settlement semantics remain unchanged.
 
 ## Commands
 

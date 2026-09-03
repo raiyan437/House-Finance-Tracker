@@ -5,6 +5,7 @@ import type {
   CardRepository,
   CommandOutcomeRepository,
   ExpenseRepository,
+  ExpenseCommentRepository,
   HouseholdRepository,
   JoinRequestRepository,
   MembershipRepository,
@@ -32,6 +33,7 @@ import {
   fromCardRecord,
   fromCommandOutcomeRecord,
   fromExpenseRecord,
+  fromExpenseCommentRecord,
   fromHouseholdRecord,
   fromJoinRequestRecord,
   fromMembershipRecord,
@@ -139,6 +141,27 @@ export class IndexedDbExpenseRepository implements ExpenseRepository {
   async listHouseholdHistory(household: HouseholdId) { const raw = await (await database(this.source)).getAllFromIndex("expenses", "householdId", household); return raw.map((item) => fromExpenseRecord(item, item.id)); }
   async listActiveForBalances(household: HouseholdId) { return (await this.listHouseholdHistory(household)).filter((item) => !item.deletedAt); }
   async getPrivateCardSnapshot(id: ExpenseId, owner: UserId) { const raw = await (await database(this.source)).get("expenseCardPrivateDetails", id); if (!raw || raw.ownerId !== owner) return undefined; return fromPrivateCardRecord(raw, id); }
+}
+
+export class IndexedDbExpenseCommentRepository implements ExpenseCommentRepository {
+  constructor(private readonly source: DatabaseSource) {}
+  async listForExpense(id: ExpenseId) {
+    const db = await database(this.source);
+    const range = IDBKeyRange.bound([id, "", ""], [id, "\uffff", "\uffff"]);
+    const raw = await db.getAllFromIndex("expenseComments", "expenseCreatedAtId", range);
+    return raw.map((item) => fromExpenseCommentRecord(item, item.id));
+  }
+  async countForExpenses(household: HouseholdId, ids: readonly ExpenseId[]) {
+    const counts = new Map<ExpenseId, number>(ids.map((id) => [id, 0]));
+    if (ids.length === 0) return counts;
+    const wanted = new Set(ids);
+    const raw = await (await database(this.source)).getAllFromIndex("expenseComments", "householdId", household);
+    for (const item of raw) {
+      const comment = fromExpenseCommentRecord(item, item.id);
+      if (wanted.has(comment.expenseId)) counts.set(comment.expenseId, (counts.get(comment.expenseId) ?? 0) + 1);
+    }
+    return counts;
+  }
 }
 
 export class IndexedDbSettlementRepository implements SettlementRepository {
@@ -267,6 +290,7 @@ export class IndexedDbRepositories {
   readonly memberships: MembershipRepository;
   readonly joinRequests: JoinRequestRepository;
   readonly expenses: ExpenseRepository;
+  readonly expenseComments: ExpenseCommentRepository;
   readonly settlements: SettlementRepository;
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository & ReceiptRetentionRepository;
@@ -279,6 +303,7 @@ export class IndexedDbRepositories {
     this.memberships = new IndexedDbMembershipRepository(source);
     this.joinRequests = new IndexedDbJoinRequestRepository(source);
     this.expenses = new IndexedDbExpenseRepository(source);
+    this.expenseComments = new IndexedDbExpenseCommentRepository(source);
     this.settlements = new IndexedDbSettlementRepository(source);
     this.cards = new IndexedDbCardRepository(source);
     this.receipts = new IndexedDbReceiptRepository(source);

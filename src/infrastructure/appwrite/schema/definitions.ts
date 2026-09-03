@@ -38,7 +38,7 @@ export const MAINTENANCE_TIMEOUT_SECONDS = 300;
  * v6 (v1.2 Profile Picture): adds two optional private Profile infrastructure
  * fields. The earlier v5 Display Name widening remains unchanged.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const SCHEMA_METADATA_ROW_ID = "active";
 export const PROFILE_DISPLAY_NAME_STORAGE_CAPACITY = 16_383;
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
@@ -173,6 +173,7 @@ export const TABLES: readonly TableDefinition[] = [
       text("payerId", 64, true),
       enumeration("splitMethod", ["equal", "amount", "percentage"], true),
       text("name", EXPENSE_NAME_STORAGE_CAPACITY, true),
+      enumeration("iconCategory", ["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"], false),
       enumeration("paymentMethod", ["cash", "card"], true),
       text("paymentRefJson", 512, true),
       text("allocationsJson", 1024, true),
@@ -188,6 +189,18 @@ export const TABLES: readonly TableDefinition[] = [
       { key: "by_household_expense_date", type: "key", columns: ["householdId", "expenseDate"] },
       { key: "by_household_deleted", type: "key", columns: ["householdId", "deletedAt"] },
     ],
+  },
+  {
+    id: "expense_comments",
+    name: "Expense Comments",
+    columns: [
+      householdRef,
+      text("expenseId", 64, true),
+      text("authorUserId", 64, true),
+      text("body", 1000, true),
+      iso("createdAt", true),
+    ],
+    indexes: [{ key: "by_expense_created", type: "key", columns: ["expenseId", "createdAt"] }],
   },
   {
     id: "expense_card_private_details",

@@ -20,7 +20,7 @@ test("Profile Display Name validates, keyboard-submits, persists, and refreshes 
 
   const stored = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 5);
+      const request = indexedDB.open("house-finance-tracker-local", 6);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });

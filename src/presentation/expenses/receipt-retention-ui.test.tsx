@@ -12,11 +12,12 @@ import {
 } from "@/presentation/runtime/application-runtime-context";
 import type {
   ExpenseMemberView,
+  ExpenseCommentView,
   ExpenseView,
   PrivateReceiptView,
 } from "@/application/services/application-services";
 import { deterministicSeedData, SEEDED_USER_IDS } from "@/infrastructure/indexeddb/seed";
-import { receiptId } from "@/domain/shared/identifiers";
+import { expenseCommentId, receiptId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { DomainError } from "@/domain/shared/domain-error";
 import { ApplicationError, BackdatedExpenseConfirmationRequiredError, ReceiptSagaPartialSuccessError } from "@/application/errors/application-error";
@@ -202,6 +203,19 @@ describe("receipt retention presentation", () => {
     expect(actions.readReceipt).not.toHaveBeenCalled();
   });
 
+  it("renders an accessible ten-option semantic category radio group with Others selected by default", async () => {
+    const user = userEvent.setup();
+    renderWithRuntime(<ExpenseFormPageClient mode="create" />, expenseActions());
+
+    await screen.findByRole("heading", { name: "Add Expense" });
+    const category = screen.getByRole("group", { name: "Expense Category" });
+    expect(within(category).getAllByRole("radio")).toHaveLength(10);
+    expect(within(category).getByRole("radio", { name: "Others" })).toBeChecked();
+    await user.click(within(category).getByRole("radio", { name: "Pets" }));
+    expect(within(category).getByRole("radio", { name: "Pets" })).toBeChecked();
+    expect(within(category).getByRole("radio", { name: "Others" })).not.toBeChecked();
+  });
+
   it("shows terminal receipts as read-only history on Edit without Blob reads", async () => {
     const terminalReceipts = receipts.slice(1);
     const actions = expenseActions({
@@ -239,6 +253,7 @@ describe("receipt retention presentation", () => {
       ),
     ).toBeVisible();
     expect(screen.getByLabelText("Expense Name")).toBeEnabled();
+    expect(screen.getByRole("radio", { name: "Others" })).toBeEnabled();
     expect(screen.getByLabelText("Amount (BDT)")).toBeDisabled();
     expect(screen.getByLabelText("Expense Date")).toBeDisabled();
     expect(screen.getByRole("radio", { name: "cash" })).toBeDisabled();
@@ -366,6 +381,41 @@ describe("receipt retention presentation", () => {
     expect(await screen.findByText("Receipt attached")).toBeVisible();
     expect(screen.queryByText(/groceries\.png|Uploaded/u)).not.toBeInTheDocument();
     expect(actions.readReceipt).not.toHaveBeenCalled();
+  });
+
+  it("renders multiline comment text safely and appends an authoritative sent comment", async () => {
+    const user = userEvent.setup();
+    const existing: ExpenseCommentView = {
+      commentId: expenseCommentId("comment-ui-existing"),
+      authorUserId: SEEDED_USER_IDS.john,
+      authorDisplayName: "John",
+      body: "<script>alert(1)</script>\nStill plain text",
+      createdAt: isoInstant("2026-08-20T14:00:00.000Z"),
+    };
+    const created: ExpenseCommentView = {
+      commentId: expenseCommentId("comment-ui-created"),
+      authorUserId: SEEDED_USER_IDS.raiyan,
+      authorDisplayName: "Raiyan",
+      body: "A new\ncomment",
+      createdAt: isoInstant("2026-08-20T15:00:00.000Z"),
+    };
+    const createComment = vi.fn().mockResolvedValue(created);
+    const rendered = renderWithRuntime(<ExpenseDetailsPageClient expenseId={expense.expenseId} />, expenseActions({
+      listComments: vi.fn().mockResolvedValue([existing]),
+      createComment,
+    }));
+
+    expect(await screen.findByRole("heading", { name: "Comments (1)" })).toBeVisible();
+    expect([...rendered.container.querySelectorAll("p")].some((node) => node.textContent === "<script>alert(1)</script>\nStill plain text")).toBe(true);
+    expect(document.querySelector("script")).toBeNull();
+    const composer = screen.getByLabelText("Write a comment");
+    expect(composer).toHaveAttribute("maxlength", "1000");
+    await user.type(composer, "A new{shift>}{enter}{/shift}comment");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(1));
+    expect(createComment.mock.calls[0]![1]).toBe("A new\ncomment");
+    expect(await screen.findByRole("heading", { name: "Comments (2)" })).toBeVisible();
+    expect([...rendered.container.querySelectorAll("p")].some((node) => node.textContent === "A new\ncomment")).toBe(true);
   });
 
   it("refreshes stale Delete capability and removes the actionable operation", async () => {

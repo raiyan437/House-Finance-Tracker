@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 
 export const PRODUCTION_PROJECT_ID = "6a8b0d38002ea1bfa477";
 export const PRODUCTION_ORIGIN = "https://house-finance-tracker.appwrite.network";
-export const EXPECTED_SCHEMA_VERSION = 6;
+export const EXPECTED_SCHEMA_VERSION = 7;
 export const RESET_CONFIRMATION = "DELETE ALL TEST DATA FOR FRESH START";
 
 export const RESET_TABLE_ORDER = Object.freeze([
   "receipt_reservations",
   "receipt_metadata",
   "expense_card_private_details",
+  "expense_comments",
   "settlements",
   "expenses",
   "cards",

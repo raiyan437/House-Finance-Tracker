@@ -4,6 +4,7 @@ import {
   mapCard,
   mapCurrentProfile,
   mapExpense,
+  mapExpenseComment,
   mapHousehold,
   mapJoinRequest,
   mapMembership,
@@ -115,6 +116,33 @@ describe("strict provider row mappers", () => {
       paymentMethod: "cash", paymentRefJson: "{}", allocationsJson: "[]",
       revision: 1, createdAt: INSTANT, updatedAt: INSTANT, deletedAt: INSTANT,
     }))).toThrow();
+  });
+
+  it("normalizes legacy Expense icons and maps validated plain-text comments", () => {
+    const legacy = mapExpense(row("e_legacy", {
+      householdId: "h1", expenseDate: "2026-08-01", amountPoisha: "100",
+      payerId: "u1", createdBy: "u1", splitMethod: "equal", name: "Legacy",
+      paymentMethod: "cash", paymentRefJson: "{}", allocationsJson: JSON.stringify([{ participantId: "u1", sharePoisha: "100" }]),
+      revision: 1, createdAt: INSTANT, updatedAt: INSTANT,
+    }));
+    expect(legacy.iconCategory).toBe("others");
+    expect(mapExpense(row("e_food", {
+      householdId: "h1", expenseDate: "2026-08-01", amountPoisha: "100",
+      payerId: "u1", createdBy: "u1", splitMethod: "equal", name: "Dinner", iconCategory: "food",
+      paymentMethod: "cash", paymentRefJson: "{}", allocationsJson: JSON.stringify([{ participantId: "u1", sharePoisha: "100" }]),
+      revision: 1, createdAt: INSTANT, updatedAt: INSTANT,
+    })).iconCategory).toBe("food");
+    expect(() => mapExpense(row("e_bad_icon", {
+      householdId: "h1", expenseDate: "2026-08-01", amountPoisha: "100",
+      payerId: "u1", createdBy: "u1", splitMethod: "equal", name: "Bad", iconCategory: "ReceiptText",
+      paymentMethod: "cash", paymentRefJson: "{}", allocationsJson: JSON.stringify([{ participantId: "u1", sharePoisha: "100" }]),
+      revision: 1, createdAt: INSTANT, updatedAt: INSTANT,
+    }))).toThrow();
+
+    expect(mapExpenseComment(row("comment_1", { householdId: "h1", expenseId: "e_food", authorUserId: "u1", body: "<b>plain</b>\ntext", createdAt: INSTANT }))).toMatchObject({
+      commentId: "comment_1", householdId: "h1", expenseId: "e_food", authorUserId: "u1", body: "<b>plain</b>\ntext", createdAt: INSTANT,
+    });
+    expect(() => mapExpenseComment(row("comment_bad", { householdId: "h1", expenseId: "e_food", authorUserId: "u1", body: " ", createdAt: INSTANT }))).toThrow();
   });
 
   it("reconstructs the opaque card reference convention without exposing provider data", () => {

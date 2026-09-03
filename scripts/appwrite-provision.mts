@@ -19,6 +19,7 @@ const BUSINESS_TABLE_IDS = [
   "memberships",
   "join_requests",
   "expenses",
+  "expense_comments",
   "expense_card_private_details",
   "settlements",
   "cards",

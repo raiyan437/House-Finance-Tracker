@@ -12,6 +12,7 @@ import {
   summarizePercentageSplitDraft,
   userId,
   type ExpenseDate,
+  type ExpenseIconCategory,
   type Poisha,
   type PercentageSplitEntry,
   type PositivePoisha,
@@ -22,6 +23,7 @@ import {
 
 export interface ExpenseFormDraft {
   readonly name: string;
+  readonly iconCategory?: ExpenseIconCategory;
   readonly amountText: string;
   readonly expenseDateText: string;
   readonly paymentMethod: "cash" | "card";
@@ -57,6 +59,7 @@ export interface ExpenseDraftPreview {
 
 export interface PreparedExpenseDraft {
   readonly name: string;
+  readonly iconCategory: ExpenseIconCategory;
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
@@ -233,6 +236,7 @@ export function prepareExpenseDraft(
   }
   return {
     name: draft.name.trim(),
+    iconCategory: draft.iconCategory ?? "others",
     amount: preview.amount,
     expenseDate: expenseDate(draft.expenseDateText),
     splitMethod: draft.splitMethod,

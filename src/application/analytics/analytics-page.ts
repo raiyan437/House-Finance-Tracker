@@ -39,6 +39,7 @@ export interface AnalyticsMemberView {
 export interface AnalyticsExpenseView {
   readonly expenseId: Expense["expenseId"];
   readonly name: string;
+  readonly iconCategory?: Expense["iconCategory"];
   readonly amount: Poisha;
   readonly expenseDate: Expense["expenseDate"];
   readonly createdAt: IsoInstant;
@@ -147,6 +148,7 @@ function expenseView(source: AnalyticsSourceSnapshot, expense: Expense): Analyti
   return Object.freeze({
     expenseId: expense.expenseId,
     name: expense.name,
+    iconCategory: expense.iconCategory,
     amount: poisha(expense.amount),
     expenseDate: expense.expenseDate,
     createdAt: expense.createdAt,

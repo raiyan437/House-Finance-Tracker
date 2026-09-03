@@ -96,7 +96,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved capacity is present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
@@ -123,7 +123,7 @@ describe("schema bootstrap planner", () => {
 
   it("treats the approved profiles.displayName capacity as already correct", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);
@@ -217,7 +217,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved Schema V4 capacities and private column are present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 6 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);

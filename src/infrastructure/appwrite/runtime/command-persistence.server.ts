@@ -9,6 +9,7 @@ import { toBalanceExpense } from "@/domain/records/domain-records";
 import { canonicalIntentDigest } from "@/application/idempotency/command-idempotency";
 import {
   assertExpense,
+  assertExpenseComment,
   PROFILE_DISPLAY_NAME_MAX_LENGTH,
   type AuditEvent,
   type Card,
@@ -66,6 +67,7 @@ const TABLE = {
   commandOutcomes: "command_outcomes",
   cards: "cards",
   expenseCardPrivateDetails: "expense_card_private_details",
+  expenseComments: "expense_comments",
 } as const;
 
 const MAX_ACTIVE_HOUSEHOLD_MEMBERS = 4;
@@ -212,6 +214,7 @@ export class AppwriteCommandPersistence implements AtomicApplicationPersistence 
       payerId: String(expense.payerId),
       splitMethod: expense.splitMethod,
       name: expense.name,
+      iconCategory: expense.iconCategory ?? "others",
       paymentMethod: expense.payment.method,
       paymentRefJson: JSON.stringify({ private: expense.payment.method === "card" }),
       allocationsJson: JSON.stringify(expense.allocations.map((allocation) => ({
@@ -1346,6 +1349,50 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       }),
       () => undefined,
       input.idempotency,
+    );
+  }
+
+  async createExpenseComment(input: Parameters<AtomicApplicationPersistence["createExpenseComment"]>[0]): Promise<string> {
+    const tablesDB = this.tablesDB;
+    const { comment, idempotency } = input;
+    assertExpenseComment(comment);
+    if (idempotency.actorId !== comment.authorUserId || idempotency.commandType !== "create-expense-comment") {
+      throw new ApplicationError("INVALID_INPUT", "Comment command identity is invalid.");
+    }
+    return this.resolveDelivery(
+      tablesDB,
+      { actorId: String(comment.authorUserId), intentSeed: { expenseId: String(comment.expenseId), body: comment.body } },
+      () => runCommandTransaction(tablesDB, async ({ tx }) => {
+        const tables = this.scoped(tablesDB, tx);
+        const [expenseRaw, householdRaw] = await Promise.all([
+          tables.getRow(TABLE.expenses, String(comment.expenseId)),
+          tables.getRow(TABLE.households, String(comment.householdId)),
+        ]);
+        const expense = expenseRaw ? mapExpense(expenseRaw) : undefined;
+        const household = householdRaw ? mapHousehold(householdRaw) : undefined;
+        if (!expense || expense.deletedAt || expense.householdId !== comment.householdId || !household || household.deletedAt) {
+          throw new ApplicationError("NOT_FOUND", "Expense not found.");
+        }
+        const membership = await this.householdMemberships(tables, String(comment.householdId));
+        if (!membership.some((item) => item.userId === comment.authorUserId && item.status === "active")) {
+          throw new ApplicationError("NOT_FOUND", "Expense not found.");
+        }
+        if (await tables.getRow(TABLE.expenseComments, String(comment.commentId))) {
+          throw new ApplicationError("CONFLICT", "Comment already exists.");
+        }
+        await tablesDB.createRow({
+          databaseId: "hft",
+          tableId: TABLE.expenseComments,
+          rowId: String(comment.commentId),
+          data: { householdId: String(comment.householdId), expenseId: String(comment.expenseId), authorUserId: String(comment.authorUserId), body: comment.body, createdAt: comment.createdAt },
+          transactionId: tx.id,
+        });
+        tx.recordStagedOperation();
+        await this.stageOutcome(tablesDB, tx, idempotency, String(comment.commentId), comment.createdAt);
+        return String(comment.commentId);
+      }),
+      (resourceId) => resourceId,
+      idempotency,
     );
   }
 

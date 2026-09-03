@@ -6,9 +6,9 @@ import { runWithCommandEnvelope } from "./command-envelope.server";
 import { createInMemoryTablesDB, InMemoryTablesReader } from "../reads/in-memory-tables-reader.helper";
 import { guardRowId, membershipRowId } from "../ids";
 import { canonicalIntentDigest, type IdempotencyDescriptor } from "@/application/idempotency/command-idempotency";
-import { auditEventId, cardId, commandId, expenseId, householdId, joinRequestId, settlementId, userId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, commandId, expenseCommentId, expenseId, householdId, joinRequestId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
-import type { AuditEvent, Expense } from "@/domain/records/domain-records";
+import type { AuditEvent, Expense, ExpenseComment } from "@/domain/records/domain-records";
 import { expenseDate } from "@/domain/dates/expense-date";
 import { positivePoisha } from "@/domain/money/poisha";
 import { allocateEqualSplit } from "@/domain/splits/equal-split";
@@ -105,6 +105,7 @@ beforeEach(() => {
   ]);
   reader.seed("join_requests", [requestRow("j_req1", String(ALEX))]);
   reader.seed("expenses", []);
+  reader.seed("expense_comments", []);
   reader.seed("settlements", []);
   reader.seed("cards", []);
   reader.seed("expense_card_private_details", []);
@@ -829,6 +830,38 @@ describe("trusted Appwrite command kernel", () => {
         expectedExpenseId: original.expenseId, actorId: LEADER, expense: { ...renamed, revision: 3, updatedAt: financial.updatedAt },
         expectedRevision: 1, auditEvents: [expenseAudit("e_locked", "edited", financial.updatedAt)],
       })).rejects.toMatchObject({ code: "EXPENSE_VERSION_CONFLICT" });
+    });
+
+    it("creates comments independently of the Expense aggregate and replays without duplicates", async () => {
+      const expense = expenseRecord("e_comment");
+      await persistence.createExpense({
+        expense, actorId: LEADER, commandId: commandId("k_comment_expense"), receipts: [],
+        auditEvent: expenseAudit("e_comment"),
+        idempotency: { actorId: LEADER, commandType: "create-expense", commandId: commandId("k_comment_expense"), intentDigest: canonicalIntentDigest({ expenseId: "e_comment" }) },
+      });
+      const expenseBefore = structuredClone(await reader.getRow("expenses", "e_comment"));
+      const auditsBefore = structuredClone(await reader.listRows("audit_events"));
+      const comment: ExpenseComment = {
+        commentId: expenseCommentId("comment_1"), householdId: HH, expenseId: expense.expenseId,
+        authorUserId: JOHN, body: "Hello\nthere", createdAt: T1,
+      };
+      const idempotency: IdempotencyDescriptor = {
+        actorId: JOHN, commandType: "create-expense-comment", commandId: commandId("k_comment"),
+        intentDigest: canonicalIntentDigest({ expenseId: comment.expenseId, body: comment.body }),
+      };
+
+      expect(await persistence.createExpenseComment({ comment, idempotency })).toBe("comment_1");
+      expect(await reader.getRow("expense_comments", "comment_1")).toMatchObject({
+        householdId: HH, expenseId: expense.expenseId, authorUserId: JOHN, body: "Hello\nthere", createdAt: T1,
+      });
+      expect(await reader.getRow("expenses", "e_comment")).toEqual(expenseBefore);
+      expect(await reader.listRows("audit_events")).toEqual(auditsBefore);
+      expect(await persistence.createExpenseComment({ comment, idempotency })).toBe("comment_1");
+      expect(await reader.listRows("expense_comments")).toHaveLength(1);
+      await expect(persistence.createExpenseComment({
+        comment: { ...comment, commentId: expenseCommentId("comment_2"), body: "Changed" },
+        idempotency: { ...idempotency, intentDigest: canonicalIntentDigest({ expenseId: comment.expenseId, body: "Changed" }) },
+      })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
     });
   });
 

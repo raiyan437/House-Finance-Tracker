@@ -49,6 +49,7 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
         return { status: 409, body: { error: error.message, code: error.code } };
       case "INVALID_HOUSEHOLD_CODE":
       case "INVALID_INPUT":
+      case "INVALID_EXPENSE_COMMENT":
       case "EXPENSE_DATE_IN_FUTURE":
       case "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW":
       case "RECEIPT_PRIVATE_ACCESS_FORBIDDEN":

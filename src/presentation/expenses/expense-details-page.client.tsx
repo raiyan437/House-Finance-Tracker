@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, CreditCard, ImageOff, MoreHorizontal, Paperclip, Pencil, ReceiptText, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, CreditCard, ImageOff, Loader2, MoreHorizontal, Paperclip, Pencil, ReceiptText, Send, Trash2, UserRound } from "lucide-react";
 
 import type {
   ExpenseActivityView,
@@ -12,6 +12,7 @@ import type {
   PrivateReceiptView,
   ReceiptView,
   ExpenseView,
+  ExpenseCommentView,
 } from "@/application/services/application-services";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,9 @@ import { PageContainer } from "@/presentation/shell/page-container";
 import { getCardPaletteOption } from "@/presentation/cards/card-palette";
 import { formatBasisPoints, formatExpenseDate, formatReceiptCreatedAt, receiptContentStateText, RECEIPT_RETENTION_NOTICE } from "./expense-ui";
 import { createTrackedReceiptPreviewUrl } from "./receipt-preview-url";
+import { ExpenseSemanticIcon } from "./expense-icon";
+import { MemberAvatar } from "@/presentation/components/member-avatar";
+import { useIdempotentCommand } from "@/presentation/runtime/use-idempotent-command";
 
 interface ReceiptPreview {
   readonly metadata: ReceiptView;
@@ -63,6 +67,11 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
   const [members, setMembers] = useState<readonly ExpenseMemberView[]>([]);
   const [receipts, setReceipts] = useState<readonly ReceiptPreview[]>([]);
   const [activity, setActivity] = useState<readonly ExpenseActivityView[]>([]);
+  const [comments, setComments] = useState<readonly ExpenseCommentView[]>([]);
+  const [commentBody, setCommentBody] = useState("");
+  const [commentError, setCommentError] = useState<string>();
+  const [commentSaving, setCommentSaving] = useState(false);
+  const commentCommand = useIdempotentCommand();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const urlsRef = useRef<string[]>([]);
@@ -78,11 +87,12 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     const loadVersion = ++loadVersionRef.current;
     const isCurrent = () => loadVersionRef.current === loadVersion;
     const id = parseExpenseId(expenseId);
-    const [nextView, nextMembers, metadata, nextActivity] = await Promise.all([
+    const [nextView, nextMembers, metadata, nextActivity, nextComments] = await Promise.all([
       runtime.expenseActions.getExpense(id),
       runtime.expenseActions.listMembers(household.householdId),
       runtime.expenseActions.listReceipts(id),
       runtime.expenseActions.listActivity(id),
+      runtime.expenseActions.listComments?.(id) ?? Promise.resolve([]),
     ]);
     if (!isCurrent()) return;
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -120,6 +130,7 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     setMembers(nextMembers);
     setReceipts(completeReceipts);
     setActivity(nextActivity);
+    setComments(nextComments);
     setStatus("ready");
   }, [expenseId, household, runtime]);
 
@@ -169,13 +180,31 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     }
   }
 
+  async function sendComment() {
+    if (!expenseActions.createComment || commentSaving) return;
+    const body = commentBody.trim();
+    if (!body) { setCommentError("Write a comment before sending."); return; }
+    if (body.length > 1000) { setCommentError("Comment must be 1000 characters or fewer."); return; }
+    setCommentSaving(true);
+    setCommentError(undefined);
+    try {
+      const created = await expenseActions.createComment(expense.expenseId, body, commentCommand.forIntent(JSON.stringify({ expenseId: expense.expenseId, body })));
+      commentCommand.complete();
+      setComments((current) => [...current, created]);
+      setCommentBody("");
+      setView((current) => current ? { ...current, commentCount: (current.commentCount ?? comments.length) + 1 } : current);
+    } catch {
+      setCommentError("Comment could not be sent. Try again.");
+    } finally { setCommentSaving(false); }
+  }
+
   return (
     <PageContainer>
       <Button asChild variant="ghost" className="-ml-3 min-h-11 rounded-xl lg:min-h-9"><Link href="/expenses"><ArrowLeft /> Back to expenses</Link></Button>
       {view.permissions.canDelete ? <ConfirmDialog destructive open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} title="Delete this expense?" description="The expense will leave normal lists and balances. Financial history and receipt metadata remain, while receipt files continue under the normal retention period." confirmLabel="Delete Expense" onConfirm={deleteExpense} /> : null}
       <header className="mt-1.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="page-title break-words">{expense.name}</h1>
+          <div className="flex items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft"><ExpenseSemanticIcon category={expense.iconCategory} className="size-5" /></span><h1 className="page-title break-words">{expense.name}</h1></div>
           <p className="financial-numerals mt-1 text-xl font-semibold leading-7">{formatBdt(expense.amount)}</p>
           <p className="compact-caption mt-1 text-text-muted">{formatExpenseDate(expense.expenseDate)} · {expense.deletedAt ? "Deleted historical expense · read-only" : "Household expense"}</p>
           {view.addedAfterSettlement ? <p className="compact-caption mt-1 text-text-muted">Added after settlement</p> : null}
@@ -205,6 +234,11 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
           <Surface className="expense-activity-panel overflow-y-auto" padding="canonical"><h2 className="panel-title">Activity</h2>{activity.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No supported activity information.</p> : <ol className="mt-3 space-y-2">{activity.map((item, index) => <li key={`${item.occurredAt}-${index}`} className="rounded-xl bg-secondary p-3"><p className="text-xs font-medium capitalize">{item.action.replaceAll("-", " ")}</p><p className="compact-caption mt-1 text-text-secondary">{item.actorName} · {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(item.occurredAt))}</p><p className="compact-caption text-text-secondary">Changed: {item.changedFields.join(", ")}</p></li>)}</ol>}</Surface>
         </aside>
       </div>
+      <Surface className="mt-6" padding="canonical">
+        <h2 className="panel-title">Comments ({comments.length})</h2>
+        {comments.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No comments yet.</p> : <ol className="mt-4 divide-y">{comments.map((comment) => <li className="flex gap-3 py-4 first:pt-0" key={comment.commentId}><MemberAvatar className="size-9 shrink-0" displayName={comment.authorDisplayName} userId={comment.authorUserId} /><div className="min-w-0"><div className="flex flex-wrap items-baseline gap-x-2"><p className="text-sm font-semibold">{comment.authorDisplayName}</p><time className="compact-caption text-text-muted" dateTime={comment.createdAt}>{new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(comment.createdAt))}</time></div><p className="mt-1 whitespace-pre-wrap break-words text-sm text-text-secondary">{comment.body}</p></div></li>)}</ol>}
+        {!expense.deletedAt && expenseActions.createComment ? <div className="mt-5 border-t pt-5"><label className="text-label font-medium" htmlFor="expense-comment">Write a comment</label><textarea id="expense-comment" className="mt-2 min-h-28 w-full resize-y rounded-xl border border-input bg-card px-3 py-2 text-sm outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/30" maxLength={1000} aria-describedby="expense-comment-help expense-comment-error" value={commentBody} onChange={(event) => { setCommentBody(event.target.value); setCommentError(undefined); }} placeholder="Write a comment..." /><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><p id="expense-comment-help" className="compact-caption text-text-muted">Plain text · {commentBody.length}/1000</p><Button type="button" disabled={commentSaving || commentBody.trim().length === 0} aria-busy={commentSaving} onClick={() => void sendComment()}>{commentSaving ? <Loader2 aria-hidden="true" className="animate-spin" /> : <Send aria-hidden="true" />} {commentSaving ? "Sending…" : "Send"}</Button></div>{commentError ? <p id="expense-comment-error" className="mt-2 text-sm text-danger" role="alert">{commentError}</p> : null}</div> : null}
+      </Surface>
     </PageContainer>
   );
 }

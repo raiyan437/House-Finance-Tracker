@@ -6,6 +6,7 @@ import type {
   SplitMethod,
   UserId,
 } from "@/domain";
+import type { ExpenseIconCategory } from "@/domain/expenses/expense-icon-category";
 
 export type ExpenseSortOrder = "newest" | "oldest";
 
@@ -18,6 +19,8 @@ export interface ExpenseListPayer {
 export interface ExpenseListRow {
   readonly expenseId: ExpenseId;
   readonly name: string;
+  readonly iconCategory?: ExpenseIconCategory;
+  readonly commentCount?: number;
   readonly amount: Poisha;
   readonly expenseDate: ExpenseDate;
   readonly createdAt: IsoInstant;

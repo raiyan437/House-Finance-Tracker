@@ -5,6 +5,7 @@ import type {
   CardRepository,
   CommandOutcomeRepository,
   ExpenseRepository,
+  ExpenseCommentRepository,
   HouseholdRepository,
   JoinRequestRepository,
   MembershipRepository,
@@ -23,6 +24,7 @@ import {
   mapCard,
   mapCurrentProfile,
   mapExpense,
+  mapExpenseComment,
   mapHousehold,
   mapJoinRequest,
   mapMembership,
@@ -45,6 +47,7 @@ const TABLE = {
   receiptMetadata: "receipt_metadata",
   auditEvents: "audit_events",
   commandOutcomes: "command_outcomes",
+  expenseComments: "expense_comments",
 } as const;
 
 /**
@@ -163,6 +166,24 @@ class AppwriteExpenseRepository implements ExpenseRepository {
   }
 }
 
+class AppwriteExpenseCommentRepository implements ExpenseCommentRepository {
+  constructor(private readonly tables: TablesReader) {}
+  async listForExpense(id: ExpenseId) {
+    const rows = await this.tables.listRows(TABLE.expenseComments, [Query.equal("expenseId", id), Query.orderAsc("createdAt"), Query.orderAsc("$id")]);
+    return rows.map(mapExpenseComment);
+  }
+  async countForExpenses(_household: HouseholdId, ids: readonly ExpenseId[]) {
+    const counts = new Map<ExpenseId, number>(ids.map((id) => [id, 0]));
+    if (ids.length === 0) return counts;
+    const rows = await this.tables.listRows(TABLE.expenseComments, [Query.equal("expenseId", ids.map(String))]);
+    for (const row of rows) {
+      const comment = mapExpenseComment(row);
+      if (counts.has(comment.expenseId)) counts.set(comment.expenseId, (counts.get(comment.expenseId) ?? 0) + 1);
+    }
+    return counts;
+  }
+}
+
 class AppwriteSettlementRepository implements SettlementRepository {
   constructor(private readonly tables: TablesReader) {}
   async getById(id: SettlementId) {
@@ -272,6 +293,7 @@ export interface AppwriteReadRepositories {
   readonly memberships: MembershipRepository;
   readonly joinRequests: JoinRequestRepository;
   readonly expenses: ExpenseRepository;
+  readonly expenseComments: ExpenseCommentRepository;
   readonly settlements: SettlementRepository;
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository;
@@ -286,6 +308,7 @@ export function createAppwriteReadRepositories(tables: TablesReader, actorId: Us
     memberships: new AppwriteMembershipRepository(tables),
     joinRequests: new AppwriteJoinRequestRepository(tables),
     expenses: new AppwriteExpenseRepository(tables),
+    expenseComments: new AppwriteExpenseCommentRepository(tables),
     settlements: new AppwriteSettlementRepository(tables),
     cards: new AppwriteCardRepository(tables),
     receipts: new AppwriteReceiptRepository(tables),

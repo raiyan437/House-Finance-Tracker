@@ -239,6 +239,9 @@ export function LocalApplicationRuntime({
             runtime.application.receipts.deleteReceipt(receiptId),
           listActivity: (expenseId) =>
             runtime.application.expenses.listExpenseActivity(expenseId),
+          listComments: (expenseId) => runtime.application.expenses.listExpenseComments(expenseId),
+          createComment: (expenseId, body, commentCommandId) =>
+            runtime.application.expenses.createExpenseComment(expenseId, body, commentCommandId),
         });
         settlementActions = Object.freeze<SettlementApplicationActions>({
           getPage: (householdId) =>

@@ -56,7 +56,7 @@ async function setSeedReceiptTerminalState(
 ): Promise<void> {
   await page.evaluate(async (terminalStatus) => {
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 5);
+      const request = indexedDB.open("house-finance-tracker-local", 6);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
@@ -106,7 +106,7 @@ async function insertConfirmedSettlement(
   await page.evaluate(
     async ({ settlementId, confirmedAt }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("house-finance-tracker-local", 5);
+        const request = indexedDB.open("house-finance-tracker-local", 6);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;
@@ -150,7 +150,7 @@ test("expense list composes filters and opens accessible desktop rows", async ({
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/expenses");
-  await expect(page.getByRole("heading", { name: "Expenses" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Expenses", exact: true })).toBeVisible();
   const month = page.getByRole("combobox", { name: "Month", exact: true });
   await expect(month).toContainText("September 2026");
   await month.click();
@@ -180,6 +180,61 @@ test("expense list composes filters and opens accessible desktop rows", async ({
   await expect(page.getByText("Payment Method")).toBeVisible();
   await expect(page.getByText("John Credit")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("creates, edits, reloads, and lists semantic icons with append-only plain-text comments", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/expenses/new");
+  const category = page.getByRole("group", { name: "Expense Category" });
+  await expect(category.getByRole("radio")).toHaveCount(10);
+  await expect(category.getByRole("radio", { name: "Others" })).toBeChecked();
+  await category.getByRole("radio", { name: "Pets" }).check();
+  await page.getByLabel("Expense Name").fill("Cat supplies");
+  await page.getByLabel("Amount (BDT)").fill("12.34");
+  await selectExpenseDate(page, "2026-08-18");
+  await page.getByRole("button", { name: "Create Expense" }).click();
+
+  await expect(page).toHaveURL(/\/expenses\//u);
+  await expect(page.getByRole("heading", { name: "Cat supplies" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pets category" })).toBeVisible();
+  const comments = page.getByRole("heading", { name: "Comments (0)" }).locator("..");
+  const body = "<script>alert('no')</script>\nSecond line";
+  await comments.getByLabel("Write a comment").fill(body);
+  await comments.getByRole("button", { name: "Send" }).click();
+  const populatedComments = page.getByRole("heading", { name: "Comments (1)" }).locator("..");
+  await expect(populatedComments).toBeVisible();
+  await expect(populatedComments.getByText(body)).toBeVisible();
+  await expect(populatedComments.locator("script")).toHaveCount(0);
+  const longBody = "x".repeat(1000);
+  await populatedComments.getByLabel("Write a comment").fill(longBody);
+  await populatedComments.getByRole("button", { name: "Send" }).click();
+  const longComment = page.getByRole("heading", { name: "Comments (2)" }).locator("..").getByText(longBody);
+  await expect(longComment).toBeVisible();
+  expect(await longComment.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Pets category" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comments (2)" })).toBeVisible();
+  await expect(page.getByText(body)).toBeVisible();
+
+  await page.getByRole("link", { name: "Edit" }).click();
+  await category.getByRole("radio", { name: "Repairs" }).check();
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.getByRole("img", { name: "Repairs category" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Back to expenses" }).click();
+  await chooseSelectOption(page, "Month", "August 2026");
+  const headings = page.locator('[aria-hidden="true"]').filter({ hasText: "Comments" }).first().locator("span");
+  await expect(headings).toHaveText(["Expense", "Comments", "Date", "Paid By", "Payment", "Split", "Amount"]);
+  const row = page.getByRole("listitem").filter({ hasText: "Cat supplies" });
+  await expect(row.getByRole("img", { name: "Repairs category" })).toBeVisible();
+  await expect(row).toContainText("2");
+
+  const axe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
 });
 
 test("renders retention-expired receipt history without a broken image on Details and Edit", async ({ page }) => {
@@ -248,6 +303,12 @@ for (const viewport of [
     expect(paymentMetrics.whiteSpace).toBe("nowrap");
 
     await page.goto("/expenses/new");
+    const category = page.getByRole("group", { name: "Expense Category" });
+    await expect(category.getByRole("radio")).toHaveCount(10);
+    const categoryBounds = await category.boundingBox();
+    expect(categoryBounds).not.toBeNull();
+    expect(categoryBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(categoryBounds!.x + categoryBounds!.width).toBeLessThanOrEqual(viewport.width);
     const dateTrigger = page.locator('[data-slot="date-picker-trigger"]');
     await expect(dateTrigger).toBeVisible();
     await expect(page.locator('input[type="date"]')).toHaveCount(0);
@@ -268,6 +329,18 @@ for (const viewport of [
     }
     await page.keyboard.press("Escape");
     await expect(dateTrigger).toBeFocused();
+
+    await page.goto("/expenses/expense-groceries");
+    const comments = page.getByRole("heading", { name: /Comments \(\d+\)/u }).locator("..");
+    await expect(comments.getByLabel("Write a comment")).toBeVisible();
+    const commentBounds = await comments.boundingBox();
+    expect(commentBounds).not.toBeNull();
+    expect(commentBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(commentBounds!.x + commentBounds!.width).toBeLessThanOrEqual(viewport.width);
+    const axe = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
   });
 }
 
@@ -517,7 +590,7 @@ test("a stale Expense Save reloads the confirmed-settlement lock without committ
 
   const persisted = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 5);
+      const request = indexedDB.open("house-finance-tracker-local", 6);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
@@ -575,7 +648,7 @@ test("a stale Expense Delete reloads the lock and leaves the Expense active", as
 
   const persisted = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 5);
+      const request = indexedDB.open("house-finance-tracker-local", 6);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });

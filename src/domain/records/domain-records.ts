@@ -2,6 +2,7 @@ import { expenseDate, type ExpenseDate } from "../dates/expense-date";
 import { cardColorId, type CardColorId } from "../cards/card-color";
 import type { BalanceExpense } from "../expenses/balance-expense";
 import { assertExpensePercentageSource } from "../expenses/expense-percentage-source";
+import { expenseIconCategory, type ExpenseIconCategory } from "../expenses/expense-icon-category";
 import { positivePoisha, type PositivePoisha } from "../money/poisha";
 import {
   assertExpensePayment,
@@ -12,6 +13,7 @@ import {
   auditEventId,
   cardId,
   expenseId,
+  expenseCommentId,
   householdId,
   joinRequestId,
   receiptId,
@@ -19,6 +21,7 @@ import {
   type AuditEventId,
   type CardId,
   type ExpenseId,
+  type ExpenseCommentId,
   type HouseholdId,
   type JoinRequestId,
   type ReceiptId,
@@ -88,6 +91,7 @@ export interface Expense {
   readonly creatorId: UserId;
   readonly payerId: UserId;
   readonly name: string;
+  readonly iconCategory?: ExpenseIconCategory;
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
@@ -99,6 +103,17 @@ export interface Expense {
   readonly updatedAt: IsoInstant;
   readonly deletedAt?: IsoInstant;
   readonly deletedByUserId?: UserId;
+}
+
+export const EXPENSE_COMMENT_MAX_LENGTH = 1000;
+
+export interface ExpenseComment {
+  readonly commentId: ExpenseCommentId;
+  readonly householdId: HouseholdId;
+  readonly expenseId: ExpenseId;
+  readonly authorUserId: UserId;
+  readonly body: string;
+  readonly createdAt: IsoInstant;
 }
 
 export type CardType = "debit" | "credit";
@@ -242,6 +257,7 @@ export function assertExpense(value: Expense): void {
   userId(value.creatorId);
   userId(value.payerId);
   assertTrimmedText(value.name, "INVALID_EXPENSE");
+  expenseIconCategory(value.iconCategory);
   positivePoisha(value.amount);
   expenseDate(value.expenseDate);
   if (value.creatorId !== value.payerId) {
@@ -286,6 +302,25 @@ export function assertExpense(value: Expense): void {
   if (Boolean(value.deletedAt) !== Boolean(value.deletedByUserId)) {
     throw new DomainError("INVALID_EXPENSE", "Expense deletion metadata must be complete.");
   }
+}
+
+export function normalizeExpenseCommentBody(value: string): string {
+  const body = value.trim();
+  if (body.length === 0 || body.length > EXPENSE_COMMENT_MAX_LENGTH) {
+    throw new DomainError("INVALID_EXPENSE_COMMENT", "Comment must contain 1 to 1000 characters.");
+  }
+  return body;
+}
+
+export function assertExpenseComment(value: ExpenseComment): void {
+  expenseCommentId(value.commentId);
+  householdId(value.householdId);
+  expenseId(value.expenseId);
+  userId(value.authorUserId);
+  if (normalizeExpenseCommentBody(value.body) !== value.body) {
+    throw new DomainError("INVALID_EXPENSE_COMMENT", "Comment must be trimmed.");
+  }
+  isoInstant(value.createdAt);
 }
 
 export function toBalanceExpense(value: Expense): BalanceExpense {

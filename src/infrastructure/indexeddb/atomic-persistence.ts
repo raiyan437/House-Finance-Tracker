@@ -60,6 +60,7 @@ import {
   toCardRecord,
   toCommandOutcomeRecord,
   toExpenseRecord,
+  toExpenseCommentRecord,
   toHouseholdRecord,
   toJoinRequestRecord,
   toMembershipRecord,
@@ -578,6 +579,40 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.expense.expenseId, completedAt: input.auditEvent.occurredAt }));
       await tx.done;
       return input.expense.expenseId;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async createExpenseComment(input: Parameters<AtomicApplicationPersistence["createExpenseComment"]>[0]): Promise<string> {
+    const commentRecord = toExpenseCommentRecord(input.comment);
+    if (input.idempotency.actorId !== input.comment.authorUserId || input.idempotency.commandType !== "create-expense-comment") {
+      throw new ApplicationError("CONFLICT", "Comment command identity is inconsistent.");
+    }
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "expenseComments", "commandOutcomes"], "readwrite");
+    try {
+      const outcomeKey = commandOutcomeKey(input.idempotency);
+      const existingRaw = await tx.objectStore("commandOutcomes").get(outcomeKey);
+      if (existingRaw) {
+        const existing = fromCommandOutcomeRecord(existingRaw, outcomeKey);
+        assertIdempotentIntent(existing, input.idempotency);
+        await tx.done;
+        return existing.resourceId;
+      }
+      const [expenseRaw, householdRaw, membershipRaw] = await Promise.all([
+        tx.objectStore("expenses").get(input.comment.expenseId),
+        tx.objectStore("households").get(input.comment.householdId),
+        tx.objectStore("memberships").get(membershipKey(input.comment.householdId, input.comment.authorUserId)),
+      ]);
+      if (!expenseRaw || !householdRaw || !membershipRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      const expense = fromExpenseRecord(expenseRaw, input.comment.expenseId);
+      const household = fromHouseholdRecord(householdRaw, input.comment.householdId);
+      const membership = fromMembershipRecord(membershipRaw, membershipKey(input.comment.householdId, input.comment.authorUserId));
+      if (expense.householdId !== input.comment.householdId || expense.deletedAt || household.deletedAt || membership.status !== "active") {
+        throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      }
+      await tx.objectStore("expenseComments").add(commentRecord);
+      await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.comment.commentId, completedAt: input.comment.createdAt }));
+      await tx.done;
+      return input.comment.commentId;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 

@@ -38,15 +38,18 @@ import { applyExpensePaymentEdit, projectExpensePayment, type PaymentEditRequest
 import {
   assertCard,
   assertExpense,
+  assertExpenseComment,
   assertHousehold,
   assertJoinRequest,
   assertReceiptMetadata,
   assertUserProfile,
   PROFILE_DISPLAY_NAME_MAX_LENGTH,
+  normalizeExpenseCommentBody,
   toBalanceExpense,
   type AuditEvent,
   type Card,
   type Expense,
+  type ExpenseComment,
   type ExpenseCardPrivateSnapshot,
   type Household,
   type JoinRequest,
@@ -54,7 +57,7 @@ import {
   type ReceiptContentStatus,
   type UserProfile,
 } from "@/domain/records/domain-records";
-import { auditEventId, cardId, expenseId, householdId, joinRequestId, receiptId, settlementId, type CardId, type ExpenseId, type HouseholdId, type JoinRequestId, type ReceiptId, type SettlementId, type UserId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, expenseCommentId, expenseId, householdId, joinRequestId, receiptId, settlementId, type CardId, type ExpenseId, type HouseholdId, type JoinRequestId, type ReceiptId, type SettlementId, type UserId } from "@/domain/shared/identifiers";
 import { commandId, type CommandId } from "@/domain/shared/identifiers";
 import type { IsoInstant } from "@/domain/shared/instant";
 import { createPendingSettlement } from "@/domain/settlements/pending-settlement-policy";
@@ -62,6 +65,7 @@ import { cancelSettlement, confirmSettlement, rejectSettlement } from "@/domain/
 import type { SettlementRecommendation, SettlementStatus } from "@/domain/settlements/settlement-types";
 import type { PercentageSplitEntry, SplitAllocation, SplitMethod } from "@/domain/splits/split-types";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
+import { expenseIconCategory, type ExpenseIconCategory } from "@/domain/expenses/expense-icon-category";
 import { assertExpenseDateWithinEntryWindow, businessDateAt } from "@/domain/dates/business-calendar";
 import { isBackdatedAfterSettlement, latestConfirmedSettlementBefore } from "@/domain/expenses/backdated-expense-policy";
 import { expenseFinancialFingerprintsEqual } from "@/domain/expenses/expense-financial-fingerprint";
@@ -83,7 +87,7 @@ import {
   buildActiveHouseholdPageView,
   type ActiveHouseholdPageView,
 } from "@/application/household/household-page";
-export type GeneratedIdKind = "user" | "household" | "join-request" | "expense" | "settlement" | "card" | "receipt" | "audit" | "command";
+export type GeneratedIdKind = "user" | "household" | "join-request" | "expense" | "expense-comment" | "settlement" | "card" | "receipt" | "audit" | "command";
 export interface ApplicationValues {
   now(): IsoInstant;
   nextId(kind: GeneratedIdKind): string;
@@ -446,6 +450,7 @@ export interface CreateExpenseCommand {
   readonly backdatedConfirmationToken?: string;
   readonly householdId: HouseholdId;
   readonly name: string;
+  readonly iconCategory?: ExpenseIconCategory;
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
@@ -466,6 +471,15 @@ export interface ExpenseView {
   readonly financialEditability: ExpenseFinancialEditability;
   readonly privateCardSnapshot?: ExpenseCardPrivateSnapshot;
   readonly addedAfterSettlement: boolean;
+  readonly commentCount?: number;
+}
+
+export interface ExpenseCommentView {
+  readonly commentId: ExpenseComment["commentId"];
+  readonly authorUserId: UserId;
+  readonly authorDisplayName: string;
+  readonly body: string;
+  readonly createdAt: IsoInstant;
 }
 
 export type ExpenseFinancialEditReason =
@@ -644,6 +658,7 @@ export interface EditExpenseCommand {
   readonly expenseId: ExpenseId;
   readonly expectedRevision: number;
   readonly name: string;
+  readonly iconCategory?: ExpenseIconCategory;
   readonly amount: PositivePoisha;
   readonly expenseDate: ExpenseDate;
   readonly splitMethod: SplitMethod;
@@ -711,6 +726,7 @@ export class ExpenseApplicationService {
       intentDigest: canonicalIntentDigest({
         householdId: command.householdId,
         name: command.name.trim(),
+        iconCategory: expenseIconCategory(command.iconCategory),
         amount: command.amount,
         expenseDate: command.expenseDate,
         splitMethod: command.splitMethod,
@@ -748,7 +764,7 @@ export class ExpenseApplicationService {
       );
     }
     assertExpenseDateWithinEntryWindow(command.expenseDate, now);
-    const expense: Expense = { expenseId: id, householdId: command.householdId, creatorId: actor, payerId: actor, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(command.splitMethod === "percentage" ? { percentageEntries: command.percentageEntries } : {}), allocations: command.allocations, payment: command.payment.method === "cash" ? { method: "cash" } : { method: "card", cardReference: expensePrivateReference(id) }, revision: 1, createdAt: now, updatedAt: now };
+    const expense: Expense = { expenseId: id, householdId: command.householdId, creatorId: actor, payerId: actor, name: command.name.trim(), iconCategory: expenseIconCategory(command.iconCategory), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(command.splitMethod === "percentage" ? { percentageEntries: command.percentageEntries } : {}), allocations: command.allocations, payment: command.payment.method === "cash" ? { method: "cash" } : { method: "card", cardReference: expensePrivateReference(id) }, revision: 1, createdAt: now, updatedAt: now };
     assertExpense(expense);
     assertExpenseParticipantsBelongToHousehold(expense, memberships, true);
     const relevantIntentDigest = expenseRelevantIntentDigest({
@@ -776,7 +792,7 @@ export class ExpenseApplicationService {
     }
     await Promise.all((command.receipts ?? []).map((item) => validateReceiptContent(item.content, this.deps.receiptContentDecoder)));
     const receipts = (command.receipts ?? []).map((item) => { const metadata: ReceiptMetadata = { receiptId: receiptId(this.deps.values.nextId("receipt")), householdId: command.householdId, expenseId: id, createdByUserId: actor, mimeType: item.content.mimeType, ...(item.originalFilename ? { originalFilename: item.originalFilename.trim() } : {}), sizeBytes: item.content.bytes.byteLength, createdAt: now, contentStatus: "available" }; assertReceiptMetadata(metadata); return { metadata, content: item.content }; });
-    const resourceId = await this.deps.atomic.createExpense({ expense, actorId: actor, commandId: activeCommandId, idempotency, relevantIntentDigest, ...(command.backdatedConfirmationToken ? { backdatedConfirmationToken: command.backdatedConfirmationToken } : {}), ...(selectedCardId ? { selectedCardId } : {}), receipts, auditEvent: event(this.deps.values, command.householdId, actor, "expense", id, "created", ["name", "amount", "expenseDate", "allocations", "payment", ...(receipts.length ? ["receipts"] : [])], now) });
+    const resourceId = await this.deps.atomic.createExpense({ expense, actorId: actor, commandId: activeCommandId, idempotency, relevantIntentDigest, ...(command.backdatedConfirmationToken ? { backdatedConfirmationToken: command.backdatedConfirmationToken } : {}), ...(selectedCardId ? { selectedCardId } : {}), receipts, auditEvent: event(this.deps.values, command.householdId, actor, "expense", id, "created", ["name", "iconCategory", "amount", "expenseDate", "allocations", "payment", ...(receipts.length ? ["receipts"] : [])], now) });
     return this.getExpense(expenseId(resourceId));
   }
 
@@ -784,9 +800,10 @@ export class ExpenseApplicationService {
     const actor = await this.deps.session.getCurrentUserId();
     const expense = await this.deps.repositories.expenses.getById(id);
     if (!expense) throw new ApplicationError("NOT_FOUND", "Expense not found.");
-    const [memberships, settlements] = await Promise.all([
+    const [memberships, settlements, counts] = await Promise.all([
       this.deps.repositories.memberships.listByHousehold(expense.householdId),
       this.deps.repositories.settlements.listByHousehold(expense.householdId),
+      this.deps.repositories.expenseComments.countForExpenses(expense.householdId, [id]),
     ]);
     assertCanViewExpense(getExpensePermissions(expense.householdId, actor, expense.creatorId, memberships));
     const snapshot = actor === expense.creatorId && expense.payment.method === "card" ? await this.deps.repositories.expenses.getPrivateCardSnapshot(id, actor) : undefined;
@@ -796,6 +813,7 @@ export class ExpenseApplicationService {
       memberships,
       settlements,
       snapshot,
+      counts.get(id) ?? 0,
     );
   }
 
@@ -808,7 +826,45 @@ export class ExpenseApplicationService {
       this.deps.repositories.settlements.listByHousehold(household),
     ]);
     const visible = includeDeleted ? history : history.filter((expense) => !expense.deletedAt);
-    return Promise.all(visible.map(async (expense) => this.view(expense, actor, memberships, settlements, actor === expense.creatorId && expense.payment.method === "card" ? await this.deps.repositories.expenses.getPrivateCardSnapshot(expense.expenseId, actor) : undefined)));
+    const counts = await this.deps.repositories.expenseComments.countForExpenses(household, visible.map((expense) => expense.expenseId));
+    return Promise.all(visible.map(async (expense) => this.view(expense, actor, memberships, settlements, actor === expense.creatorId && expense.payment.method === "card" ? await this.deps.repositories.expenses.getPrivateCardSnapshot(expense.expenseId, actor) : undefined, counts.get(expense.expenseId) ?? 0)));
+  }
+
+  async listExpenseComments(id: ExpenseId): Promise<readonly ExpenseCommentView[]> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const expense = await this.deps.repositories.expenses.getById(id);
+    if (!expense) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+    const household = await this.deps.repositories.households.getById(expense.householdId);
+    if (!household || household.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+    await requireActiveMembership(this.deps.repositories, expense.householdId, actor);
+    const comments = await this.deps.repositories.expenseComments.listForExpense(id);
+    const profiles = await this.deps.repositories.profiles.getByIds(comments.map((comment) => comment.authorUserId));
+    const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    return comments.map((comment) => Object.freeze({ commentId: comment.commentId, authorUserId: comment.authorUserId, authorDisplayName: names.get(comment.authorUserId) ?? "Former member", body: comment.body, createdAt: comment.createdAt }));
+  }
+
+  async createExpenseComment(id: ExpenseId, bodyInput: string, requestedCommandId: CommandId): Promise<ExpenseCommentView> {
+    const actor = await this.deps.session.getCurrentUserId();
+    const expense = await this.deps.repositories.expenses.getById(id);
+    if (!expense || expense.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+    const household = await this.deps.repositories.households.getById(expense.householdId);
+    if (!household || household.deletedAt) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+    await requireActiveMembership(this.deps.repositories, expense.householdId, actor);
+    const body = normalizeExpenseCommentBody(bodyInput);
+    const descriptor: IdempotencyDescriptor = { actorId: actor, commandType: "create-expense-comment", commandId: requestedCommandId, intentDigest: canonicalIntentDigest({ expenseId: id, body }) };
+    const replay = await this.deps.repositories.commandOutcomes.get(descriptor);
+    if (replay) {
+      assertIdempotentIntent(replay, descriptor);
+      const existing = (await this.deps.repositories.expenseComments.listForExpense(id)).find((comment) => comment.commentId === replay.resourceId);
+      if (!existing) throw new ApplicationError("PERSISTENCE_FAILURE", "Stored comment outcome could not be reconstructed.");
+      const profile = await this.deps.repositories.profiles.getByIds([existing.authorUserId]);
+      return Object.freeze({ commentId: existing.commentId, authorUserId: existing.authorUserId, authorDisplayName: profile[0]?.displayName ?? "Former member", body: existing.body, createdAt: existing.createdAt });
+    }
+    const comment: ExpenseComment = { commentId: expenseCommentId(this.deps.values.nextId("expense-comment")), householdId: expense.householdId, expenseId: id, authorUserId: actor, body, createdAt: this.deps.values.now() };
+    assertExpenseComment(comment);
+    await this.deps.atomic.createExpenseComment({ comment, idempotency: descriptor });
+    const profile = await this.deps.repositories.profiles.getByIds([actor]);
+    return Object.freeze({ commentId: comment.commentId, authorUserId: actor, authorDisplayName: profile[0]?.displayName ?? "Household member", body, createdAt: comment.createdAt });
   }
 
   async editExpense(command: EditExpenseCommand): Promise<ExpenseView> {
@@ -877,7 +933,7 @@ export class ExpenseApplicationService {
         "Changing to a percentage split requires original basis-point entries.",
       );
     }
-    const proposed: Expense = { ...original, percentageEntries: undefined, name: command.name.trim(), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(percentageEntries === undefined ? {} : { percentageEntries }), allocations: command.allocations, payment };
+    const proposed: Expense = { ...original, percentageEntries: undefined, name: command.name.trim(), iconCategory: expenseIconCategory(command.iconCategory ?? original.iconCategory), amount: command.amount, expenseDate: command.expenseDate, splitMethod: command.splitMethod, ...(percentageEntries === undefined ? {} : { percentageEntries }), allocations: command.allocations, payment };
     assertExpense(proposed);
     assertExpenseParticipantsBelongToHousehold(proposed, memberships, false);
     const originalCardAssociationIdentity = original.payment.method === "card"
@@ -904,7 +960,7 @@ export class ExpenseApplicationService {
     assertLegacyPercentageChangeAllowed(originalFingerprint, proposedFingerprint);
     const financialChanged = !expenseFinancialFingerprintsEqual(originalFingerprint, proposedFingerprint);
     const hasReceiptChanges = Boolean(command.newReceipts?.length || command.removedReceiptIds?.length);
-    if (!financialChanged && proposed.name === original.name && !hasReceiptChanges) {
+    if (!financialChanged && proposed.name === original.name && proposed.iconCategory === expenseIconCategory(original.iconCategory) && !hasReceiptChanges) {
       return this.view(original, actor, memberships, settlements, existingSnapshot);
     }
     const commandInstant = this.deps.values.now();
@@ -1065,6 +1121,7 @@ export class ExpenseApplicationService {
     memberships: readonly MembershipSnapshot[],
     settlements: readonly import("@/domain/settlements/settlement-types").SettlementRecord[],
     snapshot?: ExpenseCardPrivateSnapshot,
+    commentCount = 0,
   ): ExpenseView {
     const projection = projectExpensePayment(viewer, expense.creatorId, expense.payment);
     const publicPayment = projection.method === "cash" ? { method: "cash" as const } : { method: "card" as const };
@@ -1080,7 +1137,7 @@ export class ExpenseApplicationService {
     const isReadOnlyHistory = editability.state === "deleted";
     const historicalBoundary = latestConfirmedSettlementBefore(expense.householdId, expense.createdAt, settlements);
     const addedAfterSettlement = isBackdatedAfterSettlement(expense.expenseDate, historicalBoundary);
-    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), percentageSourceStatus, permissions: Object.freeze({ canEdit: basePermissions.canEdit && !isReadOnlyHistory, canEditFinancialFields: basePermissions.canEdit && editability.state === "editable", canDelete: basePermissions.canDelete && editability.state === "editable" }), financialEditability: editability, addedAfterSettlement, ...(snapshot && viewer === expense.creatorId && expense.payment.method === "card" ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
+    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), percentageSourceStatus, permissions: Object.freeze({ canEdit: basePermissions.canEdit && !isReadOnlyHistory, canEditFinancialFields: basePermissions.canEdit && editability.state === "editable", canDelete: basePermissions.canDelete && editability.state === "editable" }), financialEditability: editability, addedAfterSettlement, commentCount, ...(snapshot && viewer === expense.creatorId && expense.payment.method === "card" ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
   }
 }
 

@@ -6,16 +6,17 @@ import { expenseDate } from "@/domain/dates/expense-date";
 import { positivePoisha } from "@/domain/money/poisha";
 import { poisha } from "@/domain/money/poisha";
 import { basisPoints } from "@/domain/money/basis-points";
+import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { commandId, expenseId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
 import { allocatePercentageSplit } from "@/domain/splits/percentage-split";
 import { allocateEqualSplit } from "@/domain/splits/equal-split";
-import type { Expense } from "@/domain/records/domain-records";
+import { toBalanceExpense, type Expense } from "@/domain/records/domain-records";
 import { IndexedDbAtomicApplicationPersistence } from "@/infrastructure/indexeddb/atomic-persistence";
 import { deleteLocalDatabase, openLocalDatabase } from "@/infrastructure/indexeddb/database";
 import { LocalCurrentSession } from "@/infrastructure/indexeddb/development-session";
 import { IndexedDbReceiptRepository, IndexedDbRepositories } from "@/infrastructure/indexeddb/repositories";
-import { toExpenseRecord, toReceiptRecord, toSettlementRecord } from "@/infrastructure/indexeddb/mappers";
+import { toExpenseRecord, toMembershipRecord, toReceiptRecord, toSettlementRecord } from "@/infrastructure/indexeddb/mappers";
 import { deterministicSeedData, SEEDED_HOUSEHOLD_ID, SEEDED_USER_IDS, seedLocalDatabase } from "@/infrastructure/indexeddb/seed";
 import type { IDBPDatabase } from "idb";
 import type { HouseFinanceDatabase } from "@/infrastructure/indexeddb/records";
@@ -1441,5 +1442,138 @@ describe("Phase 4 application services with IndexedDB", () => {
     await expect(
       application.households.createHousehold("Bad Code House", "abcdefghi"),
     ).rejects.toMatchObject({ code: "INVALID_HOUSEHOLD_CODE" });
+  });
+
+  it("persists semantic icons, defaults legacy rows to Others, and permits icon-only settled-history edits", async () => {
+    const legacyId = expenseId("expense-legacy-icon");
+    const seeded = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
+    await db.add("expenses", { ...toExpenseRecord({ ...seeded, expenseId: legacyId, name: "Legacy icon" }), iconCategory: undefined });
+    expect((await repositories.expenses.getById(legacyId))?.iconCategory).toBe("others");
+
+    const created = await application.expenses.createExpense({
+      householdId: SEEDED_HOUSEHOLD_ID,
+      commandId: commandId("icon-create"),
+      name: "Pet food",
+      iconCategory: "pets",
+      amount: positivePoisha(100),
+      expenseDate: expenseDate("2026-08-13"),
+      splitMethod: "amount",
+      allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: positivePoisha(100) }],
+      payment: { method: "cash" },
+    });
+    expect(created.expense.iconCategory).toBe("pets");
+
+    await db.add("settlements", toSettlementRecord(confirmedSettlementRecord("settlement-icon-lock", isoInstant("2026-08-13T12:00:00.000Z"))));
+    const before = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
+    const balancesBefore = calculateHouseholdBalances(
+      SEEDED_HOUSEHOLD_ID,
+      await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID),
+      (await repositories.expenses.listHouseholdHistory(SEEDED_HOUSEHOLD_ID)).map(toBalanceExpense),
+      await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
+    );
+    const recommendationsBefore = await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID);
+    const edited = await application.expenses.editExpense({
+      expenseId: before.expenseId,
+      expectedRevision: before.revision,
+      name: before.name,
+      iconCategory: "groceries",
+      amount: before.amount,
+      expenseDate: before.expenseDate,
+      splitMethod: before.splitMethod,
+      allocations: before.allocations,
+      payment: { kind: "preserve" },
+      commandId: commandId("icon-settled-edit"),
+    });
+    expect(edited.expense.iconCategory).toBe("groceries");
+    expect(edited.expense.revision).toBe(before.revision + 1);
+    expect(calculateHouseholdBalances(
+      SEEDED_HOUSEHOLD_ID,
+      await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID),
+      (await repositories.expenses.listHouseholdHistory(SEEDED_HOUSEHOLD_ID)).map(toBalanceExpense),
+      await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
+    )).toEqual(balancesBefore);
+    expect(await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID)).toEqual(recommendationsBefore);
+  });
+
+  it("creates append-only comments with trimmed bounds, idempotency, stable order, and derived counts without touching the Expense", async () => {
+    const target = expenseId("expense-groceries");
+    await db.add(
+      "settlements",
+      toSettlementRecord(
+        confirmedSettlementRecord(
+          "settlement-comment-lock",
+          isoInstant("2026-08-13T12:00:00.000Z"),
+        ),
+      ),
+    );
+    const expenseBefore = await db.get("expenses", target);
+    const settlementsBefore = await db.getAll("settlements");
+    const balancesBefore = calculateHouseholdBalances(
+      SEEDED_HOUSEHOLD_ID,
+      await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID),
+      (await repositories.expenses.listHouseholdHistory(SEEDED_HOUSEHOLD_ID)).map(toBalanceExpense),
+      await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
+    );
+    const recommendationsBefore = await application.settlements.recommendations(
+      SEEDED_HOUSEHOLD_ID,
+    );
+    const auditsBefore = await db.count("auditEvents");
+    const firstCommand = commandId("comment-first");
+    const first = await application.expenses.createExpenseComment(target, "  First\nline  ", firstCommand);
+    const replay = await application.expenses.createExpenseComment(target, "First\nline", firstCommand);
+    expect(replay).toEqual(first);
+    await expect(application.expenses.createExpenseComment(target, "Changed", firstCommand)).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    await session.switchIdentity(SEEDED_USER_IDS.john);
+    const second = await application.expenses.createExpenseComment(target, "J", commandId("comment-second-member"));
+    const [third, fourth] = await Promise.all([
+      application.expenses.createExpenseComment(target, "A", commandId("comment-concurrent-a")),
+      application.expenses.createExpenseComment(target, "B", commandId("comment-concurrent-b")),
+    ]);
+    expect(new Set([third.commentId, fourth.commentId]).size).toBe(2);
+
+    await expect(application.expenses.createExpenseComment(target, "   ", commandId("comment-empty"))).rejects.toMatchObject({ code: "INVALID_EXPENSE_COMMENT" });
+    const max = await application.expenses.createExpenseComment(target, "x".repeat(1000), commandId("comment-max"));
+    expect(max.body).toHaveLength(1000);
+    await expect(application.expenses.createExpenseComment(target, "x".repeat(1001), commandId("comment-too-long"))).rejects.toMatchObject({ code: "INVALID_EXPENSE_COMMENT" });
+
+    const comments = await application.expenses.listExpenseComments(target);
+    expect(comments.map((comment) => comment.commentId)).toEqual([first.commentId, second.commentId, third.commentId, fourth.commentId, max.commentId]);
+    expect(comments[0]).toMatchObject({ authorDisplayName: "Raiyan", body: "First\nline" });
+    expect((await application.expenses.getExpense(target)).commentCount).toBe(5);
+    expect((await application.expenses.listHouseholdExpenses(SEEDED_HOUSEHOLD_ID)).find((item) => item.expense.expenseId === target)?.commentCount).toBe(5);
+    expect(await db.get("expenses", target)).toEqual(expenseBefore);
+    expect(await db.getAll("settlements")).toEqual(settlementsBefore);
+    expect(calculateHouseholdBalances(
+      SEEDED_HOUSEHOLD_ID,
+      await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID),
+      (await repositories.expenses.listHouseholdHistory(SEEDED_HOUSEHOLD_ID)).map(toBalanceExpense),
+      await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
+    )).toEqual(balancesBefore);
+    expect(await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID)).toEqual(
+      recommendationsBefore,
+    );
+    expect(await db.count("auditEvents")).toBe(auditsBefore);
+  });
+
+  it("enforces comment membership/deletion privacy while retaining historical rows", async () => {
+    const target = expenseId("expense-groceries");
+    await application.expenses.createExpenseComment(target, "<script>alert(1)</script>", commandId("comment-plain-text"));
+
+    await session.switchIdentity(SEEDED_USER_IDS.alex);
+    await expect(application.expenses.listExpenseComments(target)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.expenses.createExpenseComment(target, "forged", commandId("comment-unrelated"))).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await session.switchIdentity(SEEDED_USER_IDS.sarah);
+    await db.put("memberships", toMembershipRecord({ householdId: SEEDED_HOUSEHOLD_ID, userId: SEEDED_USER_IDS.sarah, role: "member", status: "former" }));
+    await expect(application.expenses.createExpenseComment(target, "former", commandId("comment-former"))).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await session.switchIdentity(SEEDED_USER_IDS.raiyan);
+    const original = (await repositories.expenses.getById(target))!;
+    await db.put("expenses", toExpenseRecord({ ...original, deletedAt: isoInstant("2026-08-13T13:00:00.000Z"), deletedByUserId: SEEDED_USER_IDS.raiyan }));
+    await expect(application.expenses.createExpenseComment(target, "after deletion", commandId("comment-deleted"))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await application.expenses.listExpenseComments(target)).toEqual([
+      expect.objectContaining({ body: "<script>alert(1)</script>" }),
+    ]);
   });
 });

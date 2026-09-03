@@ -29,6 +29,7 @@ export const COMMAND_TYPES = [
   "rename-household",
   "delete-household",
   "update-profile-display-name",
+  "create-expense-comment",
 ] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 

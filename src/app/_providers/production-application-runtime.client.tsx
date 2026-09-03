@@ -26,6 +26,7 @@ import type {
   ExpenseActivityView,
   ExpenseMemberView,
   ExpenseView,
+  ExpenseCommentView,
   JoinableHouseholdView,
   ReceiptView,
   ExpenseReceiptContent,
@@ -296,6 +297,10 @@ function buildReadyState(
     },
     listActivity: (expenseIdValue: ExpenseId) =>
       requestJson<readonly ExpenseActivityView[]>(`/api/app/expense-activity?id=${encodeURIComponent(expenseIdValue)}`),
+    listComments: (expenseIdValue: ExpenseId) =>
+      requestJson<readonly ExpenseCommentView[]>(`/api/app/expense-comments?id=${encodeURIComponent(expenseIdValue)}`),
+    createComment: (expenseIdValue: ExpenseId, body: string, commentCommandId: CommandId) =>
+      requestJson<ExpenseCommentView>("/api/app/expense-comment-create", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expenseId: expenseIdValue, body, commandId: commentCommandId }) }),
   });
 
   const settlementActions = Object.freeze<SettlementApplicationActions>({

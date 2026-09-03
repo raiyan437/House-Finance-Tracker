@@ -3,6 +3,7 @@ import { expect, selectExpenseDate, test } from "./fixtures";
 test("starts, persists an Expense, opens Household, creates a Settlement claim, and adapts the shell", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -32,19 +33,28 @@ test("starts, persists an Expense, opens Household, creates a Settlement claim, 
     "households",
     "memberships",
     "expenses",
+    "expenseComments",
     "settlements",
     "developmentSession",
   ]));
 
   await page.goto("/expenses/new");
+  await page.getByRole("radio", { name: "Gas" }).check();
   await page.getByLabel("Expense Name").fill("Cross-browser poisha");
   await page.getByLabel("Amount (BDT)").fill("1.01");
   await selectExpenseDate(page, "2026-08-20");
   await page.getByRole("button", { name: "Create Expense" }).click();
   await expect(page.getByRole("heading", { name: "Cross-browser poisha" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Gas category" })).toBeVisible();
   await expect(page.getByText("৳1.01", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("Write a comment").fill("Cross-browser comment");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("heading", { name: "Comments (1)" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Cross-browser poisha" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Gas category" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comments (1)" })).toBeVisible();
+  await expect(page.getByText("Cross-browser comment")).toBeVisible();
 
   await page.goto("/household");
   await expect(page.getByRole("heading", { name: "Household", exact: true })).toBeVisible();

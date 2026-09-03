@@ -7,6 +7,7 @@ export * from "./dates/business-calendar";
 export * from "./expenses/backdated-expense-policy";
 export * from "./expenses/balance-expense";
 export * from "./expenses/expense-financial-input";
+export * from "./expenses/expense-icon-category";
 export * from "./expenses/expense-financial-fingerprint";
 export * from "./expenses/expense-percentage-source";
 export * from "./membership/leadership-policy";

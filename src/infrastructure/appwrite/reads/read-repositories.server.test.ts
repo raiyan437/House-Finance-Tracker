@@ -104,6 +104,19 @@ describe("Appwrite read repositories", () => {
     expect(listed.length).toBe(250);
   });
 
+  it("reads comments oldest-first and derives visible Expense counts in one batched query", async () => {
+    const reader = new InMemoryTablesReader();
+    reader.seed("expense_comments", [
+      { $id: "c3", householdId: "h1", expenseId: "e2", authorUserId: ACTOR, body: "Third", createdAt: "2026-08-20T12:00:00.000Z" },
+      { $id: "c2", householdId: "h1", expenseId: "e1", authorUserId: ACTOR, body: "Second", createdAt: "2026-08-20T11:00:00.000Z" },
+      { $id: "c1", householdId: "h1", expenseId: "e1", authorUserId: ACTOR, body: "First", createdAt: "2026-08-20T10:00:00.000Z" },
+      { $id: "foreign", householdId: "h2", expenseId: "e9", authorUserId: ACTOR, body: "Foreign", createdAt: INSTANT },
+    ]);
+    const repos = repositories(reader);
+    expect((await repos.expenseComments.listForExpense("e1" as never)).map((comment) => comment.commentId)).toEqual(["c1", "c2"]);
+    expect(await repos.expenseComments.countForExpenses("h1" as never, ["e1" as never, "e2" as never, "e0" as never])).toEqual(new Map([["e1", 2], ["e2", 1], ["e0", 0]]));
+  });
+
   it("issues no write calls anywhere in the repository surface", async () => {
     const repos = repositories(new InMemoryTablesReader());
     const writeGuards: Array<[string, () => unknown]> = [

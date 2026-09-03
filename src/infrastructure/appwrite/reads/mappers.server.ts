@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { ApplicationError } from "@/application/errors/application-error";
 import { expenseDate } from "@/domain/dates/expense-date";
+import { EXPENSE_ICON_CATEGORIES, expenseIconCategory } from "@/domain/expenses/expense-icon-category";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { basisPoints } from "@/domain/money/basis-points";
 import { poisha, positivePoisha } from "@/domain/money/poisha";
@@ -9,6 +10,7 @@ import {
   assertAuditEvent,
   assertCard,
   assertExpense,
+  assertExpenseComment,
   assertExpenseCardPrivateSnapshot,
   assertHousehold,
   assertJoinRequest,
@@ -18,6 +20,7 @@ import {
   type AuditEvent,
   type Card,
   type Expense,
+  type ExpenseComment,
   type ExpenseCardPrivateSnapshot,
   type Household,
   type JoinRequest,
@@ -25,7 +28,7 @@ import {
   type UserProfile,
 } from "@/domain/records/domain-records";
 import { cardColorId } from "@/domain/cards/card-color";
-import { auditEventId, cardId, expenseId, householdId, joinRequestId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, expenseCommentId, expenseId, householdId, joinRequestId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { assertSettlementRecord } from "@/domain/settlements/settlement-invariants";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
@@ -120,15 +123,24 @@ const percentage = z.object({ participantId: trimmed, basisPoints: z.number().in
 
 export function mapExpense(raw: unknown): Expense {
   return malformed("expenses", () => {
-    const value = z.object({ householdId: trimmed, expenseDate: z.string(), amountPoisha: z.unknown(), payerId: trimmed, splitMethod: z.enum(["equal", "amount", "percentage"]), name: trimmed, paymentMethod: z.enum(["cash", "card"]), paymentRefJson: z.string(), allocationsJson: z.string(), percentageEntriesJson: z.string().optional().nullable(), revision: z.unknown(), createdBy: trimmed, createdAt: z.string(), updatedAt: z.string(), deletedAt: optionalInstant, deletedByUserId: z.string().optional().nullable() }).passthrough().parse(raw);
+    const value = z.object({ householdId: trimmed, expenseDate: z.string(), amountPoisha: z.unknown(), payerId: trimmed, splitMethod: z.enum(["equal", "amount", "percentage"]), name: trimmed, iconCategory: z.enum(EXPENSE_ICON_CATEGORIES).optional().nullable(), paymentMethod: z.enum(["cash", "card"]), paymentRefJson: z.string(), allocationsJson: z.string(), percentageEntriesJson: z.string().optional().nullable(), revision: z.unknown(), createdBy: trimmed, createdAt: z.string(), updatedAt: z.string(), deletedAt: optionalInstant, deletedByUserId: z.string().optional().nullable() }).passthrough().parse(raw);
     if (Boolean(value.deletedAt) !== Boolean(value.deletedByUserId)) throw new Error("Expense deletion metadata must be complete.");
     const id = expenseId(rowId(raw));
     json(value.paymentRefJson, z.record(z.string(), z.unknown()));
     const allocations = json(value.allocationsJson, z.array(allocation)).map((item) => Object.freeze({ participantId: userId(item.participantId), share: poisha(safeInteger(item.sharePoisha)) }));
     const percentages = value.percentageEntriesJson ? json(value.percentageEntriesJson, z.array(percentage)).map((item) => Object.freeze({ participantId: userId(item.participantId), basisPoints: basisPoints(item.basisPoints) })) : undefined;
-    const result: Expense = { expenseId: id, householdId: householdId(value.householdId), creatorId: userId(value.createdBy), payerId: userId(value.payerId), name: value.name, amount: positivePoisha(safeInteger(value.amountPoisha)), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(percentages ? { percentageEntries: percentages } : {}), allocations, payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${id}` }, revision: safeInteger(value.revision), createdAt: providerInstant(value.createdAt), updatedAt: providerInstant(value.updatedAt), ...(value.deletedAt && value.deletedByUserId ? { deletedAt: providerInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId) } : {}) };
+    const result: Expense = { expenseId: id, householdId: householdId(value.householdId), creatorId: userId(value.createdBy), payerId: userId(value.payerId), name: value.name, iconCategory: expenseIconCategory(value.iconCategory ?? undefined), amount: positivePoisha(safeInteger(value.amountPoisha)), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(percentages ? { percentageEntries: percentages } : {}), allocations, payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${id}` }, revision: safeInteger(value.revision), createdAt: providerInstant(value.createdAt), updatedAt: providerInstant(value.updatedAt), ...(value.deletedAt && value.deletedByUserId ? { deletedAt: providerInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId) } : {}) };
     assertExpense(result); return Object.freeze(result);
   }) as Expense;
+}
+
+export function mapExpenseComment(raw: unknown): ExpenseComment {
+  return malformed("expense_comments", () => {
+    const value = z.object({ householdId: trimmed, expenseId: trimmed, authorUserId: trimmed, body: trimmed.max(1000), createdAt: z.string() }).passthrough().parse(raw);
+    const result: ExpenseComment = { commentId: expenseCommentId(rowId(raw)), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), authorUserId: userId(value.authorUserId), body: value.body, createdAt: providerInstant(value.createdAt) };
+    assertExpenseComment(result);
+    return Object.freeze(result);
+  }) as ExpenseComment;
 }
 
 export function mapPrivateExpenseCard(raw: unknown): ExpenseCardPrivateSnapshot {

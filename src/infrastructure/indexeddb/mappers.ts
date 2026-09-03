@@ -1,6 +1,7 @@
 import { ApplicationError } from "@/application/errors/application-error";
 import { assertCommandOutcome, COMMAND_TYPES, type CommandOutcome } from "@/application/idempotency/command-idempotency";
 import { expenseDate } from "@/domain/dates/expense-date";
+import { EXPENSE_ICON_CATEGORIES, expenseIconCategory } from "@/domain/expenses/expense-icon-category";
 import { CARD_COLOR_IDS, LEGACY_CARD_COLOR_IDS, cardColorId, type CardColorId } from "@/domain/cards/card-color";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import { poisha, positivePoisha } from "@/domain/money/poisha";
@@ -9,6 +10,7 @@ import {
   assertAuditEvent,
   assertCard,
   assertExpense,
+  assertExpenseComment,
   assertExpenseCardPrivateSnapshot,
   assertHousehold,
   assertJoinRequest,
@@ -17,6 +19,7 @@ import {
   type AuditEvent,
   type Card,
   type Expense,
+  type ExpenseComment,
   type ExpenseCardPrivateSnapshot,
   type Household,
   type JoinRequest,
@@ -28,6 +31,7 @@ import {
   cardId,
   commandId,
   expenseId,
+  expenseCommentId,
   householdId,
   joinRequestId,
   receiptId,
@@ -51,6 +55,7 @@ import type {
   ExpenseCardPrivateRecordV2,
   ExpenseRecordV2,
   ExpenseRecordV3,
+  ExpenseCommentRecordV1,
   HouseholdRecordV1,
   JoinRequestRecordV2,
   MembershipRecordV1,
@@ -107,6 +112,7 @@ const expenseRecordFields = {
   creatorId: idText,
   payerId: idText,
   name: trimmed,
+  iconCategory: z.enum(EXPENSE_ICON_CATEGORIES).optional(),
   amountPoisha: safeInteger,
   expenseDate: z.string(),
   splitMethod: z.enum(["equal", "amount", "percentage"]),
@@ -133,6 +139,7 @@ const receiptSchemaV1 = z.object({ recordVersion, id: idText, householdId: idTex
 const receiptSchema = z.object({ recordVersion: z.literal(2), id: idText, householdId: idText, expenseId: idText, createdByUserId: idText, mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), originalFilename: trimmed.optional(), sizeBytes: safeInteger, createdAt: instantText, contentStatus: z.enum(["available", "user-deleted", "retention-expired"]), contentRemovedAt: instantText.optional(), contentRemovedByUserId: idText.optional() }).strict();
 const auditSchema = z.object({ recordVersion, id: idText, householdId: idText, actorId: idText, aggregateType: z.enum(["household", "membership", "join-request", "expense", "settlement", "card", "receipt"]), aggregateId: trimmed, action: trimmed, occurredAt: instantText, changedFields: z.array(trimmed) }).strict();
 const commandOutcomeSchema = z.object({ recordVersion, key: trimmed, actorId: idText, commandType: z.enum(COMMAND_TYPES), commandId: idText, intentDigest: trimmed, resourceId: idText, completedAt: instantText }).strict();
+const expenseCommentSchema = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, authorUserId: idText, body: trimmed.max(1000), createdAt: instantText }).strict();
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown, store: string, key?: string): T {
   const result = schema.safeParse(value);
@@ -241,14 +248,28 @@ export const migrateExpenseRecordToV3 = (
 
 export const toExpenseRecord = (value: Expense): ExpenseRecordV3 => {
   assertExpense(value);
-  return { recordVersion: 3, id: value.expenseId, householdId: value.householdId, creatorId: value.creatorId, payerId: value.payerId, name: value.name, amountPoisha: value.amount, expenseDate: value.expenseDate, splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => ({ participantId: entry.participantId, basisPoints: entry.basisPoints })) }), allocations: value.allocations.map((item) => ({ participantId: item.participantId, sharePoisha: item.share })), paymentMethod: value.payment.method, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) };
+  return { recordVersion: 3, id: value.expenseId, householdId: value.householdId, creatorId: value.creatorId, payerId: value.payerId, name: value.name, iconCategory: expenseIconCategory(value.iconCategory), amountPoisha: value.amount, expenseDate: value.expenseDate, splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => ({ participantId: entry.participantId, basisPoints: entry.basisPoints })) }), allocations: value.allocations.map((item) => ({ participantId: item.participantId, sharePoisha: item.share })), paymentMethod: value.payment.method, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.deletedAt ? { deletedAt: value.deletedAt, deletedByUserId: value.deletedByUserId } : {}) };
 };
 export const fromExpenseRecord = (raw: unknown, key?: string): Expense => {
   const value = parsed(expenseSchema, raw, "expenses", key);
   return reconstructed("expenses", key, () => {
-    const domain: Expense = { expenseId: expenseId(value.id), householdId: householdId(value.householdId), creatorId: userId(value.creatorId), payerId: userId(value.payerId), name: value.name, amount: positivePoisha(value.amountPoisha), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => Object.freeze({ participantId: userId(entry.participantId), basisPoints: basisPoints(entry.basisPoints) })) }), allocations: value.allocations.map((item) => Object.freeze({ participantId: userId(item.participantId), share: poisha(item.sharePoisha) })), payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${value.id}` }, revision: value.revision, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) };
+    const domain: Expense = { expenseId: expenseId(value.id), householdId: householdId(value.householdId), creatorId: userId(value.creatorId), payerId: userId(value.payerId), name: value.name, iconCategory: expenseIconCategory(value.iconCategory), amount: positivePoisha(value.amountPoisha), expenseDate: expenseDate(value.expenseDate), splitMethod: value.splitMethod, ...(value.percentageEntries === undefined ? {} : { percentageEntries: value.percentageEntries.map((entry) => Object.freeze({ participantId: userId(entry.participantId), basisPoints: basisPoints(entry.basisPoints) })) }), allocations: value.allocations.map((item) => Object.freeze({ participantId: userId(item.participantId), share: poisha(item.sharePoisha) })), payment: value.paymentMethod === "cash" ? { method: "cash" } : { method: "card", cardReference: `private:${value.id}` }, revision: value.revision, createdAt: isoInstant(value.createdAt), updatedAt: isoInstant(value.updatedAt), ...(value.deletedAt ? { deletedAt: isoInstant(value.deletedAt), deletedByUserId: userId(value.deletedByUserId!) } : {}) };
     assertExpense(domain);
     return Object.freeze(domain);
+  });
+};
+
+export const toExpenseCommentRecord = (value: ExpenseComment): ExpenseCommentRecordV1 => {
+  assertExpenseComment(value);
+  return { recordVersion: 1, id: value.commentId, householdId: value.householdId, expenseId: value.expenseId, authorUserId: value.authorUserId, body: value.body, createdAt: value.createdAt };
+};
+
+export const fromExpenseCommentRecord = (raw: unknown, key?: string): ExpenseComment => {
+  const value = parsed(expenseCommentSchema, raw, "expenseComments", key);
+  return reconstructed("expenseComments", key, () => {
+    const result: ExpenseComment = { commentId: expenseCommentId(value.id), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), authorUserId: userId(value.authorUserId), body: value.body, createdAt: isoInstant(value.createdAt) };
+    assertExpenseComment(result);
+    return Object.freeze(result);
   });
 };
 

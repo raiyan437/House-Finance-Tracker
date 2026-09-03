@@ -37,8 +37,8 @@ function matchesFilters(row: AppwriteRow, parsed: readonly ParsedQuery[]): boole
 
 /**
  * In-memory TablesDB stand-in shared by read-repository, command-kernel,
- * and provider-parity tests. Implements the exact R2 subset: equal/isNull/
- * limit/cursorAfter queries, provider-assigned transaction handles with
+ * and provider-parity tests. Implements the exact read subset: equal/isNull/
+ * orderAsc/orderDesc/limit/cursorAfter queries, provider-assigned transaction handles with
  * staged-write visibility, commit-time unique-index enforcement, forced
  * conflict simulation, rollback isolation, and staged-operation counting.
  */
@@ -106,6 +106,18 @@ export class InMemoryTablesReader implements TablesReader {
         .map((row) => (stagedTable.has(row.$id) ? (stagedTable.get(row.$id) as AppwriteRow | typeof DELETED) : row))
         .filter((row): row is AppwriteRow => row !== DELETED)
         .filter((row) => matchesFilters(row, parsed));
+    }
+    const ordering = parsed.filter((query) =>
+      (query.method === "orderAsc" || query.method === "orderDesc") && query.attribute,
+    );
+    if (ordering.length > 0) {
+      merged.sort((left, right) => {
+        for (const query of ordering) {
+          const compared = String(left[query.attribute!]).localeCompare(String(right[query.attribute!]));
+          if (compared !== 0) return query.method === "orderDesc" ? -compared : compared;
+        }
+        return 0;
+      });
     }
     if (cursorAfter !== undefined) {
       const index = merged.findIndex((row) => row.$id === cursorAfter);

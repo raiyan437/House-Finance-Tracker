@@ -53,6 +53,7 @@ import {
   RECEIPT_RETENTION_NOTICE,
 } from "./expense-ui";
 import { createTrackedReceiptPreviewUrl } from "./receipt-preview-url";
+import { EXPENSE_ICON_OPTIONS } from "./expense-icon";
 
 const RECEIPT_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
@@ -82,6 +83,7 @@ function definedTextRecord(
 
 const emptyValues: ExpenseFormValues = {
   name: "",
+  iconCategory: "others",
   amountText: "",
   expenseDateText: "",
   paymentMethod: "cash",
@@ -98,6 +100,7 @@ function editFormValues(
 ): ExpenseFormValues {
   return {
     name,
+    iconCategory: view.expense.iconCategory ?? "others",
     amountText: formatCanonicalBdt(view.expense.amount),
     expenseDateText: view.expense.expenseDate,
     paymentMethod: view.expense.payment.method,
@@ -268,6 +271,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
 
   const draft: ExpenseFormDraft = useMemo(() => ({
     name: values.name ?? "",
+    iconCategory: values.iconCategory ?? "others",
     amountText: values.amountText ?? "",
     expenseDateText: values.expenseDateText ?? "",
     paymentMethod: values.paymentMethod ?? "cash",
@@ -414,6 +418,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
       const prepared = financialLocked && original
         ? {
             name: form.getValues("name").trim(),
+            iconCategory: form.getValues("iconCategory"),
             amount: original.expense.amount,
             expenseDate: original.expense.expenseDate,
             splitMethod: original.expense.splitMethod,
@@ -449,6 +454,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
           ...(confirmationToken ? { backdatedConfirmationToken: confirmationToken } : {}),
           householdId: household.householdId,
           name: prepared.name,
+          iconCategory: prepared.iconCategory,
           amount: prepared.amount,
           expenseDate: prepared.expenseDate,
           splitMethod: prepared.splitMethod,
@@ -494,6 +500,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
         expenseId: original.expense.expenseId,
         expectedRevision: original.expense.revision,
         name: prepared.name,
+        iconCategory: prepared.iconCategory,
         amount: prepared.amount,
         expenseDate: prepared.expenseDate,
         splitMethod: prepared.splitMethod,
@@ -632,6 +639,15 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             <h2 className="panel-title">Expense Details</h2>
             <div className="expense-details-fields grid gap-3 sm:grid-cols-2">
               <div className="expense-name-field space-y-2 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(nameIssue)} aria-describedby={nameIssue ? "expense-name-error" : undefined} {...form.register("name")} />{nameIssue ? <p id="expense-name-error" className="text-caption text-danger">{nameIssue}</p> : null}</div>
+              <fieldset className="sm:col-span-2">
+                <legend className="text-label font-medium">Expense Category</legend>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {EXPENSE_ICON_OPTIONS.map(({ value, label, Icon }) => {
+                    const selected = values.iconCategory === value;
+                    return <label key={value} className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 text-center text-xs font-medium transition-colors focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-brand-soft" : "bg-card hover:bg-secondary"}`}><input className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" value={value} {...form.register("iconCategory")} /><Icon aria-hidden="true" className="size-5" /><span>{label}</span></label>;
+                  })}
+                </div>
+              </fieldset>
               <div className="space-y-2"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(amountIssue)} aria-describedby={amountIssue ? "expense-amount-error" : undefined} {...form.register("amountText")} />{amountIssue ? <p id="expense-amount-error" className="text-caption text-danger">{amountIssue}</p> : null}</div>
                <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} min={earliestExpenseDate} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
               <div className="space-y-2"><Label>Paid By</Label><div className="flex h-11 items-center rounded-md border bg-secondary px-3 text-sm">{payerName}</div></div>

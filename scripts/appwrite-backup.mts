@@ -24,7 +24,7 @@ const MAX_AVATAR_DECODED_PIXELS = 40_000_000;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const TABLE_IDS = [
   "profiles", "households", "memberships", "join_requests", "expenses",
-  "expense_card_private_details", "settlements", "cards", "receipt_metadata",
+  "expense_comments", "expense_card_private_details", "settlements", "cards", "receipt_metadata",
   "audit_events", "command_outcomes", "coordination_guards",
   "receipt_reservations", "schema_metadata",
 ] as const;

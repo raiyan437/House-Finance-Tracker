@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import type { AnalyticsExpenseView } from "@/application/analytics/analytics-page";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { formatExpenseDate } from "@/presentation/expenses/expense-ui";
+import { ExpenseSemanticIcon } from "@/presentation/expenses/expense-icon";
 
 interface ExpenseSummaryListProps {
   readonly expenses: readonly AnalyticsExpenseView[];
@@ -34,7 +34,7 @@ export function ExpenseSummaryList({ expenses, emptyMessage, emptyAction, compac
             prefetch={false}
           />
           <div className={compact ? "grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3" : "grid gap-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-4"}>
-            {compact ? <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-xl bg-brand-soft"><ArrowUpRight className="size-4" /></span> : null}
+            {compact ? <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft"><ExpenseSemanticIcon category={expense.iconCategory} className="size-4" /></span> : null}
             <div className="min-w-0">
               <p className={compact ? "truncate text-xs font-semibold" : "truncate font-medium"}>{expense.name}</p>
               <p className="text-mini text-text-muted">{formatExpenseDate(expense.expenseDate)}{compact ? ` · ${expense.payer.isCurrentUser ? "You" : expense.payer.displayName} · ${expense.paymentMethod === "cash" ? "Cash" : "Card"}` : ""}</p>

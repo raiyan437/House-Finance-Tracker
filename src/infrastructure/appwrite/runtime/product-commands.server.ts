@@ -88,6 +88,10 @@ export function deleteExpense(context: ProductRequestContext, expenseId: string,
   return context.application.expenses.deleteExpense(expenseId as never, expectedRevision, commandId as never);
 }
 
+export function createExpenseComment(context: ProductRequestContext, expenseId: string, body: string, commandId: string) {
+  return context.application.expenses.createExpenseComment(expenseId as never, body, commandId as never);
+}
+
 export function createSettlement(context: ProductRequestContext, recommendation: Record<string, unknown>, commandId: string) {
   return context.application.settlements.createSettlement(recommendation as never, commandId as never);
 }

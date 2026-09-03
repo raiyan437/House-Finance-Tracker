@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { CARD_DESIGN_IDS } from "@/domain/cards/card-color";
 import { commandIdentifierInput } from "./household-command-input.server";
+import { EXPENSE_ICON_CATEGORIES } from "@/domain/expenses/expense-icon-category";
 
 const poisha = z.number().int().safe().positive();
 const share = z.number().int().safe().nonnegative();
@@ -16,6 +17,7 @@ export const expenseCreateInput = z.object({
   commandId: commandIdentifierInput,
   backdatedConfirmationToken: z.string().min(1).optional(),
   name: z.string().trim().min(1),
+  iconCategory: z.enum(EXPENSE_ICON_CATEGORIES).default("others"),
   amount: poisha,
   expenseDate,
   splitMethod,
@@ -34,6 +36,7 @@ export const expenseEditInput = z.object({
   commandId: commandIdentifierInput,
   backdatedConfirmationToken: z.string().min(1).optional(),
   name: z.string().trim().min(1),
+  iconCategory: z.enum(EXPENSE_ICON_CATEGORIES).default("others"),
   amount: poisha,
   expenseDate,
   splitMethod,
@@ -52,6 +55,12 @@ export const expenseDeleteInput = z.object({
   expenseId: commandIdentifierInput,
   expectedRevision: z.number().int().positive(),
   commandId: commandIdentifierInput,
+}).strict();
+
+export const expenseCommentCreateInput = z.object({
+  expenseId: commandIdentifierInput,
+  commandId: commandIdentifierInput,
+  body: z.string().max(1000),
 }).strict();
 
 export const settlementRecommendationInput = z.object({

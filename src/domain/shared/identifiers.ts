@@ -9,6 +9,7 @@ declare const cardIdBrand: unique symbol;
 declare const receiptIdBrand: unique symbol;
 declare const auditEventIdBrand: unique symbol;
 declare const commandIdBrand: unique symbol;
+declare const expenseCommentIdBrand: unique symbol;
 
 export type UserId = string & { readonly [userIdBrand]: "UserId" };
 export type HouseholdId = string & {
@@ -27,6 +28,7 @@ export type AuditEventId = string & {
   readonly [auditEventIdBrand]: "AuditEventId";
 };
 export type CommandId = string & { readonly [commandIdBrand]: "CommandId" };
+export type ExpenseCommentId = string & { readonly [expenseCommentIdBrand]: "ExpenseCommentId" };
 
 function assertOpaqueId(value: string): void {
   if (value.length === 0 || value.trim() !== value) {
@@ -79,6 +81,11 @@ export function auditEventId(value: string): AuditEventId {
 export function commandId(value: string): CommandId {
   assertOpaqueId(value);
   return value as CommandId;
+}
+
+export function expenseCommentId(value: string): ExpenseCommentId {
+  assertOpaqueId(value);
+  return value as ExpenseCommentId;
 }
 
 export function compareUserIds(left: UserId, right: UserId): number {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, ChevronLeft, ChevronRight, CreditCard, Plus, ReceiptText, Search } from "lucide-react";
+import { Banknote, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Plus, Search } from "lucide-react";
 
 import { tryCalendarMonth } from "@/application/analytics/calendar-month";
 import { applyExpenseListQuery, defaultExpenseListQuery, type ExpenseListQuery, type ExpenseListRow } from "@/application/expenses/expense-query";
@@ -20,6 +20,7 @@ import { useApplicationRuntime } from "@/presentation/runtime/application-runtim
 import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { currentLocalMonth, formatExpenseDate } from "./expense-ui";
+import { ExpenseSemanticIcon } from "./expense-icon";
 
 const EXPENSES_PER_PAGE = 8;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -74,11 +75,13 @@ export function ExpensesPageClient() {
   }, [household, reloadTick, runtime]);
 
   const memberById = useMemo(() => new Map(members.map((member) => [member.userId, member])), [members]);
-  const rows = useMemo<readonly ExpenseListRow[]>(() => expenses.map(({ expense }) => {
+  const rows = useMemo<readonly ExpenseListRow[]>(() => expenses.map(({ expense, commentCount }) => {
     const payer = memberById.get(expense.payerId);
     return {
       expenseId: expense.expenseId,
       name: expense.name,
+      iconCategory: expense.iconCategory,
+      commentCount: commentCount ?? 0,
       amount: expense.amount,
       expenseDate: expense.expenseDate,
       createdAt: expense.createdAt,
@@ -160,13 +163,14 @@ export function ExpensesPageClient() {
             <p className="hidden compact-caption text-text-muted sm:block">Sorted {query.sort === "newest" ? "newest first" : "oldest first"}</p>
           </div>
           <div>
-            <div aria-hidden="true" className="table-label hidden h-11 grid-cols-[minmax(0,1.4fr)_104px_136px_100px_104px_100px] items-center gap-3 border-b bg-secondary/60 px-5 text-text-secondary min-[900px]:grid min-[1400px]:grid-cols-[minmax(0,1.6fr)_118px_160px_108px_120px_110px]"><span>Expense</span><span>Date</span><span>Paid By</span><span>Payment</span><span>Split</span><span className="text-right">Amount</span></div>
+            <div aria-hidden="true" className="table-label hidden h-11 grid-cols-[minmax(0,1.4fr)_80px_104px_136px_100px_104px_100px] items-center gap-3 border-b bg-secondary/60 px-5 text-text-secondary min-[900px]:grid min-[1400px]:grid-cols-[minmax(0,1.6fr)_90px_118px_160px_108px_120px_110px]"><span>Expense</span><span>Comments</span><span>Date</span><span>Paid By</span><span>Payment</span><span>Split</span><span className="text-right">Amount</span></div>
             <ul className="divide-y">
               {pagedRows.map((row) => (
                 <li className="group relative min-h-[84px] transition-colors hover:bg-secondary/70 focus-within:rounded-xl focus-within:bg-secondary/70 min-[900px]:h-[72px] min-[900px]:min-h-0 min-[900px]:focus-within:mx-2" key={row.expenseId}>
                   <Link aria-label={`Open ${row.name} expense details`} className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${row.expenseId}`} />
-                  <div className="table-body grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 min-[900px]:grid-cols-[minmax(0,1.4fr)_104px_136px_100px_104px_100px] min-[900px]:items-center min-[900px]:px-5 min-[900px]:py-0 min-[1400px]:grid-cols-[minmax(0,1.6fr)_118px_160px_108px_120px_110px]">
-                    <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:items-center min-[900px]:gap-3"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${expenseTileClass(row.expenseId)}`}><ReceiptText aria-hidden="true" className="size-4" /></span><div className="min-w-0"><p className="truncate font-semibold text-foreground">{row.name}</p><p className="mt-1 text-xs text-text-muted min-[900px]:hidden">{formatExpenseDate(row.expenseDate)} · {row.payer.displayName}</p><p className="mt-1 text-xs text-text-secondary min-[900px]:hidden">{row.paymentMethod === "cash" ? "Cash" : "Card"} · {splitLabel(row)}</p></div></div>
+                  <div className="table-body grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 min-[900px]:grid-cols-[minmax(0,1.4fr)_80px_104px_136px_100px_104px_100px] min-[900px]:items-center min-[900px]:px-5 min-[900px]:py-0 min-[1400px]:grid-cols-[minmax(0,1.6fr)_90px_118px_160px_108px_120px_110px]">
+                    <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:items-center min-[900px]:gap-3"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${expenseTileClass(row.expenseId)}`}><ExpenseSemanticIcon category={row.iconCategory} className="size-4" /></span><div className="min-w-0"><p className="truncate font-semibold text-foreground">{row.name}</p><p className="mt-1 text-xs text-text-muted min-[900px]:hidden"><span className="inline-flex items-center gap-1"><MessageCircle aria-hidden="true" className="size-3" />{row.commentCount ?? 0}</span> · {formatExpenseDate(row.expenseDate)} · {row.payer.displayName}</p><p className="mt-1 text-xs text-text-secondary min-[900px]:hidden">{row.paymentMethod === "cash" ? "Cash" : "Card"} · {splitLabel(row)}</p></div></div>
+                    <p className="hidden items-center gap-1 text-text-secondary min-[900px]:flex"><MessageCircle aria-hidden="true" className="size-4" /><span>{row.commentCount ?? 0}</span></p>
                     <p className="hidden text-text-secondary min-[900px]:block"><time dateTime={row.expenseDate}>{formatExpenseDate(row.expenseDate)}</time></p>
                     <div className="hidden min-w-0 items-center gap-2 min-[900px]:flex"><MemberAvatar className="size-7 shrink-0 [&_[data-slot=avatar-fallback]]:text-[9px]" displayName={row.payer.displayName} userId={row.payer.userId} /><p className="truncate text-text-secondary">{row.payer.displayName}{row.payer.former ? " · Former" : ""}</p></div>
                     <p className="hidden min-[900px]:block"><span className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${row.paymentMethod === "cash" ? "bg-secondary text-text-secondary" : "bg-brand-soft text-foreground"}`}>{row.paymentMethod === "cash" ? <Banknote aria-hidden="true" className="size-3.5" /> : <CreditCard aria-hidden="true" className="size-3.5" />}{row.paymentMethod === "cash" ? "Cash" : "Card"}</span></p>

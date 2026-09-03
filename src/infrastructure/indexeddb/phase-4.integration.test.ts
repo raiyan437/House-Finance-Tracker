@@ -80,7 +80,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     const db = await openLocalDatabase(name);
     expect(db.version).toBe(LOCAL_DATABASE_VERSION);
     expect([...db.objectStoreNames]).toEqual([
-      "appMeta", "auditEvents", "cards", "commandOutcomes", "developmentSession", "expenseCardPrivateDetails", "expenses", "households", "joinRequests", "memberships", "receiptBlobs", "receiptMetadata", "settlements", "userProfiles",
+      "appMeta", "auditEvents", "cards", "commandOutcomes", "developmentSession", "expenseCardPrivateDetails", "expenseComments", "expenses", "households", "joinRequests", "memberships", "receiptBlobs", "receiptMetadata", "settlements", "userProfiles",
     ]);
     expect([...db.objectStoreNames]).not.toEqual(expect.arrayContaining(["balances", "recommendations", "dashboardTotals", "analytics"]));
     expect([
@@ -124,7 +124,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
     old.close();
 
     const migrated = await openLocalDatabase(name);
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(await migrated.get("receiptMetadata", legacyAvailable.id)).toEqual({
       ...legacyAvailable,
       recordVersion: 2,
@@ -311,6 +311,7 @@ describe("Phase 4 IndexedDB local persistence", () => {
       creatorId: participantIds[0]!,
       payerId: participantIds[0]!,
       name: "Modern percentage",
+      iconCategory: "others",
       amount,
       expenseDate: expenseDate("2026-08-18"),
       splitMethod: "percentage",

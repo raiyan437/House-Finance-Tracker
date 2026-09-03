@@ -1,5 +1,6 @@
 import { expect, test as base, type Page } from "@playwright/test";
 import { EMPTY_LOCAL_DATABASE_REVISION, deterministicSeedData } from "../../src/infrastructure/indexeddb/seed";
+import { LOCAL_DATABASE_VERSION } from "../../src/infrastructure/indexeddb/database";
 import {
   toAuditRecord,
   toCardRecord,
@@ -14,7 +15,7 @@ import {
 } from "../../src/infrastructure/indexeddb/mappers";
 
 const DATABASE_NAME = "house-finance-tracker-local";
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = LOCAL_DATABASE_VERSION;
 const STORES = [
   "appMeta",
   "userProfiles",
@@ -22,6 +23,7 @@ const STORES = [
   "memberships",
   "joinRequests",
   "expenses",
+  "expenseComments",
   "expenseCardPrivateDetails",
   "settlements",
   "cards",
@@ -56,6 +58,7 @@ function browserFixtureRecords(includeReceipt: boolean) {
     memberships: seed.memberships.map(toMembershipRecord),
     joinRequests: [toJoinRequestRecord(seed.joinRequest)],
     expenses: seed.expenses.map(toExpenseRecord),
+    expenseComments: [],
     expenseCardPrivateDetails: [toPrivateCardRecord(seed.privateCard)],
     settlements: [toSettlementRecord(seed.settlement)],
     cards: seed.cards.map(toCardRecord),
@@ -107,6 +110,7 @@ async function seedBrowserDatabase(page: Page): Promise<void> {
         for (const value of records.memberships) put("memberships", value, "memberships");
         for (const value of records.joinRequests) put("joinRequests", value, "joinRequests");
         for (const value of records.expenses) put("expenses", value, "expenses");
+        for (const value of records.expenseComments) put("expenseComments", value, "expenseComments");
         for (const value of records.expenseCardPrivateDetails) put("expenseCardPrivateDetails", value, "expenseCardPrivateDetails");
         for (const value of records.settlements) put("settlements", value, "settlements");
         for (const value of records.cards) put("cards", value, "cards");
