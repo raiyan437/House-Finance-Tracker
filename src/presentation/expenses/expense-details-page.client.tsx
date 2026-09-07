@@ -9,7 +9,6 @@ import { ArrowLeft, CalendarDays, CreditCard, ImageOff, Loader2, MoreHorizontal,
 import type {
   ExpenseActivityView,
   ExpenseMemberView,
-  PrivateReceiptView,
   ReceiptView,
   ExpenseView,
   ExpenseCommentView,
@@ -43,7 +42,7 @@ interface ReceiptPreview {
   readonly contentPending?: boolean;
 }
 
-function ReceiptHistoricalState({ receipt }: Readonly<{ receipt: PrivateReceiptView }>) {
+function ReceiptHistoricalState({ receipt }: Readonly<{ receipt: ReceiptView }>) {
   const state = receiptContentStateText(receipt.contentStatus);
   return <div className="flex min-h-16 flex-col items-center justify-center rounded-xl bg-secondary px-3 text-center"><ImageOff aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{state.title}</p>{state.description ? <p className="compact-caption mt-1 text-text-muted">{state.description}</p> : null}</div>;
 }
@@ -99,16 +98,13 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     urlsRef.current = [];
     const contentReadsEnabled = runtime.capabilities.receiptContentReads;
     const nextReceipts = await Promise.all(metadata.map(async (receipt): Promise<ReceiptPreview | undefined> => {
-      if (receipt.visibility === "attachment") {
-        return { metadata: receipt };
-      }
       if (!contentReadsEnabled) {
         return {
           metadata: receipt,
-          ...(receipt.canRead && receipt.contentStatus === "available" ? { contentPending: true } : {}),
+          ...(receipt.canReadReceipt && receipt.contentStatus === "available" ? { contentPending: true } : {}),
         };
       }
-      if (!receipt.canRead || receipt.contentStatus !== "available") {
+      if (!receipt.canReadReceipt || receipt.contentStatus !== "available") {
         return { metadata: receipt };
       }
       try {
@@ -230,7 +226,7 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
 
         <aside aria-label="Expense supporting information" className="grid content-start gap-4">
           <Surface className="expense-detail-summary-panel" elevation="card" padding="canonical"><h2 className="panel-title">Summary</h2><dl className="mt-5 space-y-4 text-sm"><div className="flex justify-between"><dt className="text-text-secondary">Total</dt><dd className="financial-numerals text-lg font-semibold">{formatBdt(expense.amount)}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Participants</dt><dd>{expense.allocations.length}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Payment</dt><dd className="capitalize">{expense.payment.method}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Split</dt><dd className="capitalize">{expense.splitMethod}</dd></div><div className="flex justify-between"><dt className="text-text-secondary">Status</dt><dd>{expense.deletedAt ? "Deleted" : financiallyLocked ? "Financially locked" : "Active"}</dd></div></dl></Surface>
-          <Surface className="expense-receipts-panel overflow-y-auto" padding="canonical"><div className="flex items-center gap-2"><ReceiptText aria-hidden="true" className="size-4" /><h2 className="panel-title">Receipts</h2></div><p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p>{receipts.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No receipts attached.</p> : <div className="mt-3 grid gap-3">{receipts.map(({ metadata, url, error, contentPending }, index) => metadata.visibility === "attachment" ? <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Receipt details are private to its creator and historical uploader.</p></div> : <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <ReceiptHistoricalState receipt={metadata} /> : contentPending ? <div className="flex h-16 flex-col items-center justify-center rounded-xl bg-secondary px-3 text-center text-xs text-text-secondary"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p>Preview arrives with receipt storage in a later update.</p></div> : url ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${metadata.originalFilename ?? "receipt"}`}><ReceiptPreviewImage url={url} alt={metadata.originalFilename ?? "Expense receipt"} /></a> : <div className="flex h-16 items-center justify-center rounded-xl bg-secondary text-xs text-text-secondary">{error ? "Preview unavailable" : "Loading preview"}</div>}<div className="mt-2 flex items-center justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p></div>{metadata.canRemove ? <ConfirmDialog destructive title="Remove this receipt?" description="The receipt file will be removed immediately. Its metadata remains as user-deleted history." confirmLabel="Remove Receipt" trigger={<Button aria-label={`Remove ${metadata.originalFilename ?? "receipt"}`} className="size-11" disabled={!receiptMutationsEnabled} size="icon" variant="ghost"><Trash2 /></Button>} onConfirm={async () => { await expenseActions.deleteReceipt(metadata.receiptId); await load(); }} /> : null}</div></div>)}</div>}</Surface>
+          <Surface className="expense-receipts-panel overflow-y-auto" padding="canonical"><div className="flex items-center gap-2"><ReceiptText aria-hidden="true" className="size-4" /><h2 className="panel-title">Receipts</h2></div><p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p>{receipts.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No receipts attached.</p> : <div className="mt-3 grid gap-3">{receipts.map(({ metadata, url, error, contentPending }) => <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <ReceiptHistoricalState receipt={metadata} /> : contentPending ? <div className="flex h-16 flex-col items-center justify-center rounded-xl bg-secondary px-3 text-center text-xs text-text-secondary"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p>Preview arrives with receipt storage in a later update.</p></div> : url ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${metadata.originalFilename ?? "receipt"}`}><ReceiptPreviewImage url={url} alt={metadata.originalFilename ?? "Expense receipt"} /></a> : <div className="flex h-16 items-center justify-center rounded-xl bg-secondary text-xs text-text-secondary">{error ? "Preview unavailable" : "Loading preview"}</div>}<div className="mt-2 flex items-center justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p></div>{metadata.canRemoveReceipt ? <ConfirmDialog destructive title="Remove this receipt?" description="The receipt file will be removed immediately. Its metadata remains as user-deleted history." confirmLabel="Remove Receipt" trigger={<Button aria-label={`Remove ${metadata.originalFilename ?? "receipt"}`} className="size-11" disabled={!receiptMutationsEnabled} size="icon" variant="ghost"><Trash2 /></Button>} onConfirm={async () => { await expenseActions.deleteReceipt(metadata.receiptId); await load(); }} /> : null}</div></div>)}</div>}</Surface>
           <Surface className="expense-activity-panel overflow-y-auto" padding="canonical"><h2 className="panel-title">Activity</h2>{activity.length === 0 ? <p className="mt-4 text-sm text-text-secondary">No supported activity information.</p> : <ol className="mt-3 space-y-2">{activity.map((item, index) => <li key={`${item.occurredAt}-${index}`} className="rounded-xl bg-secondary p-3"><p className="text-xs font-medium capitalize">{item.action.replaceAll("-", " ")}</p><p className="compact-caption mt-1 text-text-secondary">{item.actorName} · {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(item.occurredAt))}</p><p className="compact-caption text-text-secondary">Changed: {item.changedFields.join(", ")}</p></li>)}</ol>}</Surface>
         </aside>
       </div>

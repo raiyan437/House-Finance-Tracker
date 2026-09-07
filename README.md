@@ -4,7 +4,7 @@ Private shared household expense tracking with exact integer-poisha financials, 
 
 ## Current status
 
-Production runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). The uncommitted v1.3.0 owner-review candidate adds ten semantic Expense categories and private append-only Expense comments with derived counts, while preserving every financial rule. Live Schema V7 is additive and zero-drift; the Site has not been deployed and no production comment was created. Receipt retention/quota, Profile avatars, authentication, Household behavior, and Settlement semantics remain unchanged.
+Production runs the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). The current uncommitted v1.3 correction lets every active member view available Receipts on same-Household Expenses while keeping upload/removal creator-only, and compacts the accessible Expense category control into one icon-only horizontal row. Live Schema V7 remains additive and zero-drift. No correction deployment or production-data mutation has occurred; financial, comment, Settlement, Receipt retention/quota, avatar, authentication, and Household rules are otherwise unchanged.
 
 ## Commands
 

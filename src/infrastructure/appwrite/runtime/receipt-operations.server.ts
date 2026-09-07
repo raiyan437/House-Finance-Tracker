@@ -4,7 +4,7 @@ import { Query, type TablesDB } from "node-appwrite";
 import { ApplicationError } from "@/application/errors/application-error";
 import { canonicalIntentDigest } from "@/application/idempotency/command-idempotency";
 import { assertReceiptAdmission } from "@/application/receipts/receipt-storage-policy";
-import type { PrivateReceiptView } from "@/application/services/application-services";
+import type { ReceiptView } from "@/application/services/application-services";
 import type { ReceiptContent } from "@/application/repositories";
 import { MAX_RECEIPT_BYTES } from "@/domain/records/domain-records";
 import type { UserId } from "@/domain/shared/identifiers";
@@ -76,18 +76,18 @@ function digestOwnerValue(intentDigest: string): string {
   return value;
 }
 
-function privateProjection(row: AppwriteRow, canRemove: boolean): PrivateReceiptView {
+function receiptProjection(row: AppwriteRow, canRemove: boolean): ReceiptView {
   const metadata = mapReceiptMetadata(row);
   return Object.freeze({
-    visibility: "private",
+    visibility: "receipt",
     receiptId: metadata.receiptId,
     ...(metadata.originalFilename ? { originalFilename: metadata.originalFilename } : {}),
     mimeType: metadata.mimeType,
     sizeBytes: metadata.sizeBytes,
     createdAt: metadata.createdAt,
     contentStatus: metadata.contentStatus,
-    canRead: metadata.contentStatus === "available",
-    canRemove: canRemove && metadata.contentStatus === "available",
+    canReadReceipt: true,
+    canRemoveReceipt: canRemove && metadata.contentStatus === "available",
   });
 }
 
@@ -145,10 +145,10 @@ export class ReceiptOperations {
     const expenseRaw = await tables.getRow(TABLE.expenses, String(metadata.expenseId));
     const expense = expenseRaw ? mapExpense(expenseRaw) : undefined;
     const actor = String(this.actorId);
-    if (!expense || (creatorOnly ? String(expense.creatorId) !== actor : String(expense.creatorId) !== actor && String(metadata.createdByUserId) !== actor)) {
+    if (!expense || String(metadata.householdId) !== String(expense.householdId) || (creatorOnly && String(expense.creatorId) !== actor)) {
       throw new ApplicationError("NOT_FOUND", "Receipt not found.");
     }
-    await this.requireActiveMembership(tables, String(metadata.householdId));
+    await this.requireActiveMembership(tables, String(expense.householdId));
     return { raw, expense };
   }
 
@@ -228,7 +228,7 @@ export class ReceiptOperations {
     });
   }
 
-  async upload(input: ReceiptUploadInput): Promise<PrivateReceiptView> {
+  async upload(input: ReceiptUploadInput): Promise<ReceiptView> {
     if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_RECEIPT_BYTES || !isAllowedMime(input.mimeType)) {
       throw new ApplicationError("RECEIPT_CONTENT_MISMATCH", "Receipt content is not a valid supported image.");
     }
@@ -239,7 +239,7 @@ export class ReceiptOperations {
     const replay = await this.committedOutcome("upload-receipt", input.commandId, intentDigest);
     if (replay) {
       const authorized = await this.authorizeReceipt(this.tables(), replay, true);
-      return privateProjection(authorized.raw, true);
+      return receiptProjection(authorized.raw, true);
     }
 
     const reservationId = receiptReservationRowId(String(this.actorId), input.commandId);
@@ -336,7 +336,7 @@ export class ReceiptOperations {
       if (!outcome) throw error;
     }
     const authorized = await this.authorizeReceipt(this.tables(), receiptId, true);
-    return privateProjection(authorized.raw, true);
+    return receiptProjection(authorized.raw, true);
   }
 
   async read(receiptId: string): Promise<ReceiptBinaryResult> {

@@ -30,7 +30,10 @@ function uploadRequest(body: ReadableStream<Uint8Array>, length: number): NextRe
 }
 
 describe("trusted Receipt route envelope", () => {
-  beforeEach(() => routeMocks.resolveReadContext.mockReset());
+  beforeEach(() => {
+    routeMocks.resolveReadContext.mockReset();
+    vi.restoreAllMocks();
+  });
 
   it("does not pull an upload body before authentication succeeds", async () => {
     let pulled = false;
@@ -39,6 +42,14 @@ describe("trusted Receipt route envelope", () => {
 
     await expect(runReceiptUpload(uploadRequest(body, 1))).resolves.toMatchObject({ status: 401 });
     expect(pulled).toBe(false);
+  });
+
+  it("does not attempt a Receipt binary read before authentication succeeds", async () => {
+    const read = vi.fn();
+    routeMocks.resolveReadContext.mockResolvedValue({ status: new NextResponse(null, { status: 401 }), context: { receiptOperations: { read } } });
+
+    await expect(runReceiptContentRead({ headers: new Headers() } as NextRequest, "r1")).resolves.toMatchObject({ status: 401 });
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("enforces separate server-side read and mutation capabilities", async () => {
@@ -67,6 +78,41 @@ describe("trusted Receipt route envelope", () => {
 
     expect(response.status).toBe(200);
     expect(upload).toHaveBeenCalledWith(expect.objectContaining({ bytes }));
+  });
+
+  it("streams authorized Receipt content with private headers and no provider details", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const read = vi.fn().mockResolvedValue({ bytes, mimeType: "image/png", sizeBytes: bytes.byteLength });
+    routeMocks.resolveReadContext.mockResolvedValue({
+      status: "ok",
+      context: { capabilities: { receiptMutations: false, receiptContentReads: true }, receiptOperations: { read } },
+    });
+
+    const response = await runReceiptContentRead({ headers: new Headers() } as NextRequest, "r1");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
+    expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+    expect(read).toHaveBeenCalledWith("r1");
+  });
+
+  it("does not return or log raw provider failure details", async () => {
+    const error = new Error("storageFileId=file-secret provider denied");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    routeMocks.resolveReadContext.mockResolvedValue({
+      status: "ok",
+      context: { capabilities: { receiptMutations: false, receiptContentReads: true }, receiptOperations: { read: vi.fn().mockRejectedValue(error) } },
+    });
+
+    const response = await runReceiptContentRead({ headers: new Headers() } as NextRequest, "r1");
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain(error.message);
+    expect(consoleError).toHaveBeenCalledWith("[receipt-route]", "Error");
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain(error.message);
   });
 
   it("stops an oversized or declared-length-mismatched stream before invoking upload", async () => {

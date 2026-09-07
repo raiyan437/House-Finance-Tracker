@@ -148,7 +148,7 @@ describe("production application runtime composition", () => {
         uploadAttempts += 1;
         return uploadAttempts === 1
           ? new Response(JSON.stringify({ error: "busy", code: "PERSISTENCE_FAILURE" }), { status: 503 })
-          : new Response(JSON.stringify({ data: { visibility: "private", receiptId: "r_saved" } }), { status: 200 });
+          : new Response(JSON.stringify({ data: { visibility: "receipt", receiptId: "r_saved" } }), { status: 200 });
       }
       throw new Error(`Unexpected path ${path}`);
     });
@@ -187,7 +187,7 @@ describe("production application runtime composition", () => {
         uploadedCommands.push(String((init?.headers as Record<string, string>)["x-command-id"]));
         await new Promise((resolve) => setTimeout(resolve, 5));
         activeUploads -= 1;
-        return new Response(JSON.stringify({ data: { visibility: "private", receiptId: `r_${uploadedCommands.length}` } }), { status: 200 });
+        return new Response(JSON.stringify({ data: { visibility: "receipt", receiptId: `r_${uploadedCommands.length}` } }), { status: 200 });
       }
       throw new Error(`Unexpected path ${path}`);
     });

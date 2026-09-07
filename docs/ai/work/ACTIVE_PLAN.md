@@ -2,6 +2,14 @@
 
 ## Status and authorization
 
+### v1.3 Receipt access + icon-selector corrections — local owner-review gate
+
+**Approved 2026-09-04; uncommitted.** Implement only two corrections: all authoritative active members of an Expense Household may list the existing UI-safe Receipt metadata and read `available` binary content, while upload/removal remains Expense-creator-only; and the Create Expense category selector sits directly below Expense Name as a compact icon-only 44px-target/19px-glyph radio row with ten non-wrapping options and internal mobile horizontal scrolling. Edit preserves the same selector styling. Former/unrelated/anonymous access, terminal-content denial, safe projection boundaries, private Storage delivery, financial rules, comments, settlements, receipt quotas/retention/idempotency, and all other behavior remain unchanged.
+
+No Schema V8, deployment, commit, tag, or production-data mutation is authorized. Complete focused Receipt authorization/privacy, icon-selector, financial, full regression, architecture, lint, TypeScript, build, audit, diff, secret/private-ID, Chromium/Firefox/WebKit, responsive, and Axe gates; confirm Schema V7 remains zero-drift; then stop for owner review.
+
+**Owner-review result:** implementation and documentation corrections are complete and uncommitted. Focused Receipt authorization/privacy passes 114/114, focused icon/financial passes 70/70, full Vitest passes 823/823 across 105 files, architecture passes 16/16, explicit-local Chromium passes 79/79, Firefox/WebKit smoke passes 1/1 each, and the correction-specific Receipt/selector responsive matrix passes 8/8 with Axe serious/critical zero. TypeScript, ESLint, production build, npm audit, diff-check, built-client private-ID/secret scan, and unsafe-render scan are green. The read-only plan confirms Schema V7 with all 15 tables complete and zero creates, drift, provisioning, or errors. The 2026-09-07 fresh external format-v3 backup at `C:\Users\raiya\hft-backups\hft-backup-2026-09-07T17-23-03.055Z` independently verifies every V7 table plus four available Receipt and three avatar binaries. No production mutation or Git-history action occurred.
+
 ### v1.3 Expense Icons + Expense Comments — deployed, real mutation acceptance owner-gated
 
 **Approved 2026-09-02; target v1.3.0.** H1–H9 are implemented as the smallest additive slice: ten stable semantic icon values with one presentation mapping; Others defaults/legacy normalization; Add/Edit radio-tile selector; list, Dashboard Recent Expenses, and Details icon rendering; provider-independent comments and repository ports; IndexedDB V6 migration; transactional local/Appwrite comment create with active-membership privacy, trusted identity/time, SHA-256 idempotency, and no Expense/financial/audit mutation; one batched derived-count query for visible Expenses; desktop/mobile count placement; and the Details comments/composer UI.

@@ -1244,24 +1244,37 @@ describe("Phase 4 application services with IndexedDB", () => {
     })).rejects.toMatchObject({ code: "EXPENSE_DATE_OUTSIDE_ALLOWED_WINDOW" });
   });
 
-  it("projects private Receipts only to the creator or historical uploader and keeps management creator-only", async () => {
+  it("allows every active Household member to read Receipts while keeping management creator-only", async () => {
     const internet = (await repositories.expenses.getById(expenseId("expense-internet")))!;
-    const metadata = { ...deterministicSeedData().receipt, receiptId: receiptId("receipt-historical-uploader"), expenseId: internet.expenseId, createdByUserId: SEEDED_USER_IDS.sarah, originalFilename: "private-bank.png" };
+    const metadata = { ...deterministicSeedData().receipt, receiptId: receiptId("receipt-household-visible"), expenseId: internet.expenseId, createdByUserId: internet.creatorId, originalFilename: "household-receipt.png" };
     await repositories.receipts.create(metadata, { bytes: deterministicSeedData().receiptBytes, mimeType: "image/png" });
 
     await session.switchIdentity(SEEDED_USER_IDS.sarah);
-    expect(await application.receipts.listExpenseReceipts(internet.expenseId)).toEqual([expect.objectContaining({ visibility: "private", receiptId: metadata.receiptId, canRead: true, canRemove: false })]);
+    const memberProjection = await application.receipts.listExpenseReceipts(internet.expenseId);
+    expect(memberProjection).toEqual([expect.objectContaining({ visibility: "receipt", receiptId: metadata.receiptId, originalFilename: "household-receipt.png", mimeType: "image/png", sizeBytes: metadata.sizeBytes, createdAt: metadata.createdAt, contentStatus: "available", canReadReceipt: true, canRemoveReceipt: false })]);
+    expect(JSON.stringify(memberProjection)).not.toMatch(/storageFileId|checksum|reservationId|appwrite|https?:\/\//iu);
+    await expect(application.receipts.readReceipt(metadata.receiptId)).resolves.toMatchObject({ mimeType: "image/png", bytes: deterministicSeedData().receiptBytes });
     await expect(application.receipts.deleteReceipt(metadata.receiptId)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(application.receipts.addReceipt(internet.expenseId, { originalFilename: "forbidden.png", content: { bytes: deterministicSeedData().receiptBytes, mimeType: "image/png" } })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await application.expenses.getExpense(internet.expenseId)).permissions).toMatchObject({ canReadReceipt: true, canUploadReceipt: false, canRemoveReceipt: false });
 
     await session.switchIdentity(SEEDED_USER_IDS.raiyan);
     const leaderProjection = await application.receipts.listExpenseReceipts(internet.expenseId);
-    expect(leaderProjection).toEqual([{ visibility: "attachment", label: "Receipt attached" }]);
-    expect(JSON.stringify(leaderProjection)).not.toMatch(/private-bank|receipt-historical-uploader|image\/png|sarah/);
-    await expect(application.receipts.readReceipt(metadata.receiptId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(leaderProjection).toEqual([expect.objectContaining({ receiptId: metadata.receiptId, canReadReceipt: true, canRemoveReceipt: false })]);
+    await expect(application.receipts.readReceipt(metadata.receiptId)).resolves.toMatchObject({ mimeType: "image/png" });
+    await expect(application.receipts.deleteReceipt(metadata.receiptId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.receipts.addReceipt(internet.expenseId, { originalFilename: "leader-forbidden.png", content: { bytes: deterministicSeedData().receiptBytes, mimeType: "image/png" } })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await application.expenses.getExpense(internet.expenseId)).permissions).toMatchObject({ canReadReceipt: true, canUploadReceipt: false, canRemoveReceipt: false });
 
     await session.switchIdentity(SEEDED_USER_IDS.john);
-    expect(await application.receipts.listExpenseReceipts(internet.expenseId)).toEqual([expect.objectContaining({ visibility: "private", receiptId: metadata.receiptId, canRemove: true })]);
+    expect(await application.receipts.listExpenseReceipts(internet.expenseId)).toEqual([expect.objectContaining({ visibility: "receipt", receiptId: metadata.receiptId, canReadReceipt: true, canRemoveReceipt: true })]);
+    expect((await application.expenses.getExpense(internet.expenseId)).permissions).toMatchObject({ canReadReceipt: true, canUploadReceipt: true, canRemoveReceipt: true });
+
+    const sarahMembership = deterministicSeedData().memberships.find((membership) => membership.userId === SEEDED_USER_IDS.sarah)!;
+    await db.put("memberships", toMembershipRecord({ ...sarahMembership, status: "former" }));
+    await session.switchIdentity(SEEDED_USER_IDS.sarah);
+    await expect(application.receipts.listExpenseReceipts(internet.expenseId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(application.receipts.readReceipt(metadata.receiptId)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("enforces three available Receipts and releases count after terminal deletion", async () => {

@@ -49,7 +49,7 @@ function mapReceiptRouteFailure(error: unknown): NextResponse {
   }
   const mapped = mapReadError(error);
   if (mapped) return json(mapped.body, mapped.status);
-  console.error("[receipt-route]", error instanceof Error ? error.message : error);
+  console.error("[receipt-route]", error instanceof Error ? error.name : "UnknownError");
   return json({ error: "The service is temporarily unavailable." }, 503);
 }
 

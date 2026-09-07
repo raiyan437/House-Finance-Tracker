@@ -14,7 +14,7 @@ import type {
   ExpenseMemberView,
   ExpenseCommentView,
   ExpenseView,
-  PrivateReceiptView,
+  ReceiptView,
 } from "@/application/services/application-services";
 import { deterministicSeedData, SEEDED_USER_IDS } from "@/infrastructure/indexeddb/seed";
 import { expenseCommentId, receiptId } from "@/domain/shared/identifiers";
@@ -40,6 +40,9 @@ const expenseView: ExpenseView = {
     canEdit: true,
     canEditFinancialFields: true,
     canDelete: true,
+    canReadReceipt: true,
+    canUploadReceipt: true,
+    canRemoveReceipt: true,
   },
       financialEditability: { state: "editable", reasons: [] },
       addedAfterSettlement: false,
@@ -50,6 +53,9 @@ const financiallyLockedExpenseView: ExpenseView = {
     canEdit: true,
     canEditFinancialFields: false,
     canDelete: false,
+    canReadReceipt: true,
+    canUploadReceipt: true,
+    canRemoveReceipt: true,
   },
   financialEditability: {
     state: "locked",
@@ -68,39 +74,39 @@ const members: readonly ExpenseMemberView[] = seed.memberships.map((membership) 
   role: membership.role,
 }));
 
-const receipts: readonly PrivateReceiptView[] = [
+const receipts: readonly ReceiptView[] = [
   {
-    visibility: "private",
+    visibility: "receipt",
     receiptId: receiptId("receipt-ui-available"),
     originalFilename: "available.png",
     mimeType: "image/png",
     sizeBytes: seed.receiptBytes.byteLength,
     createdAt: isoInstant("2026-08-20T14:00:00.000Z"),
     contentStatus: "available",
-    canRead: true,
-    canRemove: true,
+    canReadReceipt: true,
+    canRemoveReceipt: true,
   },
   {
-    visibility: "private",
+    visibility: "receipt",
     receiptId: receiptId("receipt-ui-expired"),
     originalFilename: "expired.png",
     mimeType: "image/png",
     sizeBytes: seed.receiptBytes.byteLength,
     createdAt: isoInstant("2026-05-20T14:00:00.000Z"),
     contentStatus: "retention-expired",
-    canRead: false,
-    canRemove: false,
+    canReadReceipt: true,
+    canRemoveReceipt: false,
   },
   {
-    visibility: "private",
+    visibility: "receipt",
     receiptId: receiptId("receipt-ui-user-deleted"),
     originalFilename: "removed.png",
     mimeType: "image/png",
     sizeBytes: seed.receiptBytes.byteLength,
     createdAt: isoInstant("2026-08-19T14:00:00.000Z"),
     contentStatus: "user-deleted",
-    canRead: false,
-    canRemove: false,
+    canReadReceipt: true,
+    canRemoveReceipt: false,
   },
 ];
 
@@ -209,11 +215,18 @@ describe("receipt retention presentation", () => {
 
     await screen.findByRole("heading", { name: "Add Expense" });
     const category = screen.getByRole("group", { name: "Expense Category" });
-    expect(within(category).getAllByRole("radio")).toHaveLength(10);
+    const categoryNames = ["Internet", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pets", "Repairs", "Housing", "Others"];
+    const radios = within(category).getAllByRole("radio");
+    expect(radios).toHaveLength(10);
+    expect(radios.map((radio) => radio.getAttribute("aria-label"))).toEqual(categoryNames);
+    expect([...category.querySelectorAll("label")].map((label) => label.textContent)).toEqual(categoryNames.map(() => ""));
+    expect([...category.querySelectorAll("label")].map((label) => label.title)).toEqual(categoryNames);
     expect(within(category).getByRole("radio", { name: "Others" })).toBeChecked();
     await user.click(within(category).getByRole("radio", { name: "Pets" }));
     expect(within(category).getByRole("radio", { name: "Pets" })).toBeChecked();
     expect(within(category).getByRole("radio", { name: "Others" })).not.toBeChecked();
+    within(category).getByRole("radio", { name: "Internet" }).focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Internet");
   });
 
   it("shows terminal receipts as read-only history on Edit without Blob reads", async () => {
@@ -373,14 +386,16 @@ describe("receipt retention presentation", () => {
     expect(getExpense).toHaveBeenCalledTimes(2);
   });
 
-  it("renders only a generic attachment for a non-private viewer", async () => {
+  it("renders product-safe receipt metadata and content for an active Household member", async () => {
+    const memberReceipt = { ...receipts[0]!, canRemoveReceipt: false };
     const actions = expenseActions({
-      listReceipts: vi.fn().mockResolvedValue([{ visibility: "attachment", label: "Receipt attached" }]),
+      listReceipts: vi.fn().mockResolvedValue([memberReceipt]),
     });
     renderWithRuntime(<ExpenseDetailsPageClient expenseId={expense.expenseId} />, actions);
-    expect(await screen.findByText("Receipt attached")).toBeVisible();
-    expect(screen.queryByText(/groceries\.png|Uploaded/u)).not.toBeInTheDocument();
-    expect(actions.readReceipt).not.toHaveBeenCalled();
+    expect(await screen.findByText("available.png")).toBeVisible();
+    expect(screen.getByRole("img", { name: "available.png" })).toBeVisible();
+    await waitFor(() => expect(actions.readReceipt).toHaveBeenCalledWith(memberReceipt.receiptId));
+    expect(screen.queryByRole("button", { name: "Remove available.png" })).not.toBeInTheDocument();
   });
 
   it("renders multiline comment text safely and appends an authoritative sent comment", async () => {

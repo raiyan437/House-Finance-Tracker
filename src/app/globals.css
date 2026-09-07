@@ -281,8 +281,9 @@
     grid-template-columns: 2fr 1fr 1fr 1fr;
   }
 
-  .expense-details-fields .expense-name-field {
-    grid-column: auto;
+  .expense-details-fields .expense-name-field,
+  .expense-details-fields .expense-category-field {
+    grid-column: 1 / -1;
   }
 
   .expense-details-grid {

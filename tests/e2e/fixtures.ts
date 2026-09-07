@@ -117,6 +117,7 @@ async function seedBrowserDatabase(page: Page): Promise<void> {
         for (const value of records.receiptMetadata) put("receiptMetadata", value, "receiptMetadata");
         for (const value of records.receiptBlobs) {
           put("receiptBlobs", {
+            recordVersion: 1,
             receiptId: value.receiptId,
             blob: new Blob([new Uint8Array(value.bytes)], { type: value.mimeType }),
           }, "receiptBlobs");

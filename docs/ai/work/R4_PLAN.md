@@ -1,5 +1,7 @@
 # R4 Plan — Receipt Storage and Retention
 
+> Historical evidence note (2026-09-04): the creator/uploader-only Receipt read policy recorded below is superseded for current behavior by the owner-approved v1.3 active-Household Receipt read rule in `docs/ai/REQUIREMENTS.md`. The original text is preserved as release evidence; upload/removal remains creator-only.
+
 ## Status and authorization
 
 Approved for implementation by the owner on 2026-08-27. R3 is checkpointed at `01d82897e246aadee611d01ca977b1fb0cb3d1d4`. Implement R4 only on `feature/phase-13-appwrite`, leave the verified implementation uncommitted for owner review, and do not begin R5, deploy Appwrite Sites, merge to `main`, or modify `local-mvp-v1`.

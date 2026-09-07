@@ -13,6 +13,8 @@ const EXPENSE = "e_expense1";
 const CREATOR = userId("u_creator");
 const MEMBER = userId("u_member");
 const LEADER = userId("u_leader");
+const FORMER = userId("u_former");
+const FOREIGN = userId("u_foreign");
 
 class MemoryReceiptStorage implements ReceiptStoragePort {
   readonly files = new Map<string, { bytes: Uint8Array; name: string; createdAt: string }>();
@@ -39,8 +41,8 @@ class MemoryReceiptStorage implements ReceiptStoragePort {
   }
 }
 
-function membership(id: string, role: "leader" | "member" = "member") {
-  return { $id: membershipRowId(HOUSEHOLD, id), householdId: HOUSEHOLD, userId: id, role, status: "active", joinedAt: NOW, leftAt: null, statusChangedAt: NOW, version: 1 };
+function membership(id: string, role: "leader" | "member" = "member", status: "active" | "former" = "active", householdId = HOUSEHOLD) {
+  return { $id: membershipRowId(householdId, id), householdId, userId: id, role, status, joinedAt: NOW, leftAt: status === "former" ? NOW : null, statusChangedAt: NOW, version: 1 };
 }
 
 function expense() {
@@ -76,7 +78,7 @@ beforeEach(async () => {
   storage = new MemoryReceiptStorage();
   png = new Uint8Array(await sharp({ create: { width: 2, height: 2, channels: 3, background: "#123456" } }).png().toBuffer());
   reader.seed("expenses", [expense()]);
-  reader.seed("memberships", [membership(String(CREATOR)), membership(String(MEMBER)), membership(String(LEADER), "leader")]);
+  reader.seed("memberships", [membership(String(CREATOR)), membership(String(MEMBER)), membership(String(LEADER), "leader"), membership(String(FORMER), "member", "former"), membership(String(FOREIGN), "member", "active", "h_other")]);
   reader.seed("receipt_metadata", []);
   reader.seed("receipt_reservations", []);
   reader.seed("command_outcomes", []);
@@ -96,7 +98,7 @@ describe("trusted Receipt storage sagas", () => {
     const replay = await service().upload(input);
 
     expect(first).toEqual(replay);
-    expect(first.visibility).toBe("private");
+    expect(first.visibility).toBe("receipt");
     expect(storage.createCount).toBe(1);
     expect(await reader.listRows("receipt_metadata")).toHaveLength(1);
     expect(await reader.listRows("command_outcomes")).toHaveLength(1);
@@ -138,16 +140,35 @@ describe("trusted Receipt storage sagas", () => {
     expect(storage.createCount).toBe(1);
   });
 
-  it("allows only creator/historical uploader reads and gives Leader no extra authority", async () => {
-    const uploaded = await service().upload({ expenseId: EXPENSE, commandId: "upload-private", mimeType: "image/png", bytes: png });
+  it("allows creator, ordinary active member, and Leader reads while denying former and foreign users", async () => {
+    const uploaded = await service().upload({ expenseId: EXPENSE, commandId: "upload-household-read", mimeType: "image/png", bytes: png });
     await expect(service().read(String(uploaded.receiptId))).resolves.toMatchObject({ mimeType: "image/png", sizeBytes: png.byteLength });
-    await expect(service(MEMBER).read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(service(LEADER).read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
-
-    const row = (await reader.getRow("receipt_metadata", String(uploaded.receiptId)))!;
-    reader.stageUpdateRow("hft", "receipt_metadata", String(uploaded.receiptId), { uploaderId: String(MEMBER) });
-    expect(row).toBeDefined();
     await expect(service(MEMBER).read(String(uploaded.receiptId))).resolves.toMatchObject({ mimeType: "image/png" });
+    await expect(service(LEADER).read(String(uploaded.receiptId))).resolves.toMatchObject({ mimeType: "image/png" });
+    await expect(service(FORMER).read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service(FOREIGN).read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(service(MEMBER).upload({ expenseId: EXPENSE, commandId: "member-upload", mimeType: "image/png", bytes: png })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service(LEADER).remove({ receiptId: String(uploaded.receiptId), commandId: "leader-remove" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(storage.files).toHaveLength(1);
+  });
+
+  it("returns binary content only while Receipt metadata remains available", async () => {
+    const userDeleted = await service().upload({ expenseId: EXPENSE, commandId: "upload-user-deleted", mimeType: "image/png", bytes: png });
+    await service().remove({ receiptId: String(userDeleted.receiptId), commandId: "remove-user-deleted" });
+    await expect(service(MEMBER).read(String(userDeleted.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const expired = await service().upload({ expenseId: EXPENSE, commandId: "upload-expired", mimeType: "image/png", bytes: png });
+    reader.stageUpdateRow("hft", "receipt_metadata", String(expired.receiptId), { contentState: "retention-expired", contentRemovedAt: NOW, contentRemovedByUserId: null });
+    await expect(service(MEMBER).read(String(expired.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects a forged Receipt household link even when the actor is active in that foreign Household", async () => {
+    const uploaded = await service().upload({ expenseId: EXPENSE, commandId: "upload-forged-household", mimeType: "image/png", bytes: png });
+    reader.stageUpdateRow("hft", "receipt_metadata", String(uploaded.receiptId), { householdId: "h_other" });
+
+    await expect(service(FOREIGN).read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service(FOREIGN).remove({ receiptId: String(uploaded.receiptId), commandId: "foreign-remove" })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("removes content once, retains terminal metadata, and replays success", async () => {

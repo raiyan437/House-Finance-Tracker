@@ -1,5 +1,7 @@
 # Slice 13C Plan - Read Adapter + Production Product Surface
 
+> Historical evidence note (2026-09-04): creator/uploader-gated Receipt reads recorded below are superseded for current behavior by the v1.3 active-Household Receipt read rule in `docs/ai/REQUIREMENTS.md`. The historical plan remains otherwise unchanged.
+
 **Status:** Planning approved by owner on 2026-08-26. Implementation is **not** authorized by this document; per the Phase 13 Rev 2 gate, completing/planning one slice never authorizes the next. Baseline: uncommitted Phase 13B tree on `feature/phase-13-appwrite` (`bed70e3` + untracked `src/infrastructure/appwrite/reads/`).
 
 ## Problem and intended outcome

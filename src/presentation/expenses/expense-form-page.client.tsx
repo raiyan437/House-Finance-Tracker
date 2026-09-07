@@ -31,6 +31,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCanonicalBdt, poisha } from "@/domain/money/poisha";
 import { DomainError } from "@/domain/shared/domain-error";
 import { expenseDateWindowForBusinessDate } from "@/domain/dates/business-calendar";
@@ -209,16 +210,13 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     existingUrlsRef.current = [];
     const contentReadsEnabled = runtime.capabilities.receiptContentReads;
     const receiptPreviews = await Promise.all(receipts.map(async (metadata): Promise<ExistingReceiptPreview | undefined> => {
-      if (metadata.visibility === "attachment") {
-        return { metadata };
-      }
       if (!contentReadsEnabled) {
         return {
           metadata,
-          ...(metadata.canRead && metadata.contentStatus === "available" ? { contentPending: true } : {}),
+          ...(metadata.canReadReceipt && metadata.contentStatus === "available" ? { contentPending: true } : {}),
         };
       }
-      if (!metadata.canRead || metadata.contentStatus !== "available") {
+      if (!metadata.canReadReceipt || metadata.contentStatus !== "available") {
         return { metadata };
       }
       try {
@@ -374,7 +372,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
   function addReceiptFiles(files: FileList | null) {
     if (!files) return;
     const accepted: PendingReceipt[] = [];
-    const availableExistingCount = existingReceipts.filter(({ metadata }) => metadata.visibility === "private" && metadata.contentStatus === "available" && !removedReceiptIds.includes(metadata.receiptId)).length;
+    const availableExistingCount = existingReceipts.filter(({ metadata }) => metadata.contentStatus === "available" && !removedReceiptIds.includes(metadata.receiptId)).length;
     for (const file of Array.from(files)) {
       if (availableExistingCount + pendingReceipts.length + accepted.length >= MAX_AVAILABLE_RECEIPTS_PER_EXPENSE) {
         setReceiptError("An Expense can have at most three available receipts.");
@@ -620,9 +618,9 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
       ? `Over by ${formatBdt(poisha(-preview.remaining))}`
       : `Remaining ${formatBdt(preview.remaining)}`
     : "Complete the expense details";
-  const availableExistingReceipts = existingReceipts.filter(({ metadata }) => metadata.visibility === "private" && metadata.contentStatus === "available" && !removedReceiptIds.includes(metadata.receiptId));
+  const availableExistingReceipts = existingReceipts.filter(({ metadata }) => metadata.contentStatus === "available" && !removedReceiptIds.includes(metadata.receiptId));
   const availableReceiptCount = availableExistingReceipts.length + pendingReceipts.length;
-  const releasedReceiptBytes = existingReceipts.reduce((total, item) => total + (item.metadata.visibility === "private" && item.metadata.contentStatus === "available" && removedReceiptIds.includes(item.metadata.receiptId) ? item.metadata.sizeBytes : 0), 0);
+  const releasedReceiptBytes = existingReceipts.reduce((total, item) => total + (item.metadata.contentStatus === "available" && removedReceiptIds.includes(item.metadata.receiptId) ? item.metadata.sizeBytes : 0), 0);
   const pendingReceiptBytes = pendingReceipts.reduce((total, item) => total + item.file.size, 0);
   const remainingUploaderReceiptBytes = Math.max(0, RECEIPT_USER_QUOTA_BYTES - uploaderAvailableReceiptBytes + releasedReceiptBytes - pendingReceiptBytes);
 
@@ -630,7 +628,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     <PageContainer>
       <Button asChild variant="ghost" className="-ml-3 min-h-11 rounded-xl lg:min-h-9"><Link href={original ? `/expenses/${original.expense.expenseId}` : "/expenses"}><ArrowLeft /> Back to expenses</Link></Button>
       <PageHeader className="mt-[14px]" title={mode === "create" ? "Add Expense" : "Edit Expense"} description={mode === "create" ? "Record what you paid and allocate every poisha exactly." : "Payer and creator remain fixed; permitted changes recalculate from source history."} />
-      {financialLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status"><p className="font-semibold">{original?.financialEditability.title}</p><p className="mt-1">{original?.financialEditability.description}</p><p className="mt-1 text-text-secondary">Expense Name and receipts may still be updated.</p></div> : null}
+      {financialLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="status"><p className="font-semibold">{original?.financialEditability.title}</p><p className="mt-1">{original?.financialEditability.description}</p><p className="mt-1 text-text-secondary">Expense Name, category, and receipts may still be updated.</p></div> : null}
 
       <AlertDialog open={Boolean(backdatedConfirmationToken)} onOpenChange={(open) => { if (!open) { setBackdatedConfirmationToken(undefined); expenseCommand.complete(); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Expense dated before a confirmed settlement</AlertDialogTitle><AlertDialogDescription>This expense is dated before a household settlement that was already confirmed. Adding it may create new outstanding balances even though earlier balances were previously settled.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel><AlertDialogAction onClick={(event) => { event.preventDefault(); if (saving) return; const token = backdatedConfirmationToken; if (token) void saveExpense(token); }}>{saving ? "Saving…" : mode === "create" ? "Add Expense" : "Save Changes"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <form className="expense-form-grid mt-7 grid gap-6" onSubmit={form.handleSubmit(() => saveExpense(), revealErrorsAndFocus)} noValidate>
@@ -639,14 +637,18 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
             <h2 className="panel-title">Expense Details</h2>
             <div className="expense-details-fields grid gap-3 sm:grid-cols-2">
               <div className="expense-name-field space-y-2 sm:col-span-2"><Label htmlFor="expense-name">Expense Name</Label><Input id="expense-name" aria-invalid={Boolean(nameIssue)} aria-describedby={nameIssue ? "expense-name-error" : undefined} {...form.register("name")} />{nameIssue ? <p id="expense-name-error" className="text-caption text-danger">{nameIssue}</p> : null}</div>
-              <fieldset className="sm:col-span-2">
+              <fieldset className="expense-category-field min-w-0 sm:col-span-2">
                 <legend className="text-label font-medium">Expense Category</legend>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {EXPENSE_ICON_OPTIONS.map(({ value, label, Icon }) => {
-                    const selected = values.iconCategory === value;
-                    return <label key={value} className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 text-center text-xs font-medium transition-colors focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-brand-soft" : "bg-card hover:bg-secondary"}`}><input className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" value={value} {...form.register("iconCategory")} /><Icon aria-hidden="true" className="size-5" /><span>{label}</span></label>;
-                  })}
-                </div>
+                <TooltipProvider delayDuration={300}>
+                  <div className="mt-2 w-full max-w-full overflow-x-auto overscroll-x-contain pb-1" data-testid="expense-category-scroll-strip">
+                    <div className="flex w-max flex-nowrap gap-2 p-1">
+                      {EXPENSE_ICON_OPTIONS.map(({ value, label, Icon }) => {
+                        const selected = values.iconCategory === value;
+                        return <Tooltip key={value}><TooltipTrigger asChild><label title={label} className={`relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors focus-within:ring-3 focus-within:ring-ring/30 ${selected ? "border-foreground bg-brand-soft text-foreground shadow-[inset_0_0_0_1px_var(--foreground)]" : "bg-card text-text-secondary hover:bg-secondary"}`}><input aria-label={label} className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" value={value} {...form.register("iconCategory")} /><Icon aria-hidden="true" className="size-[19px]" />{selected ? <span aria-hidden="true" className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-full bg-foreground text-background"><Check className="size-2.5" /></span> : null}</label></TooltipTrigger><TooltipContent sideOffset={6}>{label}</TooltipContent></Tooltip>;
+                      })}
+                    </div>
+                  </div>
+                </TooltipProvider>
               </fieldset>
               <div className="space-y-2"><Label htmlFor="expense-amount">Amount (BDT)</Label><Input id="expense-amount" inputMode="decimal" disabled={financialLocked} aria-invalid={Boolean(amountIssue)} aria-describedby={amountIssue ? "expense-amount-error" : undefined} {...form.register("amountText")} />{amountIssue ? <p id="expense-amount-error" className="text-caption text-danger">{amountIssue}</p> : null}</div>
                <div className="space-y-2"><Label htmlFor="expense-date">Expense Date</Label><DatePicker id="expense-date" disabled={financialLocked} min={earliestExpenseDate} max={businessDate || undefined} invalid={Boolean(dateIssue)} aria-describedby={dateIssue ? "expense-date-error" : undefined} value={values.expenseDateText} onChange={(value) => form.setValue("expenseDateText", value, { shouldDirty: true, shouldTouch: true, shouldValidate: true })} />{dateIssue ? <p id="expense-date-error" className="text-caption text-danger">{dateIssue}</p> : null}</div>
@@ -694,11 +696,11 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
           </Surface>
 
           <Surface className="receipts-panel order-2 space-y-3" padding="canonical">
-            <div><h2 className="panel-title">Receipts</h2><p className="compact-caption mt-0.5 text-text-muted">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p>{!original || original.expense.creatorId === currentUserId ? <p className="compact-caption mt-1 text-text-muted">{availableReceiptCount} of {MAX_AVAILABLE_RECEIPTS_PER_EXPENSE} available · {Math.floor(remainingUploaderReceiptBytes / (1024 * 1024))} MiB of your receipt quota remains</p> : null}<p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p></div>
-            {!original || original.expense.creatorId === currentUserId ? (<div className="grid gap-1">{receiptMutationsEnabled ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <div aria-hidden className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm text-text-muted opacity-60" data-capability-pending><Upload className="size-4" /> Add receipt images</div>}<CapabilityNotice active={!receiptMutationsEnabled} /></div>) : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">Receipt details and management are private to the Expense creator.</p>}
+            <div><h2 className="panel-title">Receipts</h2><p className="compact-caption mt-0.5 text-text-muted">Optional JPEG, PNG, or WebP images, up to 10 MiB each.</p>{!original || original.permissions.canUploadReceipt ? <p className="compact-caption mt-1 text-text-muted">{availableReceiptCount} of {MAX_AVAILABLE_RECEIPTS_PER_EXPENSE} available · {Math.floor(remainingUploaderReceiptBytes / (1024 * 1024))} MiB of your receipt quota remains</p> : null}<p className="compact-caption mt-1 text-text-muted">{RECEIPT_RETENTION_NOTICE}</p></div>
+            {!original || original.permissions.canUploadReceipt ? (<div className="grid gap-1">{receiptMutationsEnabled ? <Label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"><Upload className="size-4" /> Add receipt images<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { addReceiptFiles(event.target.files); event.target.value = ""; }} /></Label> : <div aria-hidden className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm text-text-muted opacity-60" data-capability-pending><Upload className="size-4" /> Add receipt images</div>}<CapabilityNotice active={!receiptMutationsEnabled} /></div>) : <p className="rounded-xl bg-secondary p-3 text-sm text-text-secondary">All active Household members can view available receipts. Only the Expense creator can add or remove them.</p>}
             {receiptError ? <p className="text-sm text-danger" role="alert">{receiptError}</p> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {existingReceipts.filter(({ metadata }) => metadata.visibility === "attachment" || !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error, contentPending }, index) => { if (metadata.visibility === "attachment") return <div key={`private-attachment-${index}`} className="rounded-xl border bg-secondary p-4"><p className="text-sm font-medium">Receipt attached</p><p className="compact-caption mt-1 text-text-muted">Private receipt details are not available to other Household members or Leaders.</p></div>; const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : contentPending ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">Preview arrives with receipt storage in a later update.</p></div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" />{error ? <><p className="text-xs font-medium">Preview unavailable</p><p className="compact-caption mt-1 text-text-muted">The stored image could not be displayed. Your file was not changed.</p></> : <span className="sr-only">Loading receipt preview</span>}</div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemove ? <Button type="button" variant="ghost" size="sm" disabled={!receiptMutationsEnabled} onClick={() => stageExistingReceiptRemoval(metadata.receiptId)}><Trash2 /> Remove</Button> : null}</div>; })}
+              {existingReceipts.filter(({ metadata }) => !removedReceiptIds.includes(metadata.receiptId)).map(({ metadata, url, error, contentPending }) => { const historicalState = receiptContentStateText(metadata.contentStatus); return <div key={metadata.receiptId} className="rounded-xl border p-3">{metadata.contentStatus !== "available" ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">{historicalState.title}</p>{historicalState.description ? <p className="compact-caption mt-1 text-text-muted">{historicalState.description}</p> : null}</div> : contentPending ? <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" /><p className="text-xs font-medium">Preview arrives with receipt storage in a later update.</p></div> : url ? <span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={url} alt={metadata.originalFilename ?? "Expense receipt"} fill sizes="240px" unoptimized /></span> : <div className="flex h-28 flex-col items-center justify-center rounded-lg bg-secondary px-3 text-center"><Paperclip aria-hidden="true" className="mb-1 size-5 text-text-muted" />{error ? <><p className="text-xs font-medium">Preview unavailable</p><p className="compact-caption mt-1 text-text-muted">The stored image could not be displayed. Your file was not changed.</p></> : <span className="sr-only">Loading receipt preview</span>}</div>}<p className="mt-2 truncate text-sm">{metadata.originalFilename ?? "Receipt image"}</p><p className="compact-caption text-text-muted">Uploaded {formatReceiptCreatedAt(metadata.createdAt)}</p>{metadata.canRemoveReceipt ? <Button type="button" variant="ghost" size="sm" disabled={!receiptMutationsEnabled} onClick={() => stageExistingReceiptRemoval(metadata.receiptId)}><Trash2 /> Remove</Button> : null}</div>; })}
               {pendingReceipts.map((receipt) => <div key={receipt.key} className="rounded-xl border p-3"><span className="relative block h-28 overflow-hidden rounded-lg"><Image className="object-cover" src={receipt.url} alt={receipt.file.name} fill sizes="240px" unoptimized /></span><p className="mt-2 truncate text-sm">{receipt.file.name}</p><Button type="button" variant="ghost" size="sm" disabled={!receiptMutationsEnabled} onClick={() => removePendingReceipt(receipt.key)}><Trash2 /> Remove</Button></div>)}
             </div>
           </Surface>

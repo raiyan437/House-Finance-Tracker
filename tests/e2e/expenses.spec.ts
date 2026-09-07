@@ -98,6 +98,58 @@ async function setSeedReceiptTerminalState(
   }, status);
 }
 
+async function attachSeedReceiptToInternetExpense(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("house-finance-tracker-local", 6);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction(["receiptMetadata", "receiptBlobs"], "readwrite");
+        const metadataStore = transaction.objectStore("receiptMetadata");
+        const blobStore = transaction.objectStore("receiptBlobs");
+        const metadataRead = metadataStore.get("receipt-groceries");
+        const blobRead = blobStore.get("receipt-groceries");
+        let metadata: Record<string, unknown> | undefined;
+        let blob: Record<string, unknown> | undefined;
+        metadataRead.onsuccess = () => {
+          metadata = metadataRead.result as Record<string, unknown> | undefined;
+        };
+        blobRead.onsuccess = () => {
+          blob = blobRead.result as Record<string, unknown> | undefined;
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          if (!metadata || !blob) {
+            reject(new Error("The seeded Receipt fixture is missing."));
+            return;
+          }
+          const writeRequest = indexedDB.open("house-finance-tracker-local", 6);
+          writeRequest.onerror = () => reject(writeRequest.error);
+          writeRequest.onsuccess = () => {
+            const writeDatabase = writeRequest.result;
+            const writeTransaction = writeDatabase.transaction(["receiptMetadata", "receiptBlobs"], "readwrite");
+            writeTransaction.objectStore("receiptMetadata").put({ ...metadata, id: "receipt-internet", expenseId: "expense-internet", createdByUserId: "user-john", originalFilename: "internet-receipt.png" });
+            writeTransaction.objectStore("receiptBlobs").put({ ...blob, receiptId: "receipt-internet" });
+            writeTransaction.oncomplete = () => {
+              writeDatabase.close();
+              resolve();
+            };
+            writeTransaction.onerror = () => {
+              writeDatabase.close();
+              reject(writeTransaction.error);
+            };
+          };
+        };
+        transaction.onerror = () => {
+          database.close();
+          reject(transaction.error);
+        };
+      };
+    });
+  });
+}
+
 async function insertConfirmedSettlement(
   page: Page,
   id: string,
@@ -274,6 +326,37 @@ test("renders manually removed receipt history as a distinct terminal state", as
   await expect(page.getByRole("button", { name: "Remove groceries.png" })).toHaveCount(0);
 });
 
+test("active members can preview another creator's Receipt while mutation remains creator-only", async ({ page }) => {
+  await page.goto("/expenses/expense-groceries");
+  await attachSeedReceiptToInternetExpense(page);
+
+  await page.getByTestId("development-tools-trigger").click();
+  await page.getByTestId("development-identity-user-sarah").click();
+  await page.goto("/expenses/expense-groceries");
+  await expect(page.getByRole("img", { name: "groceries.png" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open groceries.png" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove groceries.png" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
+
+  await page.getByTestId("development-tools-trigger").click();
+  await page.getByTestId("development-identity-user-raiyan").click();
+  await page.goto("/expenses/expense-internet");
+  await expect(page.getByRole("img", { name: "internet-receipt.png" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open internet-receipt.png" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove internet-receipt.png" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Edit" }).click();
+  await expect(page.getByRole("img", { name: "internet-receipt.png" })).toBeVisible();
+  await expect(page.getByText("All active Household members can view available receipts. Only the Expense creator can add or remove them.")).toBeVisible();
+  await expect(page.getByText("Add receipt images")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+
+  await page.getByTestId("development-tools-trigger").click();
+  await page.getByTestId("development-identity-user-alex").click();
+  await page.goto("/expenses/expense-groceries");
+  await expect(page.getByRole("img", { name: "groceries.png" })).toHaveCount(0);
+  await expect(page.getByText("groceries.png")).toHaveCount(0);
+});
+
 for (const viewport of [
   { width: 360, height: 800 },
   { width: 390, height: 844 },
@@ -305,10 +388,52 @@ for (const viewport of [
     await page.goto("/expenses/new");
     const category = page.getByRole("group", { name: "Expense Category" });
     await expect(category.getByRole("radio")).toHaveCount(10);
+    for (const label of ["Internet", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pets", "Repairs", "Housing", "Others"]) {
+      await expect(category.getByText(label, { exact: true })).toHaveCount(0);
+    }
+    await category.getByRole("radio", { name: "Internet" }).focus();
+    await expect(page.getByRole("tooltip")).toHaveText("Internet");
+    const nameBounds = await page.getByLabel("Expense Name").boundingBox();
     const categoryBounds = await category.boundingBox();
+    expect(nameBounds).not.toBeNull();
     expect(categoryBounds).not.toBeNull();
+    expect(categoryBounds!.y).toBeGreaterThanOrEqual(nameBounds!.y + nameBounds!.height);
     expect(categoryBounds!.x).toBeGreaterThanOrEqual(0);
     expect(categoryBounds!.x + categoryBounds!.width).toBeLessThanOrEqual(viewport.width);
+    const strip = page.getByTestId("expense-category-scroll-strip");
+    const selectorMetrics = await strip.evaluate((element) => {
+      const row = element.firstElementChild as HTMLElement;
+      const input = row.querySelector<HTMLInputElement>('input[aria-label="Internet"]')!;
+      const button = input.closest("label") as HTMLElement;
+      const icon = button.querySelector("svg") as SVGElement;
+      return {
+        stripClientWidth: element.clientWidth,
+        stripScrollWidth: element.scrollWidth,
+        overflowX: getComputedStyle(element).overflowX,
+        rowFlexWrap: getComputedStyle(row).flexWrap,
+        buttonWidth: button.getBoundingClientRect().width,
+        buttonHeight: button.getBoundingClientRect().height,
+        iconWidth: icon.getBoundingClientRect().width,
+        iconHeight: icon.getBoundingClientRect().height,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(selectorMetrics.rowFlexWrap).toBe("nowrap");
+    expect(selectorMetrics.buttonWidth).toBeGreaterThanOrEqual(40);
+    expect(selectorMetrics.buttonWidth).toBeLessThanOrEqual(44);
+    expect(selectorMetrics.buttonHeight).toBeGreaterThanOrEqual(40);
+    expect(selectorMetrics.buttonHeight).toBeLessThanOrEqual(44);
+    expect(selectorMetrics.iconWidth).toBeGreaterThanOrEqual(18);
+    expect(selectorMetrics.iconWidth).toBeLessThanOrEqual(20);
+    expect(selectorMetrics.iconHeight).toBeGreaterThanOrEqual(18);
+    expect(selectorMetrics.iconHeight).toBeLessThanOrEqual(20);
+    expect(selectorMetrics.pageOverflow).toBe(false);
+    if (viewport.width <= 430) {
+      expect(selectorMetrics.overflowX).toBe("auto");
+      expect(selectorMetrics.stripScrollWidth).toBeGreaterThan(selectorMetrics.stripClientWidth);
+      await strip.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      await expect(category.getByRole("radio", { name: "Others" })).toBeInViewport();
+    }
     const dateTrigger = page.locator('[data-slot="date-picker-trigger"]');
     await expect(dateTrigger).toBeVisible();
     await expect(page.locator('input[type="date"]')).toHaveCount(0);
