@@ -4,7 +4,7 @@ Private shared household expense tracking with exact integer-poisha financials, 
 
 ## Current status
 
-Production release preparation targets House Finance Tracker v1.5.0 on the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network). Every active member may view available Receipts on same-Household Expenses while upload/removal remains creator-only. Expense categories use twelve persisted semantic values through a compact, accessible icon-only selector; the v1.5 additions are `electricity` and `loan`, while historical keys remain unchanged. Schema V9 is additive and currently zero-drift after the approved enum expansion. Financial, Settlement, Receipt retention/quota, avatar, authentication, and Household rules are otherwise unchanged.
+House Finance Tracker v1.5.0 is released on the full Appwrite composition at [house-finance-tracker.appwrite.network](https://house-finance-tracker.appwrite.network); the production Site is Active from the approved release commit and the previous healthy deployment remains available for rollback. Every active member may view available Receipts on same-Household Expenses while upload/removal remains creator-only. Expense categories use twelve persisted semantic values through a compact, accessible icon-only selector; the v1.5 additions are `electricity` and `loan`, while historical keys remain unchanged. Schema V9 is additive and zero-drift after the approved enum expansion. Financial, Settlement, Receipt retention/quota, avatar, authentication, and Household rules are otherwise unchanged.
 
 ## Commands
 
