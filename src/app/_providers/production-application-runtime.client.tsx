@@ -32,7 +32,8 @@ import type {
   ExpenseReceiptContent,
 } from "@/application/services/application-services";
 import type { ExpenseDate } from "@/domain/dates/expense-date";
-import type { CardId, CommandId, ExpenseId, HouseholdId, JoinRequestId, SettlementId, UserId } from "@/domain/shared/identifiers";
+import type { CardId, CommandId, ExpenseId, HouseholdId, JoinRequestId, SettlementId, UserId, NotificationId } from "@/domain/shared/identifiers";
+import type { NotificationLatestView, NotificationMarkAllReadView, NotificationPageView } from "@/domain/notifications/notification-types";
 import { Surface } from "@/presentation/components/surface";
 import {
   ApplicationRuntimeProvider,
@@ -43,6 +44,7 @@ import {
   type HouseholdApplicationActions,
   type ProfileApplicationActions,
   type SettlementApplicationActions,
+  type NotificationApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { DevelopmentToolsSlotsProvider } from "@/presentation/devtools/development-tools-slots";
 import { AppShell } from "@/presentation/shell/app-shell";
@@ -399,6 +401,17 @@ function buildReadyState(
     },
   });
 
+  const notificationActions: NotificationApplicationActions = Object.freeze({
+    latest: () => requestJson<NotificationLatestView>("/api/app/notifications/latest"),
+    page: (offset = 0) => requestJson<NotificationPageView>(`/api/app/notifications?offset=${encodeURIComponent(String(offset))}`),
+    markRead: (notificationId: NotificationId) => requestJson("/api/app/mark-notification-read", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notificationId }),
+    }).then(() => undefined),
+    markAllRead: () => requestJson<NotificationMarkAllReadView>("/api/app/notifications/mark-all-read", { method: "POST" }),
+  });
+
   return Object.freeze({
     status: "ready" as const,
     session,
@@ -411,6 +424,7 @@ function buildReadyState(
     cardActions,
     analyticsActions,
     profileActions,
+    notificationActions,
   });
 }
 

@@ -9,7 +9,7 @@ import {
 } from "./mappers";
 
 export const LOCAL_DATABASE_NAME = "house-finance-tracker-local";
-export const LOCAL_DATABASE_VERSION = 6;
+export const LOCAL_DATABASE_VERSION = 7;
 
 export type DatabaseSource = IDBPDatabase<HouseFinanceDatabase> | Promise<IDBPDatabase<HouseFinanceDatabase>>;
 
@@ -109,6 +109,10 @@ function createSchemaV1(database: IDBPDatabase<HouseFinanceDatabase>): void {
   database.createObjectStore("developmentSession", { keyPath: "key" });
   const commandOutcomes = database.createObjectStore("commandOutcomes", { keyPath: "key" });
   commandOutcomes.createIndex("actorId", "actorId");
+  const notifications = database.createObjectStore("notifications", { keyPath: "id" });
+  notifications.createIndex("recipientCreatedAtId", ["recipientUserId", "createdAt", "id"]);
+  notifications.createIndex("recipientReadAt", "recipientUserId");
+  notifications.createIndex("createdAt", "createdAt");
 }
 
 export async function openLocalDatabase(
@@ -193,6 +197,12 @@ export async function openLocalDatabase(
         const comments = database.createObjectStore("expenseComments", { keyPath: "id" });
         comments.createIndex("expenseCreatedAtId", ["expenseId", "createdAt", "id"]);
         comments.createIndex("householdId", "householdId");
+      }
+      if (oldVersion >= 1 && oldVersion < 7 && !database.objectStoreNames.contains("notifications")) {
+        const notifications = database.createObjectStore("notifications", { keyPath: "id" });
+        notifications.createIndex("recipientCreatedAtId", ["recipientUserId", "createdAt", "id"]);
+        notifications.createIndex("recipientReadAt", "recipientUserId");
+        notifications.createIndex("createdAt", "createdAt");
       }
     },
     blocked() {

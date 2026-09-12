@@ -10,6 +10,7 @@ declare const receiptIdBrand: unique symbol;
 declare const auditEventIdBrand: unique symbol;
 declare const commandIdBrand: unique symbol;
 declare const expenseCommentIdBrand: unique symbol;
+declare const notificationIdBrand: unique symbol;
 
 export type UserId = string & { readonly [userIdBrand]: "UserId" };
 export type HouseholdId = string & {
@@ -29,6 +30,7 @@ export type AuditEventId = string & {
 };
 export type CommandId = string & { readonly [commandIdBrand]: "CommandId" };
 export type ExpenseCommentId = string & { readonly [expenseCommentIdBrand]: "ExpenseCommentId" };
+export type NotificationId = string & { readonly [notificationIdBrand]: "NotificationId" };
 
 function assertOpaqueId(value: string): void {
   if (value.length === 0 || value.trim() !== value) {
@@ -86,6 +88,11 @@ export function commandId(value: string): CommandId {
 export function expenseCommentId(value: string): ExpenseCommentId {
   assertOpaqueId(value);
   return value as ExpenseCommentId;
+}
+
+export function notificationId(value: string): NotificationId {
+  assertOpaqueId(value);
+  return value as NotificationId;
 }
 
 export function compareUserIds(left: UserId, right: UserId): number {

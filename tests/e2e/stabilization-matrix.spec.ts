@@ -21,6 +21,7 @@ const routes = [
   ["/household", "Household"],
   ["/reports/monthly?month=2026-08", "Monthly Report"],
   ["/profile", "Profile"],
+  ["/notifications", "Notifications"],
 ] as const;
 
 test("all main screens remain usable across the Phase 12 responsive matrix", async ({ page }) => {

@@ -18,7 +18,7 @@ function columns(table: TableDefinition): Map<string, string> {
   return new Map(table.columns.map((column) => [column.key, column.kind]));
 }
 
-describe("Appwrite schema definitions (approved Schema V7)", () => {
+describe("Appwrite schema definitions (approved Schema V8)", () => {
   it("stores every exact monetary value in a bigint column", () => {
     expect(columns(tableById("expenses")!).get("amountPoisha")).toBe("bigint");
     const settlements = columns(tableById("settlements")!);
@@ -74,9 +74,21 @@ describe("Appwrite schema definitions (approved Schema V7)", () => {
   });
 
   it("exposes a stable schema version and lookup helper", () => {
-    expect(SCHEMA_VERSION).toBe(7);
+    expect(SCHEMA_VERSION).toBe(8);
     expect(TABLES.every((table) => table.id.length <= 36 && /^[a-z_]+$/.test(table.id))).toBe(true);
     expect(tableById("missing")).toBeUndefined();
+  });
+
+  it("defines the additive in-app notification table and only its approved indexes", () => {
+    const notifications = tableById("notifications")!;
+    expect(notifications.columns.map((column) => column.key)).toEqual([
+      "recipientUserId", "householdId", "scope", "type", "title", "body", "entityType", "entityId", "createdAt", "readAt",
+    ]);
+    expect(notifications.indexes).toEqual([
+      { key: "by_recipient_created", type: "key", columns: ["recipientUserId", "createdAt"] },
+      { key: "by_recipient_read", type: "key", columns: ["recipientUserId", "readAt"] },
+      { key: "by_created", type: "key", columns: ["createdAt"] },
+    ]);
   });
 
   it("adds only optional private avatar infrastructure to Profiles", () => {

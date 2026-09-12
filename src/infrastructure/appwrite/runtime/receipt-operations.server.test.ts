@@ -102,7 +102,11 @@ describe("trusted Receipt storage sagas", () => {
     expect(storage.createCount).toBe(1);
     expect(await reader.listRows("receipt_metadata")).toHaveLength(1);
     expect(await reader.listRows("command_outcomes")).toHaveLength(1);
-    expect(operations.lastStagedOperations).toMatchObject({ reserve: 6, finalize: 5 });
+    expect(operations.lastStagedOperations).toMatchObject({ reserve: 6, finalize: 7 });
+    const addedNotifications = await reader.listRows("notifications");
+    expect(addedNotifications).toHaveLength(2);
+    expect(addedNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(MEMBER), String(LEADER)]));
+    expect(addedNotifications.some((row) => JSON.stringify(row).includes("receipt_"))).toBe(false);
   });
 
   it("recovers deterministic Storage success followed by metadata transaction failure", async () => {
@@ -112,11 +116,13 @@ describe("trusted Receipt storage sagas", () => {
     await expect(service().upload(input)).rejects.toMatchObject({ kind: "conflict" });
     expect(storage.createCount).toBe(1);
     expect(await reader.getRow("receipt_metadata", metadataId)).toBeUndefined();
+    expect(await reader.listRows("notifications")).toHaveLength(0);
 
     reader.conflictOnCommit.clear();
     await expect(service().upload(input)).resolves.toMatchObject({ receiptId: metadataId });
     expect(storage.createCount).toBe(1);
     expect(await reader.listRows("receipt_metadata")).toHaveLength(1);
+    expect(await reader.listRows("notifications")).toHaveLength(2);
   });
 
   it("does not finalize while maintenance owns an abandoned cleanup claim", async () => {
@@ -180,7 +186,8 @@ describe("trusted Receipt storage sagas", () => {
     const metadata = await reader.getRow("receipt_metadata", String(uploaded.receiptId));
     expect(metadata).toMatchObject({ contentState: "user-deleted", contentRemovedByUserId: String(CREATOR) });
     expect(storage.files).toHaveLength(0);
-    expect(operations.lastStagedOperations.remove).toBe(7);
+    expect(operations.lastStagedOperations.remove).toBe(9);
+    expect((await reader.listRows("notifications")).filter((row) => row.type === "receipt-removed")).toHaveLength(2);
     await expect(service().read(String(uploaded.receiptId))).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 

@@ -1,6 +1,9 @@
 import { expect, test as base, type Page } from "@playwright/test";
 import { EMPTY_LOCAL_DATABASE_REVISION, deterministicSeedData } from "../../src/infrastructure/indexeddb/seed";
 import { LOCAL_DATABASE_VERSION } from "../../src/infrastructure/indexeddb/database";
+import { notificationDraft } from "../../src/application/notifications/notification-policy";
+import { userId } from "../../src/domain/shared/identifiers";
+import { isoInstant } from "../../src/domain/shared/instant";
 import {
   toAuditRecord,
   toCardRecord,
@@ -8,6 +11,7 @@ import {
   toHouseholdRecord,
   toJoinRequestRecord,
   toMembershipRecord,
+  toNotificationRecord,
   toPrivateCardRecord,
   toProfileRecord,
   toReceiptRecord,
@@ -32,6 +36,7 @@ const STORES = [
   "auditEvents",
   "developmentSession",
   "commandOutcomes",
+  "notifications",
 ] as const;
 
 const MONTH_NAMES = [
@@ -51,6 +56,10 @@ const MONTH_NAMES = [
 
 function browserFixtureRecords(includeReceipt: boolean) {
   const seed = deterministicSeedData();
+  const fixtureNotifications = [
+    notificationDraft({ eventKey: "e2e-notification-1", recipientUserId: userId("user-raiyan"), type: "member-left-or-removed", title: "Household membership changed", body: "You were removed from a household", createdAt: isoInstant("2026-09-12T03:00:00.000Z"), accountScoped: true }),
+    notificationDraft({ eventKey: "e2e-notification-2", recipientUserId: userId("user-raiyan"), type: "expense-created", title: "New expense", body: "John added Internet Bill — ৳1,200.00", createdAt: isoInstant("2026-09-11T03:00:00.000Z"), householdId: seed.household.householdId, entityType: "expense", entityId: seed.expenses[0]!.expenseId }),
+  ];
   return {
     appMeta: { key: "seedRevision", value: EMPTY_LOCAL_DATABASE_REVISION },
     userProfiles: seed.profiles.map(toProfileRecord),
@@ -70,6 +79,7 @@ function browserFixtureRecords(includeReceipt: boolean) {
     }] : [],
     auditEvents: seed.audits.map(toAuditRecord),
     developmentSession: [{ key: "current", currentUserId: "user-raiyan" }],
+    notifications: fixtureNotifications.map(toNotificationRecord),
   };
 }
 
@@ -124,6 +134,7 @@ async function seedBrowserDatabase(page: Page): Promise<void> {
         }
         for (const value of records.auditEvents) put("auditEvents", value, "auditEvents");
         for (const value of records.developmentSession) put("developmentSession", value, "developmentSession");
+        for (const value of records.notifications) put("notifications", value, "notifications");
 
         transaction.onerror = () => {
           const error = transaction.error;

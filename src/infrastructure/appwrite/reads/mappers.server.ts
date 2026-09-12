@@ -28,10 +28,11 @@ import {
   type UserProfile,
 } from "@/domain/records/domain-records";
 import { cardColorId } from "@/domain/cards/card-color";
-import { auditEventId, cardId, expenseCommentId, expenseId, householdId, joinRequestId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, expenseCommentId, expenseId, householdId, joinRequestId, notificationId, receiptId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { assertSettlementRecord } from "@/domain/settlements/settlement-invariants";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
+import { assertNotification, NOTIFICATION_ENTITY_TYPES, NOTIFICATION_SCOPES, NOTIFICATION_TITLE_MAX_LENGTH, NOTIFICATION_BODY_MAX_LENGTH, NOTIFICATION_TYPES, type Notification } from "@/domain/notifications/notification-types";
 
 const trimmed = z.string().min(1).refine((value) => value.trim() === value);
 const optionalInstant = z.string().optional().nullable();
@@ -195,4 +196,13 @@ export function mapAuditEvent(raw: unknown): AuditEvent {
     const result: AuditEvent = { auditEventId: auditEventId(rowId(raw)), householdId: householdId(value.householdId), actorId: userId(value.actorId), aggregateType: value.aggregateType, aggregateId: value.aggregateId, action: value.action, changedFields: Object.freeze(json(value.changedFieldsJson, z.array(trimmed))), occurredAt: providerInstant(value.occurredAt) };
     assertAuditEvent(result); return Object.freeze(result);
   }) as AuditEvent;
+}
+
+export function mapNotification(raw: unknown): Notification {
+  return malformed("notifications", () => {
+    const value = z.object({ recipientUserId: trimmed, householdId: z.string().optional().nullable(), scope: z.enum(NOTIFICATION_SCOPES), type: z.enum(NOTIFICATION_TYPES), title: trimmed.max(NOTIFICATION_TITLE_MAX_LENGTH), body: trimmed.max(NOTIFICATION_BODY_MAX_LENGTH), entityType: z.enum(NOTIFICATION_ENTITY_TYPES).optional().nullable(), entityId: z.string().optional().nullable(), createdAt: z.string(), readAt: optionalInstant }).passthrough().parse(raw);
+    const result: Notification = { notificationId: notificationId(rowId(raw)), recipientUserId: userId(value.recipientUserId), ...(value.householdId ? { householdId: householdId(value.householdId) } : {}), scope: value.scope, type: value.type, title: value.title, body: value.body, ...(value.entityType ? { entityType: value.entityType } : {}), ...(value.entityId ? { entityId: value.entityId } : {}), createdAt: providerInstant(value.createdAt), ...(value.readAt ? { readAt: providerInstant(value.readAt) } : {}) };
+    assertNotification(result);
+    return Object.freeze(result);
+  }) as Notification;
 }

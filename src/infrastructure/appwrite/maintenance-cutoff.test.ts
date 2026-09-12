@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { retainedReceiptCutoff } from "../../../functions/maintenance/src/main.js";
+import { retainedNotificationCutoff, retainedReceiptCutoff } from "../../../functions/maintenance/src/main.js";
 
 describe("Dhaka three-calendar-month Receipt retention cutoff", () => {
   it.each([
@@ -17,5 +17,10 @@ describe("Dhaka three-calendar-month Receipt retention cutoff", () => {
     expect("2026-05-31T17:59:59.999Z" < cutoff).toBe(true);
     expect(cutoff < cutoff).toBe(false);
     expect("2026-05-31T18:00:00.001Z" < cutoff).toBe(false);
+  });
+
+  it("uses the same Dhaka calendar cutoff for notifications", () => {
+    expect(retainedNotificationCutoff(new Date("2026-09-12T03:00:00.000Z"))).toBe("2026-06-30T18:00:00.000Z");
+    expect(retainedNotificationCutoff(new Date("2026-10-01T00:01:00.000Z"))).toBe("2026-07-31T18:00:00.000Z");
   });
 });

@@ -56,7 +56,7 @@ async function setSeedReceiptTerminalState(
 ): Promise<void> {
   await page.evaluate(async (terminalStatus) => {
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 6);
+      const request = indexedDB.open("house-finance-tracker-local");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
@@ -101,7 +101,7 @@ async function setSeedReceiptTerminalState(
 async function attachSeedReceiptToInternetExpense(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 6);
+      const request = indexedDB.open("house-finance-tracker-local");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
@@ -124,7 +124,7 @@ async function attachSeedReceiptToInternetExpense(page: Page): Promise<void> {
             reject(new Error("The seeded Receipt fixture is missing."));
             return;
           }
-          const writeRequest = indexedDB.open("house-finance-tracker-local", 6);
+          const writeRequest = indexedDB.open("house-finance-tracker-local");
           writeRequest.onerror = () => reject(writeRequest.error);
           writeRequest.onsuccess = () => {
             const writeDatabase = writeRequest.result;
@@ -158,7 +158,7 @@ async function insertConfirmedSettlement(
   await page.evaluate(
     async ({ settlementId, confirmedAt }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("house-finance-tracker-local", 6);
+        const request = indexedDB.open("house-finance-tracker-local");
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;
@@ -737,7 +737,7 @@ test("a stale Expense Save reloads the confirmed-settlement lock without committ
 
   const persisted = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 6);
+      const request = indexedDB.open("house-finance-tracker-local");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
@@ -795,7 +795,7 @@ test("a stale Expense Delete reloads the lock and leaves the Expense active", as
 
   const persisted = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local", 6);
+      const request = indexedDB.open("house-finance-tracker-local");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });

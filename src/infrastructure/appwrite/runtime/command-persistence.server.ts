@@ -55,6 +55,9 @@ import { runCommandTransaction, type CommandTransaction } from "./tx-runner.serv
 import { TransactionFailure } from "./tx-errors.server";
 import { currentCommandEnvelope } from "./command-envelope.server";
 import { CommandGuardEngine } from "./guards.server";
+import { expenseCommentRecipients, notificationDraft, uniqueActiveRecipients, formatNotificationBdt } from "@/application/notifications/notification-policy";
+import type { Notification } from "@/domain/notifications/notification-types";
+import { mapNotification } from "../reads/mappers.server";
 
 const TABLE = {
   profiles: "profiles",
@@ -68,6 +71,7 @@ const TABLE = {
   cards: "cards",
   expenseCardPrivateDetails: "expense_card_private_details",
   expenseComments: "expense_comments",
+  notifications: "notifications",
 } as const;
 
 const MAX_ACTIVE_HOUSEHOLD_MEMBERS = 4;
@@ -525,6 +529,10 @@ export class AppwriteCommandPersistence implements AtomicApplicationPersistence 
 
         await this.stageAudit(tablesDB, tx, auditEvent);
         await this.stageOutcome(tablesDB, tx, idempotency, String(request.joinRequestId), request.createdAt);
+        const members = await this.activeMemberships(tables, String(request.householdId));
+        const leader = members.find((member) => member.role === "leader");
+        if (leader) await this.stageNotifications(tablesDB, tx, [notificationDraft({ eventKey: String(idempotency.commandId), recipientUserId: leader.userId, type: "join-request-received", title: "New join request", body: `${await this.notificationName(tables, String(request.userId))} requested to join your household`, createdAt: request.createdAt as never, householdId: request.householdId, entityType: "join-request", entityId: request.joinRequestId })]);
+        this.lastR3StagedOperations.createJoinRequest = tx.stagedOperations();
         return String(request.joinRequestId);
       }),
       (committedResourceId) => committedResourceId,
@@ -582,7 +590,11 @@ export class AppwriteCommandPersistence implements AtomicApplicationPersistence 
       });
       tx.recordStagedOperation();
       await this.stageAudit(tablesDB, tx, input.auditEvent);
+      const membersAfterJoin = await this.activeMemberships(tables, String(request.householdId));
+      const actorName = await this.notificationName(tables, String(input.actorId));
+      await this.stageNotifications(tablesDB, tx, [notificationDraft({ eventKey: String(input.auditEvent.auditEventId), recipientUserId: request.userId, type: "join-request-accepted", title: "Join request accepted", body: `${actorName} accepted your request to join the household`, createdAt: input.resolvedAt as never, householdId: request.householdId, entityType: "household", entityId: request.householdId }), ...this.householdNotifications({ eventKey: String(input.auditEvent.auditEventId), actorId: String(input.actorId), householdId: String(request.householdId), type: "member-joined", title: "New household member", body: `${actorName} joined the household`, createdAt: input.resolvedAt, entityType: "membership", entityId: String(request.userId), memberships: membersAfterJoin.filter((member) => member.userId !== request.userId) })]);
         await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { joinRequestId: String(input.joinRequestId) }, String(input.joinRequestId), input.resolvedAt);
+        this.lastR3StagedOperations.acceptJoinRequest = tx.stagedOperations();
       }),
       () => undefined,
     );
@@ -612,7 +624,9 @@ export class AppwriteCommandPersistence implements AtomicApplicationPersistence 
       await guards.release("pending-join", String(request.userId));
       await this.stagedRequestUpdate(tablesDB, tx, { ...request, status: input.status, resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId });
       await this.stageAudit(tablesDB, tx, input.auditEvent);
+      if (input.status === "rejected") await this.stageNotifications(tablesDB, tx, [notificationDraft({ eventKey: String(input.auditEvent.auditEventId), recipientUserId: request.userId, type: "join-request-rejected", title: "Join request rejected", body: `${await this.notificationName(tables, String(input.actorId))} rejected your household join request`, createdAt: input.resolvedAt as never, householdId: request.householdId, entityType: "household", entityId: request.householdId })]);
         await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { joinRequestId: String(input.joinRequestId) }, String(input.joinRequestId), input.resolvedAt);
+        this.lastR3StagedOperations[`join-request-${input.status}`] = tx.stagedOperations();
       }),
       () => undefined,
     );
@@ -642,6 +656,10 @@ export class AppwriteCommandPersistence implements AtomicApplicationPersistence 
       tx.recordStagedOperation();
               await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId), name: input.name }, String(input.householdId), input.occurredAt);
 await this.stageAudit(tablesDB, tx, input.auditEvent);
+      const renameMembers = await this.activeMemberships(tables, String(input.householdId));
+      const renameName = await this.notificationName(tables, String(input.actorId));
+      await this.stageNotifications(tablesDB, tx, this.householdNotifications({ eventKey: String(input.auditEvent.auditEventId), actorId: String(input.actorId), householdId: String(input.householdId), type: "household-renamed", title: "Household renamed", body: `${renameName} renamed the household to ${input.name}`, createdAt: input.occurredAt, memberships: renameMembers }));
+      this.lastR3StagedOperations.renameHousehold = tx.stagedOperations();
       }),
       () => undefined,
     );;
@@ -667,7 +685,12 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       await this.stagedMembershipUpdate(tablesDB, tx, { ...target, role: "leader" }, input.auditEvent.occurredAt);
       await this.stageAudit(tablesDB, tx, input.auditEvent);
 
-        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId), targetId: String(input.targetId) }, String(input.householdId), input.auditEvent.occurredAt);      }),
+      const transferName = await this.notificationName(tables, String(input.actorId));
+      await this.stageNotifications(tablesDB, tx, this.householdNotifications({ eventKey: String(input.auditEvent.auditEventId), actorId: String(input.actorId), householdId: String(input.householdId), type: "leadership-transferred", title: "Leadership transferred", body: `${transferName} transferred household leadership`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: String(input.targetId), memberships: await this.activeMemberships(tables, String(input.householdId)) }));
+
+        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId), targetId: String(input.targetId) }, String(input.householdId), input.auditEvent.occurredAt);
+        this.lastR3StagedOperations.transferLeadership = tx.stagedOperations();
+      }),
       () => undefined,
     );;
   }
@@ -694,7 +717,12 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       await this.stagedMembershipUpdate(tablesDB, tx, { ...scope.actorMembership, status: "former" }, input.auditEvent.occurredAt);
       await this.stageAudit(tablesDB, tx, input.auditEvent);
 
-        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId) }, String(input.householdId), input.auditEvent.occurredAt);      }),
+      const leaveName = await this.notificationName(tables, String(input.actorId));
+      await this.stageNotifications(tablesDB, tx, this.householdNotifications({ eventKey: String(input.auditEvent.auditEventId), actorId: String(input.actorId), householdId: String(input.householdId), type: "member-left-or-removed", title: "Member left", body: `${leaveName} left the household`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: String(input.actorId), memberships: await this.activeMemberships(tables, String(input.householdId)) }));
+
+        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId) }, String(input.householdId), input.auditEvent.occurredAt);
+        this.lastR3StagedOperations.leaveHousehold = tx.stagedOperations();
+      }),
       () => undefined,
     );;
   }
@@ -721,7 +749,13 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       await this.stagedMembershipUpdate(tablesDB, tx, { ...target, status: "former" }, input.auditEvent.occurredAt);
       await this.stageAudit(tablesDB, tx, input.auditEvent);
 
-        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId), targetId: String(input.targetId) }, String(input.householdId), input.auditEvent.occurredAt);      }),
+      const removeName = await this.notificationName(tables, String(input.actorId));
+      const remaining = this.householdNotifications({ eventKey: String(input.auditEvent.auditEventId), actorId: String(input.actorId), householdId: String(input.householdId), type: "member-left-or-removed", title: "Member removed", body: `${removeName} removed a member from the household`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: String(input.targetId), memberships: await this.activeMemberships(tables, String(input.householdId)) });
+      await this.stageNotifications(tablesDB, tx, [...remaining, notificationDraft({ eventKey: String(input.auditEvent.auditEventId), recipientUserId: input.targetId, type: "member-left-or-removed", title: "Household membership changed", body: "You were removed from the household", createdAt: input.auditEvent.occurredAt as never, accountScoped: true })]);
+
+        await this.stageEnvelopeOutcome(tablesDB, tx, String(input.actorId), { householdId: String(input.householdId), targetId: String(input.targetId) }, String(input.householdId), input.auditEvent.occurredAt);
+        this.lastR3StagedOperations.removeHouseholdMember = tx.stagedOperations();
+      }),
       () => undefined,
     );;
   }
@@ -888,6 +922,8 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
         tx.recordStagedOperation();
         if (snapshot) await this.stagePrivateCardSnapshot(tablesDB, tx, snapshot, expense.createdAt, false);
         await this.stageAudit(tablesDB, tx, input.auditEvent);
+        const expenseName = await this.notificationName(tables, String(actorId));
+        await this.stageNotifications(tablesDB, tx, this.householdNotifications({ eventKey: String(input.idempotency.commandId), actorId: String(actorId), householdId: String(expense.householdId), type: "expense-created", title: "New expense", body: `${expenseName} added ${expense.name} — ${formatNotificationBdt(expense.amount)}`, createdAt: expense.createdAt, entityType: "expense", entityId: String(expense.expenseId), memberships }));
         await this.stageOutcome(tablesDB, tx, input.idempotency, String(expense.expenseId), expense.createdAt);
         this.lastR3StagedOperations.createExpense = tx.stagedOperations();
         return String(expense.expenseId);
@@ -1027,6 +1063,8 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
         tx.recordStagedOperation();
         if (newSnapshot) await this.stagePrivateCardSnapshot(tablesDB, tx, newSnapshot, proposed.updatedAt, true);
         await this.stageAudit(tablesDB, tx, input.auditEvents[0]!);
+        const editorName = await this.notificationName(tables, String(actorId));
+        if (financialChanged) await this.stageNotifications(tablesDB, tx, this.householdNotifications({ eventKey: String(input.commandId ?? input.auditEvents[0]!.auditEventId), actorId: String(actorId), householdId: String(current.householdId), type: proposed.deletedAt ? "expense-deleted" : "expense-materially-updated", title: proposed.deletedAt ? "Expense deleted" : "Expense updated", body: proposed.deletedAt ? `${editorName} deleted ${proposed.name}` : `${editorName} updated ${proposed.name}`, createdAt: proposed.updatedAt, entityType: "expense", entityId: String(proposed.expenseId), memberships }));
         await this.stageEnvelopeOutcome(tablesDB, tx, String(actorId), {}, String(current.expenseId), proposed.updatedAt);
         this.lastR3StagedOperations[proposed.deletedAt ? "deleteExpense" : "editExpense"] = tx.stagedOperations();
       }),
@@ -1240,6 +1278,7 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
         });
         tx.recordStagedOperation();
         await this.stageAudit(tablesDB, tx, auditEvent);
+        await this.stageNotifications(tablesDB, tx, [notificationDraft({ eventKey: String(idempotency.commandId), recipientUserId: settlement.receiverId, type: "settlement-requested", title: "Settlement requested", body: `${await this.notificationName(tables, String(settlement.senderId))} requested a ${formatNotificationBdt(settlement.amount)} settlement`, createdAt: settlement.createdAt as never, householdId: settlement.householdId, entityType: "settlement", entityId: settlement.settlementId })]);
         await this.stageOutcome(tablesDB, tx, idempotency, String(settlement.settlementId), settlement.createdAt);
         this.lastR3StagedOperations.createSettlement = tx.stagedOperations();
         return String(settlement.settlementId);
@@ -1303,6 +1342,11 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
         });
         tx.recordStagedOperation();
         await this.stageAudit(tablesDB, tx, input.auditEvent);
+        const transitionTarget = authoritative.status === "cancelled" ? authoritative.receiverId : authoritative.senderId;
+        const transitionName = await this.notificationName(tables, String(actorId));
+        const transitionType = authoritative.status === "confirmed" ? "settlement-confirmed" : authoritative.status === "rejected" ? "settlement-rejected" : "settlement-cancelled";
+        const transitionVerb = authoritative.status === "confirmed" ? "confirmed" : authoritative.status === "rejected" ? "rejected" : "cancelled";
+        await this.stageNotifications(tablesDB, tx, [notificationDraft({ eventKey: String(input.auditEvent.auditEventId), recipientUserId: transitionTarget, type: transitionType, title: `Settlement ${transitionVerb}`, body: `${transitionName} ${transitionVerb} your ${formatNotificationBdt(authoritative.amount)} settlement`, createdAt: authoritative.resolvedAt as never, householdId: authoritative.householdId, entityType: "settlement", entityId: authoritative.settlementId })]);
         await this.stageEnvelopeOutcome(tablesDB, tx, String(actorId), intentSeed, String(current.settlementId), proposed.resolvedAt);
         this.lastR3StagedOperations[`settlement-${authoritative.status}`] = tx.stagedOperations();
       }),
@@ -1352,11 +1396,35 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
     );
   }
 
+  private async stageNotifications(tablesDB: TablesDB, tx: CommandTransaction, rows: readonly Notification[]): Promise<void> {
+    const tables = this.scoped(tablesDB, tx);
+    for (const row of rows) {
+      const existing = await tables.getRow(TABLE.notifications, String(row.notificationId));
+      if (existing) {
+        const current = mapNotification(existing);
+        if (current.recipientUserId === row.recipientUserId && current.type === row.type && current.body === row.body && current.createdAt === row.createdAt) continue;
+        throw new ApplicationError("CONFLICT", "Notification identity was reused with different content.");
+      }
+      await tablesDB.createRow({ databaseId: "hft", tableId: TABLE.notifications, rowId: String(row.notificationId), data: { recipientUserId: String(row.recipientUserId), householdId: row.householdId ? String(row.householdId) : null, scope: row.scope, type: row.type, title: row.title, body: row.body, entityType: row.entityType ?? null, entityId: row.entityId ?? null, createdAt: row.createdAt, readAt: row.readAt ?? null }, transactionId: tx.id });
+      tx.recordStagedOperation();
+    }
+  }
+
+  private async notificationName(tables: TablesReader, userIdValue: string): Promise<string> {
+    const row = await tables.getRow(TABLE.profiles, userIdValue);
+    return row ? mapProfileDisplay(row).displayName : "A household member";
+  }
+
+  private householdNotifications(input: Readonly<{ eventKey: string; actorId?: string; householdId: string; type: Parameters<typeof notificationDraft>[0]["type"]; title: string; body: string; createdAt: string; entityType?: Parameters<typeof notificationDraft>[0]["entityType"]; entityId?: string; memberships: readonly MembershipSnapshot[] }>): readonly Notification[] {
+    return uniqueActiveRecipients(input.memberships, input.actorId as never).map((recipientUserId) => notificationDraft({ ...input, recipientUserId: recipientUserId as never, householdId: input.householdId as never, createdAt: input.createdAt as never }));
+  }
+
   async createExpenseComment(input: Parameters<AtomicApplicationPersistence["createExpenseComment"]>[0]): Promise<string> {
     const tablesDB = this.tablesDB;
     const { comment, idempotency } = input;
+    const actorId = idempotency.actorId;
     assertExpenseComment(comment);
-    if (idempotency.actorId !== comment.authorUserId || idempotency.commandType !== "create-expense-comment") {
+    if (actorId !== comment.authorUserId || idempotency.commandType !== "create-expense-comment") {
       throw new ApplicationError("INVALID_INPUT", "Comment command identity is invalid.");
     }
     return this.resolveDelivery(
@@ -1364,17 +1432,15 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
       { actorId: String(comment.authorUserId), intentSeed: { expenseId: String(comment.expenseId), body: comment.body } },
       () => runCommandTransaction(tablesDB, async ({ tx }) => {
         const tables = this.scoped(tablesDB, tx);
-        const [expenseRaw, householdRaw] = await Promise.all([
-          tables.getRow(TABLE.expenses, String(comment.expenseId)),
-          tables.getRow(TABLE.households, String(comment.householdId)),
-        ]);
+        const expenseRaw = await tables.getRow(TABLE.expenses, String(comment.expenseId));
         const expense = expenseRaw ? mapExpense(expenseRaw) : undefined;
+        const householdRaw = expense ? await tables.getRow(TABLE.households, String(expense.householdId)) : undefined;
         const household = householdRaw ? mapHousehold(householdRaw) : undefined;
-        if (!expense || expense.deletedAt || expense.householdId !== comment.householdId || !household || household.deletedAt) {
+        if (!expense || expense.deletedAt || !household || household.deletedAt || expense.householdId !== comment.householdId) {
           throw new ApplicationError("NOT_FOUND", "Expense not found.");
         }
-        const membership = await this.householdMemberships(tables, String(comment.householdId));
-        if (!membership.some((item) => item.userId === comment.authorUserId && item.status === "active")) {
+        const membership = await this.householdMemberships(tables, String(expense.householdId));
+        if (!membership.some((item) => item.userId === actorId && item.status === "active")) {
           throw new ApplicationError("NOT_FOUND", "Expense not found.");
         }
         if (await tables.getRow(TABLE.expenseComments, String(comment.commentId))) {
@@ -1388,7 +1454,11 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
           transactionId: tx.id,
         });
         tx.recordStagedOperation();
+        const commenter = await this.notificationName(tables, String(actorId));
+        const commentRecipients = expenseCommentRecipients({ creatorId: expense.creatorId, commenterId: actorId, memberships: membership });
+        await this.stageNotifications(tablesDB, tx, commentRecipients.map((recipientUserId) => notificationDraft({ eventKey: String(idempotency.commandId), recipientUserId, type: "expense-comment-added", title: "New comment", body: `${commenter} commented on ${expense.name}`, createdAt: comment.createdAt, householdId: expense.householdId, entityType: "expense", entityId: String(expense.expenseId) })));
         await this.stageOutcome(tablesDB, tx, idempotency, String(comment.commentId), comment.createdAt);
+        this.lastR3StagedOperations.createExpenseComment = tx.stagedOperations();
         return String(comment.commentId);
       }),
       (resourceId) => resourceId,
@@ -1397,6 +1467,37 @@ await this.stageAudit(tablesDB, tx, input.auditEvent);
   }
 
   // -- R4 placeholders -----------------------------------------------------
+
+  async markNotificationRead(input: Parameters<AtomicApplicationPersistence["markNotificationRead"]>[0]): Promise<void> {
+    await runCommandTransaction(this.tablesDB, async ({ tx }) => {
+      const tables = this.scoped(this.tablesDB, tx);
+      const raw = await tables.getRow(TABLE.notifications, String(input.notificationId));
+      const notification = raw ? mapNotification(raw) : undefined;
+      if (!notification || notification.recipientUserId !== input.actorId) throw new ApplicationError("NOT_FOUND", "Notification not found.");
+      if (notification.readAt) return;
+      await this.tablesDB.updateRow({ databaseId: "hft", tableId: TABLE.notifications, rowId: String(input.notificationId), data: { readAt: input.readAt }, transactionId: tx.id });
+      tx.recordStagedOperation();
+    });
+  }
+
+  async markNotificationsRead(input: Parameters<AtomicApplicationPersistence["markNotificationsRead"]>[0]): Promise<number> {
+    if (input.notificationIds.length > 50) throw new ApplicationError("INVALID_INPUT", "Notification batches are limited to 50 rows.");
+    return runCommandTransaction(this.tablesDB, async ({ tx }) => {
+      const tables = this.scoped(this.tablesDB, tx);
+      let updated = 0;
+      for (const notificationIdValue of new Set(input.notificationIds.map(String))) {
+        const raw = await tables.getRow(TABLE.notifications, notificationIdValue);
+        const notification = raw ? mapNotification(raw) : undefined;
+        if (!notification) continue;
+        if (notification.recipientUserId !== input.actorId) throw new ApplicationError("NOT_FOUND", "Notification not found.");
+        if (notification.readAt) continue;
+        await this.tablesDB.updateRow({ databaseId: "hft", tableId: TABLE.notifications, rowId: notificationIdValue, data: { readAt: input.readAt }, transactionId: tx.id });
+        tx.recordStagedOperation();
+        updated += 1;
+      }
+      return updated;
+    });
+  }
 
   private unavailable(): never {
     throw new ApplicationError("PERSISTENCE_FAILURE", "This command plane arrives with a later production slice.");

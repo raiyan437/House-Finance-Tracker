@@ -104,3 +104,11 @@ export function transitionSettlement(
 ) {
   return context.application.settlements.transitionSettlement(settlementId as never, status, commandId as never);
 }
+
+export function markNotificationRead(context: ProductRequestContext, notificationId: string) {
+  return context.application.notifications.markRead(notificationId as never);
+}
+
+export function markAllNotificationsRead(context: ProductRequestContext) {
+  return context.application.notifications.markAllRead();
+}

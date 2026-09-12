@@ -26,6 +26,7 @@ import {
   type ReceiptMetadata,
   type UserProfile,
 } from "@/domain/records/domain-records";
+import { assertNotification, NOTIFICATION_ENTITY_TYPES, NOTIFICATION_SCOPES, NOTIFICATION_TITLE_MAX_LENGTH, NOTIFICATION_BODY_MAX_LENGTH, NOTIFICATION_TYPES, type Notification } from "@/domain/notifications/notification-types";
 import {
   auditEventId,
   cardId,
@@ -37,6 +38,7 @@ import {
   receiptId,
   settlementId,
   userId,
+  notificationId,
 } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import { assertSettlementRecord } from "@/domain/settlements/settlement-invariants";
@@ -62,6 +64,7 @@ import type {
   ReceiptMetadataRecordV2,
   SettlementRecordV1,
   UserProfileRecordV2,
+  NotificationRecordV1,
 } from "./records";
 
 const recordVersion = z.literal(1);
@@ -140,6 +143,7 @@ const receiptSchema = z.object({ recordVersion: z.literal(2), id: idText, househ
 const auditSchema = z.object({ recordVersion, id: idText, householdId: idText, actorId: idText, aggregateType: z.enum(["household", "membership", "join-request", "expense", "settlement", "card", "receipt"]), aggregateId: trimmed, action: trimmed, occurredAt: instantText, changedFields: z.array(trimmed) }).strict();
 const commandOutcomeSchema = z.object({ recordVersion, key: trimmed, actorId: idText, commandType: z.enum(COMMAND_TYPES), commandId: idText, intentDigest: trimmed, resourceId: idText, completedAt: instantText }).strict();
 const expenseCommentSchema = z.object({ recordVersion, id: idText, householdId: idText, expenseId: idText, authorUserId: idText, body: trimmed.max(1000), createdAt: instantText }).strict();
+const notificationSchema = z.object({ recordVersion, id: idText, recipientUserId: idText, householdId: idText.optional(), scope: z.enum(NOTIFICATION_SCOPES), type: z.enum(NOTIFICATION_TYPES), title: trimmed.max(NOTIFICATION_TITLE_MAX_LENGTH), body: trimmed.max(NOTIFICATION_BODY_MAX_LENGTH), entityType: z.enum(NOTIFICATION_ENTITY_TYPES).optional(), entityId: idText.optional(), createdAt: instantText, readAt: instantText.nullable() }).strict();
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown, store: string, key?: string): T {
   const result = schema.safeParse(value);
@@ -269,6 +273,20 @@ export const fromExpenseCommentRecord = (raw: unknown, key?: string): ExpenseCom
   return reconstructed("expenseComments", key, () => {
     const result: ExpenseComment = { commentId: expenseCommentId(value.id), householdId: householdId(value.householdId), expenseId: expenseId(value.expenseId), authorUserId: userId(value.authorUserId), body: value.body, createdAt: isoInstant(value.createdAt) };
     assertExpenseComment(result);
+    return Object.freeze(result);
+  });
+};
+
+export const toNotificationRecord = (value: Notification): NotificationRecordV1 => {
+  assertNotification(value);
+  return { recordVersion: 1, id: value.notificationId, recipientUserId: value.recipientUserId, ...(value.householdId ? { householdId: value.householdId } : {}), scope: value.scope, type: value.type, title: value.title, body: value.body, ...(value.entityType ? { entityType: value.entityType } : {}), ...(value.entityId ? { entityId: value.entityId } : {}), createdAt: value.createdAt, readAt: value.readAt ?? null };
+};
+
+export const fromNotificationRecord = (raw: unknown, key?: string): Notification => {
+  const value = parsed(notificationSchema, raw, "notifications", key);
+  return reconstructed("notifications", key, () => {
+    const result: Notification = { notificationId: notificationId(value.id), recipientUserId: userId(value.recipientUserId), ...(value.householdId ? { householdId: householdId(value.householdId) } : {}), scope: value.scope, type: value.type, title: value.title, body: value.body, ...(value.entityType ? { entityType: value.entityType } : {}), ...(value.entityId ? { entityId: value.entityId } : {}), createdAt: isoInstant(value.createdAt), ...(value.readAt ? { readAt: isoInstant(value.readAt) } : {}) };
+    assertNotification(result);
     return Object.freeze(result);
   });
 };

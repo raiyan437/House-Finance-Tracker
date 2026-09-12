@@ -111,3 +111,11 @@ export function getDashboard(context: ProductRequestContext, householdId: Househ
 export function getMonthlyReport(context: ProductRequestContext, householdId: HouseholdId, monthValue: string) {
   return context.application.analytics.getMonthlyReport(householdId, calendarMonth(monthValue), localCalendarMonthFromInstant);
 }
+
+export function getLatestNotifications(context: ProductRequestContext) {
+  return context.application.notifications.latest();
+}
+
+export function getNotifications(context: ProductRequestContext, offset: number) {
+  return context.application.notifications.page(offset);
+}

@@ -12,11 +12,13 @@ import type {
   ReceiptRepository,
   SettlementRepository,
   UserProfileRepository,
+  NotificationRepository,
 } from "@/application/repositories";
+import type { Notification } from "@/domain/notifications/notification-types";
 import { assertCommandOutcome, type CommandOutcome } from "@/application/idempotency/command-idempotency";
 import { commandOutcomeRowId } from "../ids";
 import type { CardRemovalAction } from "@/domain/cards/card-lifecycle";
-import type { UserId, CardId, ExpenseId, HouseholdId, JoinRequestId, ReceiptId, SettlementId } from "@/domain/shared/identifiers";
+import type { UserId, CardId, ExpenseId, HouseholdId, JoinRequestId, ReceiptId, SettlementId, NotificationId } from "@/domain/shared/identifiers";
 import { compareUserIds, userId, commandId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import {
@@ -32,6 +34,7 @@ import {
   mapProfileDisplay,
   mapReceiptMetadata,
   mapSettlement,
+  mapNotification,
 } from "./mappers.server";
 import { createTablesReader, type AppwriteRow, type TablesReader } from "./tables.server";
 
@@ -48,6 +51,7 @@ const TABLE = {
   auditEvents: "audit_events",
   commandOutcomes: "command_outcomes",
   expenseComments: "expense_comments",
+  notifications: "notifications",
 } as const;
 
 /**
@@ -286,6 +290,49 @@ class AppwriteCommandOutcomeRepository implements CommandOutcomeRepository {
     return Object.freeze(outcome);
   }
 }
+
+class AppwriteNotificationRepository implements NotificationRepository {
+  constructor(private readonly tables: TablesReader, private readonly actorId: UserId) {}
+
+  private async rows(cutoff: string, offset: number, limit: number): Promise<readonly Notification[]> {
+    const rows = await this.tables.listRowsBounded(TABLE.notifications, [
+      Query.equal("recipientUserId", String(this.actorId)),
+      Query.greaterThanEqual("createdAt", cutoff),
+      Query.orderDesc("createdAt"),
+      Query.orderDesc("$id"),
+      Query.offset(offset),
+    ], limit);
+    return rows.map(mapNotification);
+  }
+
+  async listLatestForRecipient(input: Parameters<NotificationRepository["listLatestForRecipient"]>[0]) {
+    if (input.recipientUserId !== this.actorId) return [];
+    return this.rows(input.cutoff, 0, input.limit);
+  }
+
+  async listPageForRecipient(input: Parameters<NotificationRepository["listPageForRecipient"]>[0]) {
+    if (input.recipientUserId !== this.actorId) return [];
+    return this.rows(input.cutoff, input.offset, input.limit);
+  }
+
+  async listUnreadForRecipient(input: Parameters<NotificationRepository["listUnreadForRecipient"]>[0]) {
+    if (input.recipientUserId !== this.actorId) return [];
+    const rows = await this.tables.listRowsBounded(TABLE.notifications, [
+      Query.equal("recipientUserId", String(this.actorId)),
+      Query.isNull("readAt"),
+      Query.greaterThanEqual("createdAt", input.cutoff),
+      Query.offset(input.offset ?? 0),
+    ], input.limit ?? 5_000);
+    return rows.map(mapNotification);
+  }
+
+  async getForRecipient(id: NotificationId, recipientUserId: UserId) {
+    if (recipientUserId !== this.actorId) return undefined;
+    const row = await this.tables.getRow(TABLE.notifications, String(id));
+    if (!row || row.recipientUserId !== this.actorId) return undefined;
+    return mapNotification(row);
+  }
+}
 export interface AppwriteReadRepositories {
   readonly profiles: UserProfileRepository;
   readonly commandOutcomes: CommandOutcomeRepository;
@@ -298,6 +345,7 @@ export interface AppwriteReadRepositories {
   readonly cards: CardRepository;
   readonly receipts: ReceiptRepository;
   readonly auditEvents: AuditEventRepository;
+  readonly notifications: NotificationRepository;
 }
 
 export function createAppwriteReadRepositories(tables: TablesReader, actorId: UserId, actorEmail: string): AppwriteReadRepositories {
@@ -313,6 +361,7 @@ export function createAppwriteReadRepositories(tables: TablesReader, actorId: Us
     cards: new AppwriteCardRepository(tables),
     receipts: new AppwriteReceiptRepository(tables),
     auditEvents: new AppwriteAuditEventRepository(tables),
+    notifications: new AppwriteNotificationRepository(tables, actorId),
   });
 }
 

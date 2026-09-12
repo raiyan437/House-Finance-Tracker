@@ -7,6 +7,7 @@ import {
   HOUSEHOLD_NAME_STORAGE_CAPACITY,
   MAINTENANCE_FUNCTION,
   PROFILE_DISPLAY_NAME_STORAGE_CAPACITY,
+  SCHEMA_VERSION,
   TABLES,
 } from "../schema/definitions";
 import { planSchemaApplication, type AppwriteSchemaReader, type ExistingColumn } from "./planner";
@@ -96,7 +97,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved capacity is present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: SCHEMA_VERSION }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
@@ -123,7 +124,7 @@ describe("schema bootstrap planner", () => {
 
   it("treats the approved profiles.displayName capacity as already correct", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: SCHEMA_VERSION }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);
@@ -217,7 +218,7 @@ describe("schema bootstrap planner", () => {
 
   it("is idempotent after the approved Schema V4 capacities and private column are present", async () => {
     const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
-    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 7 }));
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: SCHEMA_VERSION }));
     expect(plan.safeStringCapacityIncreases).toEqual([]);
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);

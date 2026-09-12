@@ -6,7 +6,7 @@ import { runWithCommandEnvelope } from "./command-envelope.server";
 import { createInMemoryTablesDB, InMemoryTablesReader } from "../reads/in-memory-tables-reader.helper";
 import { guardRowId, membershipRowId } from "../ids";
 import { canonicalIntentDigest, type IdempotencyDescriptor } from "@/application/idempotency/command-idempotency";
-import { auditEventId, cardId, commandId, expenseCommentId, expenseId, householdId, joinRequestId, settlementId, userId } from "@/domain/shared/identifiers";
+import { auditEventId, cardId, commandId, expenseCommentId, expenseId, householdId, joinRequestId, notificationId, settlementId, userId } from "@/domain/shared/identifiers";
 import { isoInstant } from "@/domain/shared/instant";
 import type { AuditEvent, Expense, ExpenseComment } from "@/domain/records/domain-records";
 import { expenseDate } from "@/domain/dates/expense-date";
@@ -269,6 +269,17 @@ describe("trusted Appwrite command kernel", () => {
       })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
     });
 
+    it("notifies only the current Household Leader when a join request is received", async () => {
+      await persistence.createJoinRequest({
+        request: { joinRequestId: joinRequestId("j_dana"), householdId: HH, userId: DANA, status: "pending", createdAt: T1 },
+        idempotency: { actorId: DANA, commandType: "send-join-request", commandId: commandId("k_jr_dana"), intentDigest: canonicalIntentDigest({ householdId: String(HH) }) },
+        auditEvent: audit("a_jr_dana", String(DANA), "requested"),
+      });
+      const rows = await reader.listRows("notifications");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ recipientUserId: String(LEADER), type: "join-request-received" });
+    });
+
     it("blocks a fourth pending request path when the actor already holds an active membership", async () => {
       const code = await codesOf(() => persistence.createJoinRequest({
         request: { joinRequestId: joinRequestId("j_x"), householdId: HH, userId: JOHN, status: "pending", createdAt: T1 },
@@ -285,7 +296,7 @@ describe("trusted Appwrite command kernel", () => {
   });
 
   describe("join-request lifecycle", () => {
-    it("accepts a pending request inside frozen gates with exactly five staged writes", async () => {
+    it("accepts a pending request and sends exact accepted/member-joined recipients", async () => {
       await persistence.acceptJoinRequest({
         joinRequestId: joinRequestId("j_req1"),
         actorId: LEADER,
@@ -300,6 +311,23 @@ describe("trusted Appwrite command kernel", () => {
       const guards = await reader.listRows("coordination_guards");
       expect(guards.some((row) => row.logicalKey === "pending-join:u_alex")).toBe(false);
       expect(guards.some((row) => row.logicalKey === "active-membership:u_alex")).toBe(true);
+      const notifications = await reader.listRows("notifications");
+      expect(notifications).toHaveLength(3);
+      expect(notifications.map((row) => [row.type, row.recipientUserId])).toEqual(expect.arrayContaining([
+        ["join-request-accepted", String(ALEX)],
+        ["member-joined", String(JOHN)],
+        ["member-joined", String(SARAH)],
+      ]));
+    });
+
+    it("notifies only the requester when a Leader rejects a join request", async () => {
+      await persistence.transitionJoinRequest({
+        joinRequestId: joinRequestId("j_req1"), actorId: LEADER, status: "rejected", resolvedAt: T1,
+        auditEvent: audit("a_reject", String(LEADER), "rejected"),
+      });
+      const rows = await reader.listRows("notifications");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ recipientUserId: String(ALEX), type: "join-request-rejected" });
     });
 
     it("blocks acceptance when the requester is already active elsewhere", async () => {
@@ -371,6 +399,9 @@ describe("trusted Appwrite command kernel", () => {
     it("renames as leader only and treats unchanged names as no-ops", async () => {
       await persistence.renameHousehold({ householdId: HH, actorId: LEADER, name: "Renamed House", occurredAt: T1, auditEvent: audit("a_ren", String(LEADER), "renamed") });
       expect((await reader.getRow("households", String(HH)))?.name).toBe("Renamed House");
+      const renameNotifications = await reader.listRows("notifications");
+      expect(renameNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(JOHN), String(SARAH)]));
+      expect(renameNotifications.some((row) => row.recipientUserId === String(LEADER))).toBe(false);
 
       const before = await reader.listRows("audit_events");
       await persistence.renameHousehold({ householdId: HH, actorId: LEADER, name: "Renamed House", occurredAt: T1, auditEvent: audit("a_ren2", String(LEADER), "renamed") });
@@ -387,6 +418,9 @@ describe("trusted Appwrite command kernel", () => {
       expect(memberships.find((row) => row.userId === JOHN)?.role).toBe("leader");
       const guards = await reader.listRows("coordination_guards");
       expect(guards.find((row) => row.logicalKey === "active-leader:h_house1")?.ownerValue).toBe(String(JOHN));
+      const transferNotifications = await reader.listRows("notifications");
+      expect(transferNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(JOHN), String(SARAH)]));
+      expect(transferNotifications.some((row) => row.recipientUserId === String(LEADER))).toBe(false);
 
       // The old leader can no longer transfer.
       const stale = await codesOf(() => persistence.transferLeadership({ householdId: HH, actorId: LEADER, targetId: SARAH, auditEvent: audit("a_tx2", String(LEADER), "leadership-transferred") }));
@@ -399,6 +433,8 @@ describe("trusted Appwrite command kernel", () => {
       expect(john?.status).toBe("former");
       const guards = await reader.listRows("coordination_guards");
       expect(guards.some((row) => row.logicalKey === "active-membership:u_john")).toBe(false);
+      const leaveNotifications = await reader.listRows("notifications");
+      expect(leaveNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(LEADER), String(SARAH)]));
 
       const leaderLeave = await codesOf(() => persistence.leaveHousehold({ householdId: HH, actorId: LEADER, auditEvent: audit("a_l2", String(LEADER), "left") }));
       expect(leaderLeave).toBe("CONFLICT");
@@ -422,6 +458,10 @@ describe("trusted Appwrite command kernel", () => {
     it("removes only active non-leader members with cleared finances", async () => {
       await persistence.removeHouseholdMember({ householdId: HH, actorId: LEADER, targetId: JOHN, auditEvent: audit("a_rm", String(LEADER), "removed") });
       expect((await reader.listRows("memberships")).find((row) => row.userId === JOHN)?.status).toBe("former");
+      const removeNotifications = await reader.listRows("notifications");
+      expect(removeNotifications).toHaveLength(2);
+      expect(removeNotifications.filter((row) => row.scope === "household").map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(SARAH)]));
+      expect(removeNotifications.find((row) => row.scope === "account")).toMatchObject({ recipientUserId: String(JOHN), type: "member-left-or-removed", body: "You were removed from the household" });
 
       const removeLeader = await codesOf(() => persistence.removeHouseholdMember({ householdId: HH, actorId: LEADER, targetId: LEADER, auditEvent: audit("a_rm2", String(LEADER), "removed") }));
       expect(removeLeader).toBe("CONFLICT");
@@ -639,7 +679,11 @@ describe("trusted Appwrite command kernel", () => {
       });
       expect(cashId).toBe("e_cash");
       expect(await reader.getRow("expenses", "e_cash")).toMatchObject({ amountPoisha: 300, revision: 1, paymentMethod: "cash" });
-      expect(persistence.lastR3StagedOperations.createExpense).toBe(4);
+      expect(persistence.lastR3StagedOperations.createExpense).toBe(6);
+      const cashNotifications = await reader.listRows("notifications");
+      expect(cashNotifications).toHaveLength(2);
+      expect(cashNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(JOHN), String(SARAH)]));
+      expect(cashNotifications.some((row) => row.recipientUserId === String(LEADER))).toBe(false);
 
       reader.seed("cards", [{
         $id: "c_pay", ownerId: LEADER, name: "Private Leader Card", design: "red", type: "debit",
@@ -655,7 +699,7 @@ describe("trusted Appwrite command kernel", () => {
         ownerId: LEADER, cardId: "c_pay", cardName: "Private Leader Card",
       });
       expect(String((await reader.getRow("expense_card_private_details", "e_card"))?.snapshotJson)).not.toContain("Private Leader Card");
-      expect(persistence.lastR3StagedOperations.createExpense).toBe(6);
+      expect(persistence.lastR3StagedOperations.createExpense).toBe(8);
     });
 
     it("measures the worst-case Card-switch edit and Card-linked soft delete", async () => {
@@ -692,7 +736,8 @@ describe("trusted Appwrite command kernel", () => {
         }),
       );
       expect(await reader.getRow("expense_card_private_details", "e_switch")).toMatchObject({ cardId: "c_new", cardName: "New Card" });
-      expect(persistence.lastR3StagedOperations.editExpense).toBe(7);
+      expect(persistence.lastR3StagedOperations.editExpense).toBe(9);
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "expense-materially-updated")).toHaveLength(2);
 
       const deletedAt = isoInstant("2026-08-26T11:00:00.000Z");
       const deleted: Expense = {
@@ -710,7 +755,8 @@ describe("trusted Appwrite command kernel", () => {
         }),
       );
       expect(await reader.getRow("expenses", "e_switch")).toMatchObject({ revision: 3, deletedAt });
-      expect(persistence.lastR3StagedOperations.deleteExpense).toBe(5);
+      expect(persistence.lastR3StagedOperations.deleteExpense).toBe(7);
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "expense-deleted")).toHaveLength(2);
     });
 
     it("rejects forged/archived Card selection, future dates, and R4 Receipt payloads with rollback", async () => {
@@ -814,6 +860,7 @@ describe("trusted Appwrite command kernel", () => {
         }),
       );
       expect(await reader.getRow("expenses", "e_locked")).toMatchObject({ name: "Renamed only", revision: 2 });
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "expense-materially-updated" || row.type === "expense-deleted")).toHaveLength(0);
 
       const financial: Expense = { ...renamed, amount: positivePoisha(302), allocations: allocateEqualSplit(positivePoisha(302), [LEADER, JOHN]), revision: 3, updatedAt: isoInstant("2026-08-26T12:00:00.000Z") };
       await expect(runWithCommandEnvelope(
@@ -856,12 +903,87 @@ describe("trusted Appwrite command kernel", () => {
       });
       expect(await reader.getRow("expenses", "e_comment")).toEqual(expenseBefore);
       expect(await reader.listRows("audit_events")).toEqual(auditsBefore);
+      const commentNotifications = (await reader.listRows("notifications")).filter((row) => row.type === "expense-comment-added");
+      expect(commentNotifications).toHaveLength(2);
+      expect(commentNotifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(LEADER), String(SARAH)]));
+      expect(commentNotifications.some((row) => String(row.body).includes("Hello"))).toBe(false);
+      expect(persistence.lastR3StagedOperations.createExpenseComment).toBe(4);
       expect(await persistence.createExpenseComment({ comment, idempotency })).toBe("comment_1");
       expect(await reader.listRows("expense_comments")).toHaveLength(1);
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "expense-comment-added")).toHaveLength(2);
       await expect(persistence.createExpenseComment({
         comment: { ...comment, commentId: expenseCommentId("comment_2"), body: "Changed" },
         idempotency: { ...idempotency, intentDigest: canonicalIntentDigest({ expenseId: comment.expenseId, body: "Changed" }) },
       })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    });
+
+    it("notifies every other active member when the Expense creator comments on their own Expense", async () => {
+      const expense = expenseRecord("e_comment_self");
+      await persistence.createExpense({
+        expense, actorId: LEADER, commandId: commandId("k_comment_self_expense"), receipts: [],
+        auditEvent: expenseAudit("e_comment_self"),
+        idempotency: { actorId: LEADER, commandType: "create-expense", commandId: commandId("k_comment_self_expense"), intentDigest: canonicalIntentDigest({ expenseId: "e_comment_self" }) },
+      });
+      const comment: ExpenseComment = {
+        commentId: expenseCommentId("comment_self"), householdId: HH, expenseId: expense.expenseId,
+        authorUserId: LEADER, body: "Creator comment", createdAt: T1,
+      };
+      const idempotency: IdempotencyDescriptor = {
+        actorId: LEADER, commandType: "create-expense-comment", commandId: commandId("k_comment_self"),
+        intentDigest: canonicalIntentDigest({ expenseId: comment.expenseId, body: comment.body }),
+      };
+
+      await persistence.createExpenseComment({ comment, idempotency });
+      const notifications = (await reader.listRows("notifications")).filter((row) => row.type === "expense-comment-added");
+      expect(notifications).toHaveLength(2);
+      expect(notifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(JOHN), String(SARAH)]));
+      expect(notifications.some((row) => row.recipientUserId === String(LEADER))).toBe(false);
+      expect(persistence.lastR3StagedOperations.createExpenseComment).toBe(4);
+    });
+
+    it("does not notify a former Expense creator and derives comment recipients from authoritative state", async () => {
+      const expense = expenseRecord("e_comment_former");
+      await persistence.createExpense({
+        expense, actorId: LEADER, commandId: commandId("k_comment_former_expense"), receipts: [],
+        auditEvent: expenseAudit("e_comment_former"),
+        idempotency: { actorId: LEADER, commandType: "create-expense", commandId: commandId("k_comment_former_expense"), intentDigest: canonicalIntentDigest({ expenseId: "e_comment_former" }) },
+      });
+      reader.seed("memberships", [...await reader.listRows("memberships"), membershipRow(membershipRowId(String(HH), String(DANA)), String(HH), String(DANA), "member", "former")]);
+      reader.seed("expenses", (await reader.listRows("expenses")).map((row) => row.$id === String(expense.expenseId) ? { ...row, creatorId: String(DANA) } : row));
+      const comment: ExpenseComment = {
+        commentId: expenseCommentId("comment_former"), householdId: HH, expenseId: expense.expenseId,
+        authorUserId: JOHN, body: "Former creator must not receive this", createdAt: T1,
+      };
+      const idempotency: IdempotencyDescriptor = {
+        actorId: JOHN, commandType: "create-expense-comment", commandId: commandId("k_comment_former"),
+        intentDigest: canonicalIntentDigest({ expenseId: comment.expenseId, body: comment.body }),
+      };
+
+      await persistence.createExpenseComment({ comment, idempotency });
+      const notifications = (await reader.listRows("notifications")).filter((row) => row.type === "expense-comment-added");
+      expect(notifications).toHaveLength(2);
+      expect(notifications.map((row) => row.recipientUserId)).toEqual(expect.arrayContaining([String(LEADER), String(SARAH)]));
+      expect(notifications.some((row) => row.recipientUserId === String(DANA))).toBe(false);
+      expect(notifications.some((row) => String(row.body).includes("Former creator"))).toBe(false);
+      expect(persistence.lastR3StagedOperations.createExpenseComment).toBe(4);
+    });
+
+    it("bounds mark-all notification writes at 50 and safely repeats already-read batches", async () => {
+      const rows = Array.from({ length: 51 }, (_, index) => ({
+        $id: String(notificationId(`n_mark_all_${index}`)), recipientUserId: String(LEADER), householdId: null,
+        scope: "account", type: "member-left-or-removed", title: `Membership ${index}`, body: "You were removed from a household",
+        entityType: null, entityId: null, createdAt: T1, readAt: null,
+      }));
+      const foreign = { ...rows[0]!, $id: String(notificationId("n_mark_all_foreign")), recipientUserId: String(JOHN) };
+      reader.seed("notifications", [...rows, foreign]);
+      const ids = rows.map((row) => notificationId(row.$id));
+
+      await expect(persistence.markNotificationsRead({ actorId: LEADER, notificationIds: ids, readAt: T1 })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+      await expect(persistence.markNotificationsRead({ actorId: LEADER, notificationIds: ids.slice(0, 50), readAt: T1 })).resolves.toBe(50);
+      await expect(persistence.markNotificationsRead({ actorId: LEADER, notificationIds: ids.slice(50), readAt: T1 })).resolves.toBe(1);
+      await expect(persistence.markNotificationsRead({ actorId: LEADER, notificationIds: ids.slice(0, 50), readAt: isoInstant("2026-08-26T10:00:00.000Z") })).resolves.toBe(0);
+      await expect(persistence.markNotificationsRead({ actorId: LEADER, notificationIds: [notificationId(foreign.$id)], readAt: T1 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect((await reader.listRows("notifications")).filter((row) => row.recipientUserId === String(LEADER) && row.readAt === T1)).toHaveLength(51);
     });
   });
 
@@ -889,7 +1011,10 @@ describe("trusted Appwrite command kernel", () => {
       expect(await reader.getRow("settlements", "s_pending")).toMatchObject({
         senderId: JOHN, receiverId: LEADER, amountPoisha: 150, originalAmountPoisha: 150, status: "pending", resolvedAt: null,
       });
-      expect(persistence.lastR3StagedOperations.createSettlement).toBe(5);
+      expect(persistence.lastR3StagedOperations.createSettlement).toBe(6);
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "settlement-requested")).toEqual([
+        expect.objectContaining({ recipientUserId: String(LEADER), body: expect.stringContaining("৳1.50") }),
+      ]);
 
       const duplicate = { ...pendingSettlement("s_reverse"), senderId: LEADER, receiverId: JOHN,
         originatingRecommendation: { householdId: HH, senderId: LEADER, receiverId: JOHN, amount: positivePoisha(150) } };
@@ -915,7 +1040,10 @@ describe("trusted Appwrite command kernel", () => {
         }),
       );
       expect(await reader.getRow("settlements", "s_pending")).toMatchObject({ status: "confirmed", amountPoisha: 150, originalAmountPoisha: 150, resolvedAt });
-      expect(persistence.lastR3StagedOperations["settlement-confirmed"]).toBe(5);
+      expect(persistence.lastR3StagedOperations["settlement-confirmed"]).toBe(6);
+      expect((await reader.listRows("notifications")).filter((row) => row.type === "settlement-confirmed")).toEqual([
+        expect.objectContaining({ recipientUserId: String(JOHN), body: expect.stringContaining("confirmed your ৳1.50 settlement") }),
+      ]);
 
       await expect(persistence.transitionSettlement({
         settlement: { ...confirmed, status: "rejected" }, expectedStatus: "pending",
@@ -935,6 +1063,38 @@ describe("trusted Appwrite command kernel", () => {
         auditEvent: settlementAudit("s_pending", JOHN, "confirmed", resolvedAt),
       })).rejects.toMatchObject({ code: "SETTLEMENT_ACTOR_NOT_RECEIVER" });
       expect(await reader.getRow("settlements", "s_pending")).toMatchObject({ status: "pending" });
+    });
+
+    it("routes rejected and cancelled settlement notifications to the opposite party", async () => {
+      const rejected = pendingSettlement("s_rejected");
+      await persistence.createSettlement({
+        settlement: rejected, auditEvent: settlementAudit("s_rejected"),
+        idempotency: { actorId: JOHN, commandType: "create-pending-settlement", commandId: commandId("k_rejected"), intentDigest: canonicalIntentDigest(rejected.originatingRecommendation) },
+      });
+      const rejectedAt = isoInstant("2026-08-26T11:00:00.000Z");
+      await persistence.transitionSettlement({
+        settlement: { ...rejected, status: "rejected", resolvedAt: rejectedAt }, expectedStatus: "pending",
+        auditEvent: settlementAudit("s_rejected", LEADER, "rejected", rejectedAt),
+      });
+
+      const cancelled = pendingSettlement("s_cancelled");
+      await persistence.createSettlement({
+        settlement: cancelled, auditEvent: settlementAudit("s_cancelled"),
+        idempotency: { actorId: JOHN, commandType: "create-pending-settlement", commandId: commandId("k_cancelled"), intentDigest: canonicalIntentDigest(cancelled.originatingRecommendation) },
+      });
+      const cancelledAt = isoInstant("2026-08-26T12:00:00.000Z");
+      await persistence.transitionSettlement({
+        settlement: { ...cancelled, status: "cancelled", resolvedAt: cancelledAt }, expectedStatus: "pending",
+        auditEvent: settlementAudit("s_cancelled", JOHN, "cancelled", cancelledAt),
+      });
+
+      const notifications = await reader.listRows("notifications");
+      expect(notifications.filter((row) => row.type === "settlement-rejected")).toEqual([
+        expect.objectContaining({ recipientUserId: String(JOHN) }),
+      ]);
+      expect(notifications.filter((row) => row.type === "settlement-cancelled")).toEqual([
+        expect.objectContaining({ recipientUserId: String(LEADER) }),
+      ]);
     });
   });
 });

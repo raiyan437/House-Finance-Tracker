@@ -35,10 +35,10 @@ export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 /**
- * v6 (v1.2 Profile Picture): adds two optional private Profile infrastructure
- * fields. The earlier v5 Display Name widening remains unchanged.
+ * v8 (v1.4 In-App Notifications): adds only the recipient-scoped notification
+ * table. V7 remains unchanged and all notification data is ephemeral.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 export const SCHEMA_METADATA_ROW_ID = "active";
 export const PROFILE_DISPLAY_NAME_STORAGE_CAPACITY = 16_383;
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
@@ -298,6 +298,27 @@ export const TABLES: readonly TableDefinition[] = [
       iso("completedAt", true),
     ],
     indexes: [{ key: "outcome_key_unique", type: "unique", columns: ["actorId", "commandType", "commandId"] }],
+  },
+  {
+    id: "notifications",
+    name: "Notifications",
+    columns: [
+      text("recipientUserId", 64, true),
+      text("householdId", 64, false),
+      enumeration("scope", ["account", "household"], true),
+      enumeration("type", ["join-request-received", "join-request-accepted", "join-request-rejected", "member-joined", "member-left-or-removed", "leadership-transferred", "household-renamed", "expense-created", "expense-materially-updated", "expense-deleted", "expense-comment-added", "receipt-added", "receipt-removed", "settlement-requested", "settlement-confirmed", "settlement-rejected", "settlement-cancelled"], true),
+      text("title", 120, true),
+      text("body", 240, true),
+      text("entityType", 32, false),
+      text("entityId", 64, false),
+      iso("createdAt", true),
+      iso("readAt", false),
+    ],
+    indexes: [
+      { key: "by_recipient_created", type: "key", columns: ["recipientUserId", "createdAt"] },
+      { key: "by_recipient_read", type: "key", columns: ["recipientUserId", "readAt"] },
+      { key: "by_created", type: "key", columns: ["createdAt"] },
+    ],
   },
   {
     id: "coordination_guards",

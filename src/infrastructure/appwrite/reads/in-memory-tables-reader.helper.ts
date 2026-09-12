@@ -126,6 +126,11 @@ export class InMemoryTablesReader implements TablesReader {
     return merged.slice(0, limit);
   }
 
+  async listRowsBounded(tableId: string, queries: readonly string[] = [], maxRows: number): Promise<readonly AppwriteRow[]> {
+    if (!Number.isInteger(maxRows) || maxRows <= 0) return [];
+    return (await this.listRows(tableId, [...queries, JSON.stringify({ method: "limit", values: [maxRows] })])).slice(0, maxRows);
+  }
+
   // -- transactional staging surface (used by the TablesDB stub) -----------
 
   createTransaction(): { $id: string; status: string } {

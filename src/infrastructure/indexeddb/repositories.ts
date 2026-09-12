@@ -14,7 +14,9 @@ import type {
   ReceiptRetentionRepository,
   SettlementRepository,
   UserProfileRepository,
+  NotificationRepository,
 } from "@/application/repositories";
+import type { Notification } from "@/domain/notifications/notification-types";
 import { markReceiptContentRetentionExpired } from "@/domain/receipts/receipt-content-lifecycle";
 import { DomainError } from "@/domain/shared/domain-error";
 import type {
@@ -25,6 +27,7 @@ import type {
   ReceiptId,
   SettlementId,
   UserId,
+  NotificationId,
 } from "@/domain/shared/identifiers";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 import type { IDBPDatabase } from "idb";
@@ -41,6 +44,7 @@ import {
   fromProfileRecord,
   fromReceiptRecord,
   fromSettlementRecord,
+  fromNotificationRecord,
   toAuditRecord,
   toCardRecord,
   toHouseholdRecord,
@@ -284,6 +288,52 @@ export class IndexedDbCommandOutcomeRepository implements CommandOutcomeReposito
   }
 }
 
+export class IndexedDbNotificationRepository implements NotificationRepository {
+  constructor(private readonly source: DatabaseSource) {}
+
+  private async retained(input: Readonly<{ recipientUserId: UserId; cutoff: string; offset: number; limit: number }>): Promise<Notification[]> {
+    const db = await database(this.source);
+    const raw = await db.getAllFromIndex(
+      "notifications",
+      "recipientCreatedAtId",
+      IDBKeyRange.bound([input.recipientUserId, input.cutoff, ""], [input.recipientUserId, "\uffff", "\uffff"]),
+    );
+    return raw
+      .map((item) => fromNotificationRecord(item, item.id))
+      .filter((item) => item.createdAt >= input.cutoff)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.notificationId.localeCompare(left.notificationId))
+      .slice(input.offset, input.offset + input.limit);
+  }
+
+  async listLatestForRecipient(input: Parameters<NotificationRepository["listLatestForRecipient"]>[0]) {
+    return this.retained({ ...input, offset: 0 });
+  }
+
+  async listPageForRecipient(input: Parameters<NotificationRepository["listPageForRecipient"]>[0]) {
+    return this.retained(input);
+  }
+
+  async listUnreadForRecipient(input: Parameters<NotificationRepository["listUnreadForRecipient"]>[0]) {
+    const db = await database(this.source);
+    const raw = await db.getAllFromIndex(
+      "notifications",
+      "recipientReadAt",
+      input.recipientUserId,
+    );
+    return raw
+      .map((item) => fromNotificationRecord(item, item.id))
+      .filter((item) => item.createdAt >= input.cutoff && !item.readAt)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.notificationId.localeCompare(left.notificationId))
+      .slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 5_000));
+  }
+
+  async getForRecipient(id: NotificationId, recipientUserId: UserId) {
+    const raw = await (await database(this.source)).get("notifications", id);
+    if (!raw || raw.recipientUserId !== recipientUserId) return undefined;
+    return fromNotificationRecord(raw, id);
+  }
+}
+
 export class IndexedDbRepositories {
   readonly profiles: UserProfileRepository;
   readonly households: HouseholdRepository;
@@ -296,6 +346,7 @@ export class IndexedDbRepositories {
   readonly receipts: ReceiptRepository & ReceiptRetentionRepository;
   readonly auditEvents: AuditEventRepository;
   readonly commandOutcomes: CommandOutcomeRepository;
+  readonly notifications: NotificationRepository;
 
   constructor(source: DatabaseSource) {
     this.profiles = new IndexedDbUserProfileRepository(source);
@@ -309,6 +360,7 @@ export class IndexedDbRepositories {
     this.receipts = new IndexedDbReceiptRepository(source);
     this.auditEvents = new IndexedDbAuditEventRepository(source);
     this.commandOutcomes = new IndexedDbCommandOutcomeRepository(source);
+    this.notifications = new IndexedDbNotificationRepository(source);
   }
 }
 

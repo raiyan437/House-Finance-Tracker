@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { ApplicationError, BackdatedExpenseConfirmationRequiredError } from "@/application/errors/application-error";
+import { ApplicationError, BackdatedExpenseConfirmationRequiredError, NotificationMarkAllPartialError } from "@/application/errors/application-error";
 import { serializeWithBigInt } from "@/application/transport/json-bigint";
 import { DomainError } from "@/domain/shared/domain-error";
 import { TransactionFailure } from "./tx-errors.server";
@@ -33,6 +33,9 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
           confirmationToken: error.confirmationToken,
         },
       };
+    }
+    if (error instanceof NotificationMarkAllPartialError) {
+      return { status: 503, body: { error: error.message, code: error.code, updatedCount: error.updatedCount } };
     }
     switch (error.code) {
       case "NOT_FOUND":

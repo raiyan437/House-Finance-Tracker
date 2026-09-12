@@ -14,6 +14,7 @@ export type AppwriteRow = Models.Row & Record<string, unknown>;
 export interface TablesReader {
   getRow(tableId: string, rowId: string): Promise<AppwriteRow | undefined>;
   listRows(tableId: string, queries?: readonly string[]): Promise<readonly AppwriteRow[]>;
+  listRowsBounded(tableId: string, queries: readonly string[] | undefined, maxRows: number): Promise<readonly AppwriteRow[]>;
 }
 
 export interface TablesReaderOptions {
@@ -55,6 +56,30 @@ class ProviderTablesReader implements TablesReader {
       throw new ApplicationError("PERSISTENCE_FAILURE", "The production data plane returned an unexpected data volume.");
     }
     return rows;
+  }
+
+  async listRowsBounded(tableId: string, queries: readonly string[] = [], maxRows: number): Promise<readonly AppwriteRow[]> {
+    if (!Number.isInteger(maxRows) || maxRows <= 0) return [];
+    const rows: AppwriteRow[] = [];
+    let cursor: string | undefined;
+    try {
+      do {
+        const remaining = maxRows - rows.length;
+        const pageLimit = Math.min(PAGE_SIZE, remaining);
+        const pageQueries = [...queries, Query.limit(pageLimit)];
+        const page = await this.tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId,
+          queries: cursor ? [...pageQueries, Query.cursorAfter(cursor)] : pageQueries,
+          transactionId: this.options.transactionId,
+        });
+        rows.push(...(page.rows as AppwriteRow[]));
+        cursor = page.rows.length === pageLimit ? page.rows[page.rows.length - 1]?.$id : undefined;
+      } while (cursor && rows.length < maxRows);
+    } catch (error) {
+      throw normalizedProviderFailure(error);
+    }
+    return rows.slice(0, maxRows);
   }
 }
 

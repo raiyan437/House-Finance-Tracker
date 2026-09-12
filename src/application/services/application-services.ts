@@ -87,6 +87,7 @@ import {
   buildActiveHouseholdPageView,
   type ActiveHouseholdPageView,
 } from "@/application/household/household-page";
+import { NotificationApplicationService } from "@/application/notifications/notification-service";
 export type GeneratedIdKind = "user" | "household" | "join-request" | "expense" | "expense-comment" | "settlement" | "card" | "receipt" | "audit" | "command";
 export interface ApplicationValues {
   now(): IsoInstant;
@@ -1433,5 +1434,6 @@ export class HouseFinanceApplication {
   readonly settlements: SettlementApplicationService;
   readonly cards: CardApplicationService;
   readonly receipts: ReceiptApplicationService;
-  constructor(deps: Dependencies) { this.analytics = new HouseholdAnalyticsApplicationService(deps.repositories, deps.session); this.profiles = new ProfileApplicationService(deps); this.households = new HouseholdApplicationService(deps); this.expenses = new ExpenseApplicationService(deps); this.settlements = new SettlementApplicationService(deps); this.cards = new CardApplicationService(deps); this.receipts = new ReceiptApplicationService(deps); }
+  readonly notifications: NotificationApplicationService;
+  constructor(deps: Dependencies) { this.analytics = new HouseholdAnalyticsApplicationService(deps.repositories, deps.session); this.profiles = new ProfileApplicationService(deps); this.households = new HouseholdApplicationService(deps); this.expenses = new ExpenseApplicationService(deps); this.settlements = new SettlementApplicationService(deps); this.cards = new CardApplicationService(deps); this.receipts = new ReceiptApplicationService(deps); this.notifications = new NotificationApplicationService({ repositories: deps.repositories, atomic: deps.atomic, session: deps.session, now: deps.values.now }); }
 }

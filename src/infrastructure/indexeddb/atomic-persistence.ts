@@ -3,6 +3,9 @@ import { BackdatedExpenseConfirmationRequiredError } from "@/application/errors/
 import { expenseRelevantIntentDigest, localBackdatedConfirmationToken } from "@/application/expenses/backdated-expense-confirmation";
 import { assertIdempotentIntent, commandOutcomeKey } from "@/application/idempotency/command-idempotency";
 import { assertReceiptAdmission, DEFAULT_RECEIPT_STORAGE_POLICY, type ReceiptStoragePolicy } from "@/application/receipts/receipt-storage-policy";
+import { expenseCommentRecipients, notificationDraft, uniqueActiveRecipients, formatNotificationBdt } from "@/application/notifications/notification-policy";
+import type { Notification } from "@/domain/notifications/notification-types";
+import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import type { AtomicApplicationPersistence } from "@/application/repositories";
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import { assertHouseholdFinancialState } from "@/domain/balances/household-financial-state";
@@ -68,6 +71,7 @@ import {
   toProfileRecord,
   toReceiptRecord,
   toSettlementRecord,
+  toNotificationRecord,
 } from "./mappers";
 import {
   activeMembershipUserKey,
@@ -135,6 +139,53 @@ function assertAuditMatches(
       "The household audit does not match the requested action.",
     );
   }
+}
+
+type NotificationTransaction = IDBPTransaction<HouseFinanceDatabase, StoreNames<HouseFinanceDatabase>[], "readwrite">;
+
+async function notificationActorName(tx: NotificationTransaction, actorId: string): Promise<string> {
+  const raw = await tx.objectStore("userProfiles").get(actorId);
+  return raw ? fromProfileRecord(raw, actorId).displayName : "A household member";
+}
+
+async function stageNotifications(tx: NotificationTransaction, rows: readonly Notification[]): Promise<void> {
+  for (const row of rows) await tx.objectStore("notifications").put(toNotificationRecord(row));
+}
+
+function householdNotifications(input: Readonly<{
+  eventKey: string;
+  actorId?: string;
+  householdId: string;
+  type: Parameters<typeof notificationDraft>[0]["type"];
+  title: string;
+  body: string;
+  createdAt: Parameters<typeof notificationDraft>[0]["createdAt"];
+  entityType?: Parameters<typeof notificationDraft>[0]["entityType"];
+  entityId?: string;
+  memberships: readonly MembershipSnapshot[];
+}>): readonly Notification[] {
+  return uniqueActiveRecipients(input.memberships, input.actorId as never).map((recipientUserId) => notificationDraft({
+    eventKey: input.eventKey,
+    recipientUserId: recipientUserId as never,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    createdAt: input.createdAt,
+    householdId: input.householdId as never,
+    ...(input.entityType ? { entityType: input.entityType } : {}),
+    ...(input.entityId ? { entityId: input.entityId } : {}),
+  }));
+}
+
+function accountNotification(input: Readonly<{
+  eventKey: string;
+  recipientUserId: string;
+  type: Parameters<typeof notificationDraft>[0]["type"];
+  title: string;
+  body: string;
+  createdAt: Parameters<typeof notificationDraft>[0]["createdAt"];
+}>): Notification {
+  return notificationDraft({ ...input, recipientUserId: input.recipientUserId as never, accountScoped: true });
 }
 
 export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationPersistence {
@@ -223,7 +274,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     if (input.name.trim() !== input.name || input.name.length === 0) {
       throw new ApplicationError("CONFLICT", "The House name must be non-empty and trimmed.");
     }
-    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const raw = await tx.objectStore("households").get(input.householdId);
       if (!raw || raw.deletedAt) throw new ApplicationError("NOT_FOUND", "Household not found.");
@@ -250,6 +301,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       assertHousehold(updated);
       await tx.objectStore("households").put(toHouseholdRecord(updated));
       await tx.objectStore("auditEvents").add(toAuditRecord({ ...input.auditEvent, occurredAt: input.occurredAt }));
+      const memberships = (await tx.objectStore("memberships").index("householdId").getAll(input.householdId)).map((row) => fromMembershipRecord(row, row.key));
+      const name = await notificationActorName(tx, input.actorId);
+      await stageNotifications(tx, householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: input.householdId, type: "household-renamed", title: "Household renamed", body: `${name} renamed the household to ${input.name}`, createdAt: input.occurredAt, memberships }));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
@@ -258,7 +312,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     const request = toJoinRequestRecord(input.request);
     if (input.request.status !== "pending") throw new ApplicationError("CONFLICT", "New join requests must be Pending.");
     if (input.idempotency.actorId !== input.request.userId || input.idempotency.commandType !== "send-join-request") throw new ApplicationError("CONFLICT", "Join-request command identity is inconsistent.");
-    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "auditEvents", "commandOutcomes"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "userProfiles", "notifications", "auditEvents", "commandOutcomes"], "readwrite");
     try {
       const outcomeKey = commandOutcomeKey(input.idempotency);
       const existingRaw = await tx.objectStore("commandOutcomes").get(outcomeKey);
@@ -268,10 +322,11 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
         await tx.done;
         return existing.resourceId;
       }
-      const [householdRaw, activeMembership, pendingRequest] = await Promise.all([
+      const [householdRaw, activeMembership, pendingRequest, membershipRows] = await Promise.all([
         tx.objectStore("households").get(input.request.householdId),
         tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId)),
         tx.objectStore("joinRequests").index("pendingJoinUserKey").getKey(pendingJoinUserKey(input.request.userId)),
+        tx.objectStore("memberships").index("householdId").getAll(input.request.householdId),
       ]);
       if (
         !householdRaw ||
@@ -286,6 +341,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("joinRequests").add(request);
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.request.joinRequestId, completedAt: input.auditEvent.occurredAt }));
+      const leader = membershipRows.map((row) => fromMembershipRecord(row, row.key)).find((item) => item.status === "active" && item.role === "leader");
+      const name = await notificationActorName(tx, input.request.userId);
+      if (leader) await stageNotifications(tx, [notificationDraft({ eventKey: input.idempotency.commandId, recipientUserId: leader.userId, type: "join-request-received", title: "New join request", body: `${name} requested to join your household`, createdAt: input.auditEvent.occurredAt, householdId: input.request.householdId, entityType: "join-request", entityId: input.request.joinRequestId })]);
       await tx.done;
       return input.request.joinRequestId;
     }
@@ -293,7 +351,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   }
 
   async acceptJoinRequest(input: Parameters<AtomicApplicationPersistence["acceptJoinRequest"]>[0]): Promise<void> {
-    const tx = (await this.db()).transaction(["households", "joinRequests", "memberships", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "joinRequests", "memberships", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const existingRaw = await tx.objectStore("joinRequests").get(input.joinRequestId);
       if (!existingRaw) throw householdStateChanged("The join request is no longer available.");
@@ -311,6 +369,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...current, status: "accepted", resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId }));
       await tx.objectStore("memberships").add(toMembershipRecord({ householdId: current.householdId, userId: current.userId, status: "active", role: "member" }));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const memberships = (await tx.objectStore("memberships").index("householdId").getAll(current.householdId)).map((row) => fromMembershipRecord(row, row.key));
+      const name = await notificationActorName(tx, input.actorId);
+      await stageNotifications(tx, [notificationDraft({ eventKey: input.auditEvent.auditEventId, recipientUserId: current.userId, type: "join-request-accepted", title: "Join request accepted", body: `${name} accepted your request to join the household`, createdAt: input.resolvedAt, householdId: current.householdId, entityType: "household", entityId: current.householdId }), ...householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: current.householdId, type: "member-joined", title: "New household member", body: `${name} joined the household`, createdAt: input.resolvedAt, entityType: "membership", entityId: current.userId, memberships: memberships.filter((member) => member.userId !== current.userId) })]);
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
@@ -322,7 +383,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
         "Ordinary join-request actions cannot produce that terminal status.",
       );
     }
-    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "joinRequests", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const raw = await tx.objectStore("joinRequests").get(input.joinRequestId);
       if (!raw) throw householdStateChanged("The join request is no longer available.");
@@ -341,13 +402,17 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       assertAuditMatches(input.auditEvent, current.householdId, input.actorId);
       await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...current, status: input.status, resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId }));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      if (input.status === "rejected") {
+        const name = await notificationActorName(tx, input.actorId);
+        await stageNotifications(tx, [notificationDraft({ eventKey: input.auditEvent.auditEventId, recipientUserId: current.userId, type: "join-request-rejected", title: "Join request rejected", body: `${name} rejected your household join request`, createdAt: input.resolvedAt, householdId: current.householdId, entityType: "household", entityId: current.householdId })]);
+      }
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async transferLeadership(input: Parameters<AtomicApplicationPersistence["transferLeadership"]>[0]): Promise<void> {
     assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
-    const tx = (await this.db()).transaction(["households", "memberships", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const householdRaw = await tx.objectStore("households").get(input.householdId);
       if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
@@ -363,13 +428,15 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.actorId)!));
       await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.targetId)!));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const name = await notificationActorName(tx, input.actorId);
+      await stageNotifications(tx, householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: input.householdId, type: "leadership-transferred", title: "Leadership transferred", body: `${name} transferred household leadership`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: input.targetId, memberships: result }));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async leaveHousehold(input: Parameters<AtomicApplicationPersistence["leaveHousehold"]>[0]): Promise<void> {
     assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
-    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const householdRaw = await tx.objectStore("households").get(input.householdId);
       if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
@@ -391,13 +458,15 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       }
       await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.actorId)!));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const name = await notificationActorName(tx, input.actorId);
+      await stageNotifications(tx, householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: input.householdId, type: "member-left-or-removed", title: "Member left", body: `${name} left the household`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: input.actorId, memberships: result }));
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 
   async removeHouseholdMember(input: Parameters<AtomicApplicationPersistence["removeHouseholdMember"]>[0]): Promise<void> {
     assertAuditMatches(input.auditEvent, input.householdId, input.actorId);
-    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "settlements", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const householdRaw = await tx.objectStore("households").get(input.householdId);
       if (!householdRaw || fromHouseholdRecord(householdRaw, input.householdId).deletedAt) throw householdStateChanged("The household is no longer active.");
@@ -419,6 +488,9 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       }
       await tx.objectStore("memberships").put(toMembershipRecord(result.find((membership) => membership.userId === input.targetId)!));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const name = await notificationActorName(tx, input.actorId);
+      const remaining = householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: input.householdId, type: "member-left-or-removed", title: "Member removed", body: `${name} removed a member from the household`, createdAt: input.auditEvent.occurredAt, entityType: "membership", entityId: input.targetId, memberships: result });
+      await stageNotifications(tx, [...remaining, accountNotification({ eventKey: input.auditEvent.auditEventId, recipientUserId: input.targetId, type: "member-left-or-removed", title: "Household membership changed", body: "You were removed from the household", createdAt: input.auditEvent.occurredAt })]);
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
@@ -488,7 +560,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     });
     if (input.relevantIntentDigest !== undefined && input.relevantIntentDigest !== recomputedIntentDigest) throw new ApplicationError("CONFLICT", "Expense confirmation intent is inconsistent.");
     const receipts = input.receipts.map((item) => ({ metadata: toReceiptRecord(item.metadata), blob: receiptBlob(item.metadata, item.content) }));
-    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "settlements", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents", "commandOutcomes"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "settlements", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "userProfiles", "notifications", "auditEvents", "commandOutcomes"], "readwrite");
     try {
       const outcomeKey = commandOutcomeKey(input.idempotency);
       const existingRaw = await tx.objectStore("commandOutcomes").get(outcomeKey);
@@ -577,6 +649,11 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       for (const receipt of receipts) { await tx.objectStore("receiptMetadata").add(receipt.metadata); await tx.objectStore("receiptBlobs").add(receipt.blob); }
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.expense.expenseId, completedAt: input.auditEvent.occurredAt }));
+      const memberships = membershipRows.map((row) => fromMembershipRecord(row, row.key));
+      const name = await notificationActorName(tx, actorId);
+      const expenseRowsToStage = householdNotifications({ eventKey: activeCommandId, actorId, householdId: input.expense.householdId, type: "expense-created", title: "New expense", body: `${name} added ${input.expense.name} — ${formatNotificationBdt(input.expense.amount)}`, createdAt: input.expense.createdAt, entityType: "expense", entityId: input.expense.expenseId, memberships });
+      const receiptRowsToStage = receipts.flatMap((receipt) => householdNotifications({ eventKey: `${activeCommandId}:${receipt.metadata.id}`, actorId, householdId: input.expense.householdId, type: "receipt-added", title: "Receipt added", body: `${name} added a receipt to ${input.expense.name}`, createdAt: input.expense.createdAt, entityType: "expense", entityId: input.expense.expenseId, memberships }));
+      await stageNotifications(tx, [...expenseRowsToStage, ...receiptRowsToStage]);
       await tx.done;
       return input.expense.expenseId;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
@@ -584,10 +661,11 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async createExpenseComment(input: Parameters<AtomicApplicationPersistence["createExpenseComment"]>[0]): Promise<string> {
     const commentRecord = toExpenseCommentRecord(input.comment);
-    if (input.idempotency.actorId !== input.comment.authorUserId || input.idempotency.commandType !== "create-expense-comment") {
+    const actorId = input.idempotency.actorId;
+    if (actorId !== input.comment.authorUserId || input.idempotency.commandType !== "create-expense-comment") {
       throw new ApplicationError("CONFLICT", "Comment command identity is inconsistent.");
     }
-    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "expenseComments", "commandOutcomes"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "expenseComments", "userProfiles", "notifications", "commandOutcomes"], "readwrite");
     try {
       const outcomeKey = commandOutcomeKey(input.idempotency);
       const existingRaw = await tx.objectStore("commandOutcomes").get(outcomeKey);
@@ -597,20 +675,26 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
         await tx.done;
         return existing.resourceId;
       }
-      const [expenseRaw, householdRaw, membershipRaw] = await Promise.all([
-        tx.objectStore("expenses").get(input.comment.expenseId),
-        tx.objectStore("households").get(input.comment.householdId),
-        tx.objectStore("memberships").get(membershipKey(input.comment.householdId, input.comment.authorUserId)),
-      ]);
-      if (!expenseRaw || !householdRaw || !membershipRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      const expenseRaw = await tx.objectStore("expenses").get(input.comment.expenseId);
+      if (!expenseRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
       const expense = fromExpenseRecord(expenseRaw, input.comment.expenseId);
-      const household = fromHouseholdRecord(householdRaw, input.comment.householdId);
-      const membership = fromMembershipRecord(membershipRaw, membershipKey(input.comment.householdId, input.comment.authorUserId));
-      if (expense.householdId !== input.comment.householdId || expense.deletedAt || household.deletedAt || membership.status !== "active") {
+      const householdRaw = await tx.objectStore("households").get(expense.householdId);
+      const membershipKeyValue = membershipKey(expense.householdId, actorId);
+      const [membershipRaw, membershipRows] = await Promise.all([
+        tx.objectStore("memberships").get(membershipKeyValue),
+        tx.objectStore("memberships").index("householdId").getAll(expense.householdId),
+      ]);
+      if (!householdRaw || !membershipRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
+      const household = fromHouseholdRecord(householdRaw, expense.householdId);
+      const membership = fromMembershipRecord(membershipRaw, membershipKeyValue);
+      if (expense.deletedAt || household.deletedAt || membership.status !== "active" || expense.householdId !== input.comment.householdId) {
         throw new ApplicationError("NOT_FOUND", "Expense not found.");
       }
       await tx.objectStore("expenseComments").add(commentRecord);
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.comment.commentId, completedAt: input.comment.createdAt }));
+      const name = await notificationActorName(tx, input.comment.authorUserId);
+      const memberships = membershipRows.map((row) => fromMembershipRecord(row, row.key));
+      await stageNotifications(tx, expenseCommentRecipients({ creatorId: expense.creatorId, commenterId: input.comment.authorUserId, memberships }).map((recipientUserId) => notificationDraft({ eventKey: input.idempotency.commandId, recipientUserId, type: "expense-comment-added", title: "New comment", body: `${name} commented on ${expense.name}`, createdAt: input.comment.createdAt, householdId: expense.householdId, entityType: "expense", entityId: expense.expenseId })));
       await tx.done;
       return input.comment.commentId;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
@@ -624,7 +708,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     }));
     const removals = (input.receiptRemovals ?? []).map(toReceiptRecord);
     const audits = input.auditEvents.map(toAuditRecord);
-    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "settlements", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "cards", "expenses", "settlements", "expenseCardPrivateDetails", "receiptMetadata", "receiptBlobs", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const currentRaw = await tx.objectStore("expenses").get(input.expectedExpenseId);
       if (!currentRaw) throw new ApplicationError("NOT_FOUND", "Expense not found.");
@@ -826,6 +910,14 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       for (const audit of audits) {
         await tx.objectStore("auditEvents").add(audit);
       }
+      const name = await notificationActorName(tx, commandActorId);
+      const eventKey = input.commandId ?? commandId(`local-edit:${input.expectedExpenseId}:${input.expectedRevision}`);
+      const notificationRows = [
+        ...(expenseFinancialFingerprintsEqual(currentFingerprint, proposedFingerprint) ? [] : householdNotifications({ eventKey, actorId: commandActorId, householdId: current.householdId, type: input.expense.deletedAt ? "expense-deleted" : "expense-materially-updated", title: input.expense.deletedAt ? "Expense deleted" : "Expense updated", body: input.expense.deletedAt ? `${name} deleted ${input.expense.name}` : `${name} updated ${input.expense.name}`, createdAt: input.expense.updatedAt, entityType: "expense", entityId: input.expense.expenseId, memberships: currentMemberships })),
+        ...additions.flatMap((addition) => householdNotifications({ eventKey: `${eventKey}:${addition.metadata.id}`, actorId: commandActorId, householdId: current.householdId, type: "receipt-added", title: "Receipt added", body: `${name} added a receipt to ${input.expense.name}`, createdAt: input.expense.updatedAt, entityType: "expense", entityId: input.expense.expenseId, memberships: currentMemberships })),
+        ...removals.flatMap((removal) => householdNotifications({ eventKey: `${eventKey}:${removal.id}`, actorId: commandActorId, householdId: current.householdId, type: "receipt-removed", title: "Receipt removed", body: `${name} removed a receipt from ${input.expense.name}`, createdAt: input.expense.updatedAt, entityType: "expense", entityId: input.expense.expenseId, memberships: currentMemberships })),
+      ];
+      await stageNotifications(tx, notificationRows);
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
@@ -842,7 +934,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
     }
     if (input.idempotency.actorId !== input.settlement.senderId || input.idempotency.commandType !== "create-pending-settlement") throw new ApplicationError("CONFLICT", "Settlement command identity is inconsistent.");
     const tx = (await this.db()).transaction(
-      ["memberships", "expenses", "settlements", "auditEvents", "commandOutcomes"],
+      ["memberships", "expenses", "settlements", "userProfiles", "notifications", "auditEvents", "commandOutcomes"],
       "readwrite",
     );
     try {
@@ -882,6 +974,8 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("settlements").add(toSettlementRecord(revalidated));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.settlement.settlementId, completedAt: input.auditEvent.occurredAt }));
+      const name = await notificationActorName(tx, input.settlement.senderId);
+      await stageNotifications(tx, [notificationDraft({ eventKey: input.idempotency.commandId, recipientUserId: input.settlement.receiverId, type: "settlement-requested", title: "Settlement requested", body: `${name} requested a ${formatNotificationBdt(input.settlement.amount)} settlement`, createdAt: input.settlement.createdAt, householdId: input.settlement.householdId, entityType: "settlement", entityId: input.settlement.settlementId })]);
       await tx.done;
       return input.settlement.settlementId;
     } catch (error) {
@@ -909,7 +1003,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async transitionSettlement(input: Parameters<AtomicApplicationPersistence["transitionSettlement"]>[0]): Promise<void> {
     if (input.expectedStatus !== "pending" || input.settlement.status === "pending") throw new ApplicationError("CONFLICT", "Settlement transitions must start from Pending and become terminal.");
-    const tx = (await this.db()).transaction(["memberships", "expenses", "settlements", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["memberships", "expenses", "settlements", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       const raw = await tx.objectStore("settlements").get(input.settlement.settlementId);
       if (!raw) throw new ApplicationError("NOT_FOUND", "Settlement not found.");
@@ -932,6 +1026,11 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       }
       await tx.objectStore("settlements").put(toSettlementRecord(input.settlement));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const target = input.settlement.status === "cancelled" ? input.settlement.receiverId : input.settlement.senderId;
+      const name = await notificationActorName(tx, input.auditEvent.actorId);
+      const type = input.settlement.status === "confirmed" ? "settlement-confirmed" : input.settlement.status === "rejected" ? "settlement-rejected" : "settlement-cancelled";
+      const verb = input.settlement.status === "confirmed" ? "confirmed" : input.settlement.status === "rejected" ? "rejected" : "cancelled";
+      await stageNotifications(tx, [notificationDraft({ eventKey: input.auditEvent.auditEventId, recipientUserId: target, type, title: `Settlement ${verb}`, body: `${name} ${verb} your ${formatNotificationBdt(input.settlement.amount)} settlement`, createdAt: input.settlement.resolvedAt ?? input.auditEvent.occurredAt, householdId: input.settlement.householdId, entityType: "settlement", entityId: input.settlement.settlementId })]);
       await tx.done;
     } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
@@ -1008,7 +1107,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
   async createReceipt(input: Parameters<AtomicApplicationPersistence["createReceipt"]>[0]): Promise<string> {
     if (input.metadata.contentStatus !== "available") throw new ApplicationError("CONFLICT", "New receipt content must be available.");
     if (input.idempotency.actorId !== input.metadata.createdByUserId || input.idempotency.commandType !== "upload-receipt") throw new ApplicationError("CONFLICT", "Receipt command identity is inconsistent.");
-    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "receiptMetadata", "receiptBlobs", "auditEvents", "commandOutcomes"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "receiptMetadata", "receiptBlobs", "userProfiles", "notifications", "auditEvents", "commandOutcomes"], "readwrite");
     try {
       const outcomeKey = commandOutcomeKey(input.idempotency);
       const existingRaw = await tx.objectStore("commandOutcomes").get(outcomeKey);
@@ -1037,6 +1136,8 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("receiptBlobs").add(receiptBlob(input.metadata, input.content));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.metadata.receiptId, completedAt: input.auditEvent.occurredAt }));
+      const name = await notificationActorName(tx, input.metadata.createdByUserId);
+      await stageNotifications(tx, householdNotifications({ eventKey: input.idempotency.commandId, actorId: input.metadata.createdByUserId, householdId: input.metadata.householdId, type: "receipt-added", title: "Receipt added", body: `${name} added a receipt to ${expense.name}`, createdAt: input.metadata.createdAt, entityType: "expense", entityId: input.metadata.expenseId, memberships }));
       await tx.done;
       return input.metadata.receiptId;
     }
@@ -1045,7 +1146,7 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
 
   async deleteReceipt(input: Parameters<AtomicApplicationPersistence["deleteReceipt"]>[0]): Promise<void> {
     if (input.metadata.contentStatus !== "user-deleted" || !input.metadata.contentRemovedByUserId) throw new ApplicationError("CONFLICT", "Receipt deletion requires an explicit user-deleted state.");
-    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "receiptMetadata", "receiptBlobs", "auditEvents"], "readwrite");
+    const tx = (await this.db()).transaction(["households", "memberships", "expenses", "receiptMetadata", "receiptBlobs", "userProfiles", "notifications", "auditEvents"], "readwrite");
     try {
       assertAuditMatches(input.auditEvent, input.metadata.householdId, input.metadata.contentRemovedByUserId);
       const [householdRaw, expenseRaw, receiptRaw, membershipRows] = await Promise.all([
@@ -1072,8 +1173,39 @@ export class IndexedDbAtomicApplicationPersistence implements AtomicApplicationP
       await tx.objectStore("receiptMetadata").put(toReceiptRecord(input.metadata));
       await tx.objectStore("receiptBlobs").delete(input.metadata.receiptId);
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
+      const name = await notificationActorName(tx, input.metadata.contentRemovedByUserId);
+      await stageNotifications(tx, householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.metadata.contentRemovedByUserId, householdId: input.metadata.householdId, type: "receipt-removed", title: "Receipt removed", body: `${name} removed a receipt from ${expense.name}`, createdAt: input.metadata.contentRemovedAt ?? input.auditEvent.occurredAt, entityType: "expense", entityId: input.metadata.expenseId, memberships }));
       await tx.done;
     }
     catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async markNotificationRead(input: Parameters<AtomicApplicationPersistence["markNotificationRead"]>[0]): Promise<void> {
+    const tx = (await this.db()).transaction("notifications", "readwrite");
+    try {
+      const raw = await tx.store.get(input.notificationId);
+      if (!raw || raw.recipientUserId !== input.actorId) throw new ApplicationError("NOT_FOUND", "Notification not found.");
+      if (raw.readAt === null) await tx.store.put({ ...raw, readAt: input.readAt });
+      await tx.done;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
+  }
+
+  async markNotificationsRead(input: Parameters<AtomicApplicationPersistence["markNotificationsRead"]>[0]): Promise<number> {
+    if (input.notificationIds.length > 50) throw new ApplicationError("INVALID_INPUT", "Notification batches are limited to 50 rows.");
+    const tx = (await this.db()).transaction("notifications", "readwrite");
+    try {
+      let updated = 0;
+      for (const notificationIdValue of new Set(input.notificationIds)) {
+        const raw = await tx.store.get(notificationIdValue);
+        if (!raw) continue;
+        if (raw.recipientUserId !== input.actorId) throw new ApplicationError("NOT_FOUND", "Notification not found.");
+        if (raw.readAt === null) {
+          await tx.store.put({ ...raw, readAt: input.readAt });
+          updated += 1;
+        }
+      }
+      await tx.done;
+      return updated;
+    } catch (error) { abortSafely(tx); persistenceFailure(error); }
   }
 }

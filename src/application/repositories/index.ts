@@ -11,6 +11,7 @@ import type {
   ReceiptMimeType,
   UserProfile,
 } from "@/domain/records/domain-records";
+import type { Notification } from "@/domain/notifications/notification-types";
 import type { MembershipSnapshot } from "@/domain/membership/membership-types";
 import type { CardRemovalAction, CardRemovalResult } from "@/domain/cards/card-lifecycle";
 import type { SettlementRecord, SettlementStatus } from "@/domain/settlements/settlement-types";
@@ -24,6 +25,7 @@ import type {
   ReceiptId,
   SettlementId,
   UserId,
+  NotificationId,
 } from "@/domain/shared/identifiers";
 import type { IsoInstant } from "@/domain/shared/instant";
 import type { CommandOutcome, IdempotencyDescriptor } from "@/application/idempotency/command-idempotency";
@@ -132,6 +134,13 @@ export interface CommandOutcomeRepository {
   get(descriptor: Pick<IdempotencyDescriptor, "actorId" | "commandType" | "commandId">): Promise<CommandOutcome | undefined>;
 }
 
+export interface NotificationRepository {
+  listLatestForRecipient(input: Readonly<{ recipientUserId: UserId; cutoff: IsoInstant; limit: number }>): Promise<readonly Notification[]>;
+  listPageForRecipient(input: Readonly<{ recipientUserId: UserId; cutoff: IsoInstant; offset: number; limit: number }>): Promise<readonly Notification[]>;
+  listUnreadForRecipient(input: Readonly<{ recipientUserId: UserId; cutoff: IsoInstant; offset?: number; limit?: number }>): Promise<readonly Notification[]>;
+  getForRecipient(notificationId: NotificationId, recipientUserId: UserId): Promise<Notification | undefined>;
+}
+
 export interface CurrentSession {
   getCurrentUserId(): Promise<UserId>;
   subscribe(listener: (userId: UserId) => void): () => void;
@@ -149,6 +158,7 @@ export interface ApplicationRepositories {
   readonly receipts: ReceiptRepository;
   readonly auditEvents: AuditEventRepository;
   readonly commandOutcomes: CommandOutcomeRepository;
+  readonly notifications: NotificationRepository;
 }
 
 export type IdempotentCreateInput = Readonly<{ idempotency: IdempotencyDescriptor }>;
@@ -239,4 +249,6 @@ export interface AtomicApplicationPersistence {
   }>): Promise<CardRemovalResult>;
   createReceipt(input: Readonly<{ metadata: ReceiptMetadata; content: ReceiptContent; auditEvent: AuditEvent }> & IdempotentCreateInput): Promise<string>;
   deleteReceipt(input: Readonly<{ metadata: ReceiptMetadata; auditEvent: AuditEvent }>): Promise<void>;
+  markNotificationRead(input: Readonly<{ actorId: UserId; notificationId: NotificationId; readAt: IsoInstant }>): Promise<void>;
+  markNotificationsRead(input: Readonly<{ actorId: UserId; notificationIds: readonly NotificationId[]; readAt: IsoInstant }>): Promise<number>;
 }

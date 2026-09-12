@@ -15,6 +15,7 @@ const TABLE = {
   receipts: "receipt_metadata",
   reservations: "receipt_reservations",
   guards: "coordination_guards",
+  notifications: "notifications",
 };
 
 function derivedId(prefix, logicalKey) {
@@ -45,7 +46,7 @@ function isAvatarStorageId(fileId) {
   return fileId.startsWith(AVATAR_STORAGE_PREFIX) && fileId.length > AVATAR_STORAGE_PREFIX.length;
 }
 
-export function retainedReceiptCutoff(now = new Date()) {
+function retainedCalendarCutoff(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
     year: "numeric",
@@ -196,6 +197,32 @@ async function retentionStage({ tables, storage, now, cutoff, withinBudget }) {
   return processed;
 }
 
+async function notificationRetentionStage({ tables, now, cutoff, withinBudget }) {
+  const previous = await cursor(tables, "notifications");
+  const queries = [Query.lessThan("createdAt", cutoff), Query.orderAsc("createdAt"), Query.orderAsc("$id"), Query.limit(PAGE_SIZE)];
+  const page = await tables.listRows({ databaseId: DATABASE_ID, tableId: TABLE.notifications, queries: previous ? [...queries, Query.cursorAfter(previous)] : queries });
+  let removed = 0;
+  let lastCursor = previous;
+  let completedPage = true;
+  for (const candidate of page.rows) {
+    if (!withinBudget()) {
+      completedPage = false;
+      break;
+    }
+    const didRemove = await transaction(tables, async (transactionId) => {
+      const current = await optional(() => tables.getRow({ databaseId: DATABASE_ID, tableId: TABLE.notifications, rowId: candidate.$id, transactionId }));
+      if (!current || String(current.createdAt) >= cutoff) return false;
+      await tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLE.notifications, rowId: candidate.$id, transactionId });
+      return true;
+    });
+    if (didRemove) removed += 1;
+    lastCursor = String(candidate.$id);
+  }
+  const next = completedPage && page.rows.length < PAGE_SIZE ? undefined : lastCursor;
+  await saveCursor(tables, "notifications", next, now);
+  return removed;
+}
+
 async function staleReservationStage({ tables, storage, now, withinBudget }) {
   const previous = await cursor(tables, "reservations");
   const queries = [Query.equal("state", ["reserved", "abandoned"]), Query.lessThan("expiresAt", now), Query.orderAsc("expiresAt"), Query.limit(PAGE_SIZE)];
@@ -285,6 +312,14 @@ async function orphanStage({ tables, storage, nowMs, now, withinBudget }) {
   const next = completedPage && page.files.length < PAGE_SIZE ? undefined : lastCursor;
   await saveCursor(tables, "orphans", next, now);
   return processed;
+}
+
+export function retainedReceiptCutoff(now = new Date()) {
+  return retainedCalendarCutoff(now);
+}
+
+export function retainedNotificationCutoff(now = new Date()) {
+  return retainedCalendarCutoff(now);
 }
 
 async function avatarOrphanStage({ tables, storage, nowMs, now, withinBudget }) {
@@ -382,13 +417,14 @@ export async function runMaintenance({ tables, storage, now = new Date(), log = 
   try {
     const result = {};
     result.retention = await retentionStage({ tables, storage, now: nowIso, cutoff: retainedReceiptCutoff(now), withinBudget });
+    if (withinBudget()) result.notifications = await notificationRetentionStage({ tables, now: nowIso, cutoff: retainedNotificationCutoff(now), withinBudget });
     if (withinBudget()) result.reservations = await staleReservationStage({ tables, storage, now: nowIso, withinBudget });
     if (withinBudget()) result.orphans = await orphanStage({ tables, storage, nowMs, now: nowIso, withinBudget });
     if (withinBudget()) result.avatarOrphans = await avatarOrphanStage({ tables, storage, nowMs, now: nowIso, withinBudget });
     if (withinBudget()) result.quota = await quotaStage({ tables, now: nowIso });
     if (withinBudget()) result.terminalReservations = await terminalReservationStage({ tables, nowMs, now: nowIso });
     if (result.quota?.projectBytes >= WARNING_BYTES) log(`Receipt project usage warning: ${result.quota.projectBytes} bytes.`);
-    return { status: "completed", cutoff: retainedReceiptCutoff(now), elapsedMs: Date.now() - startedAt, ...result };
+    return { status: "completed", cutoff: retainedNotificationCutoff(now), elapsedMs: Date.now() - startedAt, ...result };
   } finally {
     await releaseLease(tables, runId);
   }

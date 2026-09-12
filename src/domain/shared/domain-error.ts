@@ -57,7 +57,8 @@ export type DomainErrorCode =
   | "INVALID_EXPENSE_COMMENT"
   | "INVALID_CARD"
   | "INVALID_RECEIPT"
-  | "INVALID_AUDIT_EVENT";
+  | "INVALID_AUDIT_EVENT"
+  | "INVALID_NOTIFICATION";
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

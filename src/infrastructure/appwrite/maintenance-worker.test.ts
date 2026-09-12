@@ -49,6 +49,22 @@ function receipt(id: string, createdAt: string, overrides: Record<string, unknow
   };
 }
 
+function notification(id: string, createdAt: string) {
+  return {
+    $id: id,
+    recipientUserId: "u_recipient",
+    householdId: "h_house",
+    scope: "household",
+    type: "expense-created",
+    title: "New expense",
+    body: "Raiyan added Groceries — ৳1.00",
+    entityType: "expense",
+    entityId: "e_expense",
+    createdAt,
+    readAt: null,
+  };
+}
+
 function instrumentedTables(reader: InMemoryTablesReader): { tables: TablesDB; committedOperationCounts: number[] } {
   const base = createInMemoryTablesDB(reader).tablesDB as unknown as Record<string, (...args: never[]) => unknown>;
   const counts = new Map<string, number>();
@@ -161,6 +177,31 @@ describe("bounded Appwrite maintenance worker", () => {
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-count:e_expense"))).toMatchObject({ counter: 1 });
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-uploader-bytes:u_creator"))).toMatchObject({ counter: 100 });
     expect(await reader.getRow("coordination_guards", guardRowId("receipt-project-bytes"))).toMatchObject({ counter: 100 });
+  });
+
+  it("deletes only expired notifications, leaves financial history untouched, and is retry-safe", async () => {
+    const reader = new InMemoryTablesReader();
+    seedBase(reader);
+    reader.seed("expenses", [{ $id: "e_keep", createdAt: "2025-01-01T00:00:00.000Z" }]);
+    reader.seed("settlements", [{ $id: "s_keep", createdAt: "2025-01-01T00:00:00.000Z" }]);
+    reader.seed("expense_comments", [{ $id: "c_keep", createdAt: "2025-01-01T00:00:00.000Z" }]);
+    reader.seed("notifications", [
+      notification("n_old", "2026-05-31T17:59:59.999Z"),
+      notification("n_equal", "2026-05-31T18:00:00.000Z"),
+      notification("n_new", "2026-08-27T11:59:59.999Z"),
+    ]);
+    const { tables } = instrumentedTables(reader);
+
+    await expect(runMaintenance({ tables, storage: new MaintenanceStorage(), now: NOW })).resolves.toMatchObject({ status: "completed", notifications: 1 });
+    expect(await reader.getRow("notifications", "n_old")).toBeUndefined();
+    expect(await reader.getRow("notifications", "n_equal")).toBeDefined();
+    expect(await reader.getRow("notifications", "n_new")).toBeDefined();
+    expect(await reader.getRow("expenses", "e_keep")).toBeDefined();
+    expect(await reader.getRow("settlements", "s_keep")).toBeDefined();
+    expect(await reader.getRow("expense_comments", "c_keep")).toBeDefined();
+
+    await expect(runMaintenance({ tables, storage: new MaintenanceStorage(), now: NOW })).resolves.toMatchObject({ status: "completed", notifications: 0 });
+    expect(await reader.getRow("notifications", "n_old")).toBeUndefined();
   });
 
   it("cleans only unreferenced avatar resources after 24 hours without applying Receipt retention", async () => {

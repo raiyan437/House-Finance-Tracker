@@ -3,6 +3,8 @@ import "server-only";
 import { Query, type TablesDB } from "node-appwrite";
 import { ApplicationError } from "@/application/errors/application-error";
 import { canonicalIntentDigest } from "@/application/idempotency/command-idempotency";
+import { notificationDraft, uniqueActiveRecipients } from "@/application/notifications/notification-policy";
+import type { Notification } from "@/domain/notifications/notification-types";
 import { assertReceiptAdmission } from "@/application/receipts/receipt-storage-policy";
 import type { ReceiptView } from "@/application/services/application-services";
 import type { ReceiptContent } from "@/application/repositories";
@@ -16,7 +18,7 @@ import {
   receiptReservationRowId,
   receiptStorageFileId,
 } from "../ids";
-import { mapExpense, mapMembership, mapReceiptMetadata } from "../reads/mappers.server";
+import { mapExpense, mapMembership, mapReceiptMetadata, mapNotification, mapProfileDisplay } from "../reads/mappers.server";
 import { createTablesReader, type AppwriteRow, type TablesReader } from "../reads/tables.server";
 import type { ReceiptStoragePort } from "./receipt-storage.server";
 import { sha256Bytes } from "./receipt-storage.server";
@@ -32,6 +34,7 @@ const TABLE = {
   outcomes: "command_outcomes",
   guards: "coordination_guards",
   audits: "audit_events",
+  notifications: "notifications",
 } as const;
 
 const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -176,6 +179,24 @@ export class ReceiptOperations {
       transactionId: tx.id,
     });
     tx.recordStagedOperation();
+  }
+
+  private async stageNotifications(tables: TablesReader, tx: CommandTransaction, rows: readonly Notification[]): Promise<void> {
+    for (const row of rows) {
+      const existing = await tables.getRow(TABLE.notifications, String(row.notificationId));
+      if (existing) {
+        const current = mapNotification(existing);
+        if (current.recipientUserId === row.recipientUserId && current.type === row.type) continue;
+        throw new ApplicationError("CONFLICT", "Notification identity was reused with different content.");
+      }
+      await this.tablesDB.createRow({ databaseId: "hft", tableId: TABLE.notifications, rowId: String(row.notificationId), data: { recipientUserId: String(row.recipientUserId), householdId: String(row.householdId), scope: row.scope, type: row.type, title: row.title, body: row.body, entityType: row.entityType ?? null, entityId: row.entityId ?? null, createdAt: row.createdAt, readAt: null }, transactionId: tx.id });
+      tx.recordStagedOperation();
+    }
+  }
+
+  private async actorName(tables: TablesReader): Promise<string> {
+    const profile = await tables.getRow("profiles", String(this.actorId));
+    return profile ? mapProfileDisplay(profile).displayName : "A household member";
   }
 
   private async authoritativeUsage(tables: TablesReader, expenseId: string, uploaderId = String(this.actorId)): Promise<{ expenseCount: number; uploaderBytes: number; projectBytes: number }> {
@@ -326,6 +347,9 @@ export class ReceiptOperations {
         await this.tablesDB.createRow({ databaseId: "hft", tableId: TABLE.receipts, rowId: receiptId, data: { storageFileId: fileId, uploaderId: this.actorId, householdId: expense.householdId, expenseId: input.expenseId, mimeType: input.mimeType, sizeBytes: input.bytes.byteLength, contentState: "available", contentRemovedAt: null, contentRemovedByUserId: null, originalFilename: filename ?? null, checksum, createdAt: now }, transactionId: tx.id });
         tx.recordStagedOperation();
         await this.stageAudit(tx, "upload-receipt", input.commandId, String(expense.householdId), receiptId, "created", ["mimeType", "sizeBytes", "contentState"], now);
+        const members = (await tables.listRows(TABLE.memberships, [Query.equal("householdId", String(expense.householdId)), Query.equal("status", "active")])).map(mapMembership);
+        const name = await this.actorName(tables);
+        await this.stageNotifications(tables, tx, uniqueActiveRecipients(members, this.actorId).map((recipientUserId) => notificationDraft({ eventKey: `${input.commandId}:${receiptId}`, recipientUserId, type: "receipt-added", title: "Receipt added", body: `${name} added a receipt to ${expense.name}`, createdAt: now as never, householdId: expense.householdId, entityType: "expense", entityId: String(expense.expenseId) })));
         await this.stageOutcome(tx, "upload-receipt", input.commandId, intentDigest, receiptId, now);
         await this.tablesDB.updateRow({ databaseId: "hft", tableId: TABLE.reservations, rowId: reservationId, data: { state: "finalized" }, transactionId: tx.id });
         tx.recordStagedOperation();
@@ -394,6 +418,9 @@ export class ReceiptOperations {
         tx.recordStagedOperation();
         await this.stageUsageCounters(tx, tables, String(currentMetadata.expenseId), { expenseCount: usage.expenseCount - 1, uploaderBytes: usage.uploaderBytes - currentMetadata.sizeBytes, projectBytes: usage.projectBytes - currentMetadata.sizeBytes }, now, uploaderId);
         await this.stageAudit(tx, "remove-receipt", input.commandId, String(currentMetadata.householdId), input.receiptId, "deleted", ["contentStatus", "contentRemovedAt", "contentRemovedByUserId"], now);
+        const members = (await tables.listRows(TABLE.memberships, [Query.equal("householdId", String(currentMetadata.householdId)), Query.equal("status", "active")])).map(mapMembership);
+        const name = await this.actorName(tables);
+        await this.stageNotifications(tables, tx, uniqueActiveRecipients(members, this.actorId).map((recipientUserId) => notificationDraft({ eventKey: `${input.commandId}:${input.receiptId}`, recipientUserId, type: "receipt-removed", title: "Receipt removed", body: `${name} removed a receipt from ${current.expense.name}`, createdAt: now as never, householdId: currentMetadata.householdId, entityType: "expense", entityId: String(current.expense.expenseId) })));
         await this.stageOutcome(tx, "remove-receipt", input.commandId, intentDigest, input.receiptId, now);
         this.lastStagedOperations.remove = tx.stagedOperations();
       });

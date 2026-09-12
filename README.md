@@ -42,4 +42,8 @@ Charts are isolated to a single lazily loaded boundary (`presentation/analytics/
 
 Appwrite work is restricted to the currently authorized release phase; completing one release phase does not authorize the next.
 
+## v1.4 in-app notifications
+
+v1.4.0 provides recipient-specific, in-app-only notifications: the Dashboard bell shows the latest five, and `/notifications` exposes retained history for the current plus previous two Asia/Dhaka calendar months. Read state is stored as nullable `readAt`; both surfaces offer server-authoritative Mark all as read for every retained unread row in bounded batches. An active Expense creator explicitly receives another member's comment notification, while the commenter and former creator do not. Notifications are ephemeral product context, not an audit log, financial source of truth, or command-outcome replacement. Push, email, SMS, Messaging, and Realtime remain out of scope. Schema V8 is applied and the existing maintenance Function performs notification expiry.
+
 Project decisions and phase authorization live in [`docs/ai`](docs/ai/README.md).

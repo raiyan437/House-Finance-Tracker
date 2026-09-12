@@ -45,6 +45,7 @@ import type {
 export type { CurrentSessionView } from "@/application/session/current-session-view";
 import type { CurrentSessionView } from "@/application/session/current-session-view";
 import type { ProductCapabilities } from "@/application/runtime-capabilities";
+import type { NotificationLatestView, NotificationMarkAllReadView, NotificationPageView } from "@/domain/notifications/notification-types";
 
 export interface HouseholdApplicationActions {
   readonly generateCode: () => Promise<string>;
@@ -138,6 +139,13 @@ export interface ProfileApplicationActions {
   ) => Promise<void>;
 }
 
+export interface NotificationApplicationActions {
+  readonly latest: () => Promise<NotificationLatestView>;
+  readonly page: (offset?: number) => Promise<NotificationPageView>;
+  readonly markRead: (notificationId: import("@/domain/shared/identifiers").NotificationId) => Promise<void>;
+  readonly markAllRead: () => Promise<NotificationMarkAllReadView>;
+}
+
 export type ApplicationRuntimeState =
   | Readonly<{ status: "loading" }>
   | Readonly<{
@@ -154,6 +162,7 @@ export type ApplicationRuntimeState =
       cardActions: CardApplicationActions;
       analyticsActions: AnalyticsApplicationActions;
       profileActions: ProfileApplicationActions;
+      notificationActions?: NotificationApplicationActions;
     }>
   | Readonly<{
       status: "error";

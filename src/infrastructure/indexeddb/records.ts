@@ -271,6 +271,21 @@ export interface CommandOutcomeRecordV1 {
   completedAt: string;
 }
 
+export interface NotificationRecordV1 {
+  recordVersion: 1;
+  id: string;
+  recipientUserId: string;
+  householdId?: string;
+  scope: "account" | "household";
+  type: string;
+  title: string;
+  body: string;
+  entityType?: string;
+  entityId?: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
 export interface HouseFinanceDatabase extends DBSchema {
   appMeta: { key: string; value: AppMetaRecordV1 };
   userProfiles: { key: string; value: UserProfileRecordV1 | UserProfileRecordV2; indexes: { emailKey: string } };
@@ -298,4 +313,13 @@ export interface HouseFinanceDatabase extends DBSchema {
   auditEvents: { key: string; value: AuditEventRecordV1; indexes: { householdId: string } };
   developmentSession: { key: string; value: DevelopmentSessionRecordV1 };
   commandOutcomes: { key: string; value: CommandOutcomeRecordV1; indexes: { actorId: string } };
+  notifications: {
+    key: string;
+    value: NotificationRecordV1;
+    indexes: {
+      recipientCreatedAtId: [string, string, string];
+      recipientReadAt: string;
+      createdAt: string;
+    };
+  };
 }

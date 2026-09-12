@@ -21,6 +21,7 @@ import { DailySpendingChart, PaymentMixChart } from "./analytics-charts.client";
 import { formatBasisPointPercentage, absolutePoisha } from "./analytics-ui";
 import { ExpenseSummaryList } from "./expense-summary-list";
 import { MonthSelector } from "./month-selector";
+import { NotificationBell } from "@/presentation/notifications/notification-bell.client";
 
 type LoadState =
   | Readonly<{ status: "loading" }>
@@ -88,15 +89,13 @@ function DashboardAnalytics({ sessionUserId, householdId }: Readonly<{ sessionUs
   return (
     <PageContainer className="space-y-5">
       <h1 className="sr-only">Dashboard</h1>
-      <div className="flex min-h-11 flex-wrap items-center gap-4">
-        <MonthSelector options={visibleState.status === "ready" ? visibleState.view.monthOptions : [month]} value={month} onChange={setMonth} />
-        {visibleState.status === "ready" ? <MemberAvatars members={visibleState.view.members} /> : <div aria-hidden="true" className="h-10" />}
-        {staleView ? (
-          <span className="flex items-center gap-2 text-caption text-text-muted" role="status">
-            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-            Updating {formatCalendarMonth(month)}
-          </span>
-        ) : null}
+      <div className="flex min-h-11 flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
+          <MonthSelector options={visibleState.status === "ready" ? visibleState.view.monthOptions : [month]} value={month} onChange={setMonth} />
+          {visibleState.status === "ready" ? <MemberAvatars members={visibleState.view.members} /> : <div aria-hidden="true" className="h-10" />}
+          {staleView ? <span className="flex items-center gap-2 text-caption text-text-muted" role="status"><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Updating {formatCalendarMonth(month)}</span> : null}
+        </div>
+        <NotificationBell />
       </div>
 
       {visibleState.status === "loading" && !staleView ? <LoadingState label={`Loading ${formatCalendarMonth(month)} Dashboard analytics`} /> : null}

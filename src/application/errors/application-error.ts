@@ -25,6 +25,7 @@ export type ApplicationErrorCode =
   | "RECEIPT_PROJECT_CAPACITY_EXCEEDED"
   | "RECEIPT_PRIVATE_ACCESS_FORBIDDEN"
   | "RECEIPT_PARTIAL_SUCCESS"
+  | "NOTIFICATION_PARTIAL_SUCCESS"
   | "IDEMPOTENCY_KEY_REUSED"
   | "IDEMPOTENCY_IN_PROGRESS";
 
@@ -72,5 +73,19 @@ export class ReceiptSagaPartialSuccessError extends ApplicationError {
     this.name = "ReceiptSagaPartialSuccessError";
     this.savedExpenseId = savedExpenseId;
     this.failedReceiptOperations = failedReceiptOperations;
+  }
+}
+
+/** Some notification batches committed before a later batch failed. */
+export class NotificationMarkAllPartialError extends ApplicationError {
+  readonly updatedCount: number;
+
+  constructor(updatedCount: number) {
+    super(
+      "NOTIFICATION_PARTIAL_SUCCESS",
+      "Some notifications were marked as read. Please retry to finish.",
+    );
+    this.name = "NotificationMarkAllPartialError";
+    this.updatedCount = updatedCount;
   }
 }

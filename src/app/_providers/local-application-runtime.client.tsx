@@ -13,6 +13,7 @@ import {
   type HouseholdApplicationActions,
   type ProfileApplicationActions,
   type SettlementApplicationActions,
+  type NotificationApplicationActions,
 } from "@/presentation/runtime/application-runtime-context";
 import { localCalendarMonthFromInstant } from "@/application/analytics/calendar-month";
 import {
@@ -145,6 +146,7 @@ export function LocalApplicationRuntime({
     let cardActions: CardApplicationActions;
     let analyticsActions: AnalyticsApplicationActions;
     let profileActions: ProfileApplicationActions;
+    let notificationActions: NotificationApplicationActions;
 
     async function reconstructState(runtime: LocalDevelopmentRuntime, showLoading = false) {
       const reconstruction = ++reconstructionRef.current;
@@ -162,6 +164,7 @@ export function LocalApplicationRuntime({
             cardActions,
             analyticsActions,
             profileActions,
+            notificationActions,
           });
         }
       } catch {
@@ -291,6 +294,12 @@ export function LocalApplicationRuntime({
           replaceAvatar: async () => {
             throw new Error("Profile pictures require the production private Storage service.");
           },
+        });
+        notificationActions = Object.freeze<NotificationApplicationActions>({
+          latest: () => runtime.application.notifications.latest(),
+          page: (offset) => runtime.application.notifications.page(offset),
+          markRead: (notificationId) => runtime.application.notifications.markRead(notificationId),
+          markAllRead: () => runtime.application.notifications.markAllRead(),
         });
         unsubscribe = runtime.currentSession.subscribe(() => {
           void reconstructState(runtime, true);
