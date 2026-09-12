@@ -463,6 +463,8 @@ export interface CreateExpenseCommand {
 export interface ExpenseView {
   readonly expense: Omit<Expense, "payment"> & { readonly payment: { readonly method: "cash" } | { readonly method: "card" } };
   readonly percentageSourceStatus: ExpensePercentageSourceStatus;
+  /** Derived from the same Confirmed-Settlement boundary used by financial locking. */
+  readonly settlementStatus: "settled" | "unsettled";
   readonly permissions: Readonly<{
     canEdit: boolean;
     canEditFinancialFields: boolean;
@@ -1123,18 +1125,20 @@ export class ExpenseApplicationService {
     const publicPayment = projection.method === "cash" ? { method: "cash" as const } : { method: "card" as const };
     const percentageSourceStatus = expensePercentageSourceStatus(expense.splitMethod, expense.percentageEntries);
     const basePermissions = getExpensePermissions(expense.householdId, viewer, expense.creatorId, memberships);
+    const latestConfirmedAt = latestConfirmedSettlementAt(expense.householdId, settlements);
+    const settledByConfirmedHistory = isExpenseFinanciallyLocked(expense.createdAt, latestConfirmedAt);
     const editability = financialEditability(
       expense,
       memberships,
       percentageSourceStatus,
-      latestConfirmedSettlementAt(expense.householdId, settlements),
+      latestConfirmedAt,
       projectionCardAssociationIdentity(expense, snapshot),
     );
     const isReadOnlyHistory = editability.state === "deleted";
     const historicalBoundary = latestConfirmedSettlementBefore(expense.householdId, expense.createdAt, settlements);
     const addedAfterSettlement = isBackdatedAfterSettlement(expense.expenseDate, historicalBoundary);
     const canManageReceipts = viewer === expense.creatorId && !isReadOnlyHistory;
-    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), percentageSourceStatus, permissions: Object.freeze({ canEdit: basePermissions.canEdit && !isReadOnlyHistory, canEditFinancialFields: basePermissions.canEdit && editability.state === "editable", canDelete: basePermissions.canDelete && editability.state === "editable", canReadReceipt: true, canUploadReceipt: canManageReceipts, canRemoveReceipt: canManageReceipts }), financialEditability: editability, addedAfterSettlement, commentCount, ...(snapshot && viewer === expense.creatorId && expense.payment.method === "card" ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
+    return Object.freeze({ expense: Object.freeze({ ...expense, payment: publicPayment }), percentageSourceStatus, settlementStatus: settledByConfirmedHistory ? "settled" : "unsettled", permissions: Object.freeze({ canEdit: basePermissions.canEdit && !isReadOnlyHistory, canEditFinancialFields: basePermissions.canEdit && editability.state === "editable", canDelete: basePermissions.canDelete && editability.state === "editable", canReadReceipt: true, canUploadReceipt: canManageReceipts, canRemoveReceipt: canManageReceipts }), financialEditability: editability, addedAfterSettlement, commentCount, ...(snapshot && viewer === expense.creatorId && expense.payment.method === "card" ? { privateCardSnapshot: Object.freeze({ ...snapshot }) } : {}) });
   }
 }
 

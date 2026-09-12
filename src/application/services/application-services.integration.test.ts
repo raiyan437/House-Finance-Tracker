@@ -92,6 +92,38 @@ describe("Phase 4 application services with IndexedDB", () => {
     expect(ownerView.privateCardSnapshot).toMatchObject({ cardName: "John Credit", cardType: "credit", colorId: "powder-blue" });
   });
 
+  it("derives settlement status from the financial-lock boundary and reconstructs it after reload", async () => {
+    const target = expenseId("expense-groceries");
+    const seededPending = deterministicSeedData().settlement;
+
+    await db.delete("settlements", seededPending.settlementId);
+    const withoutSettlement = await application.expenses.getExpense(target);
+    expect(withoutSettlement.settlementStatus).toBe("unsettled");
+    expect(withoutSettlement.settlementStatus === "settled").toBe(
+      withoutSettlement.financialEditability.reasons.includes("confirmed-settlement"),
+    );
+
+    await db.add(
+      "settlements",
+      toSettlementRecord(
+        confirmedSettlementRecord(
+          "settlement-status-boundary",
+          isoInstant("2026-08-13T12:00:00.000Z"),
+        ),
+      ),
+    );
+    const settled = await application.expenses.getExpense(target);
+    expect(settled.settlementStatus).toBe("settled");
+    expect(settled.financialEditability.reasons).toContain("confirmed-settlement");
+    expect(settled.settlementStatus === "settled").toBe(
+      settled.financialEditability.reasons.includes("confirmed-settlement"),
+    );
+
+    const reconstructed = await application.expenses.getExpense(target);
+    expect(reconstructed.settlementStatus).toBe("settled");
+    expect((await application.expenses.listHouseholdExpenses(SEEDED_HOUSEHOLD_ID)).find((view) => view.expense.expenseId === target)?.settlementStatus).toBe("settled");
+  });
+
   it("derives Dashboard and Monthly Report views without exposing private Card metadata", async () => {
     const dashboard = await application.analytics.getDashboard(
       SEEDED_HOUSEHOLD_ID,
@@ -879,6 +911,10 @@ describe("Phase 4 application services with IndexedDB", () => {
     });
     expect(created.expense.createdAt).toBe("2026-08-13T13:00:00.000Z");
     expect(created.financialEditability.state).toBe("editable");
+    expect(created.settlementStatus).toBe("unsettled");
+    expect(created.settlementStatus === "settled").toBe(
+      created.financialEditability.reasons.includes("confirmed-settlement"),
+    );
 
     const editCommand = {
       commandId: commandId("command-backdated-edit"),
@@ -914,6 +950,10 @@ describe("Phase 4 application services with IndexedDB", () => {
       state: "locked",
       reasons: ["confirmed-settlement"],
     });
+    expect(nowLocked.settlementStatus).toBe("settled");
+    expect(nowLocked.settlementStatus === "settled").toBe(
+      nowLocked.financialEditability.reasons.includes("confirmed-settlement"),
+    );
   });
 
   it("freezes former-member financial history while allowing a name-only edit", async () => {

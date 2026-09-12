@@ -36,6 +36,7 @@ const expense = seed.expenses[0]!;
 const expenseView: ExpenseView = {
   expense: { ...expense, payment: { method: "cash" } },
   percentageSourceStatus: "not-applicable",
+  settlementStatus: "unsettled",
   permissions: {
     canEdit: true,
     canEditFinancialFields: true,
@@ -49,6 +50,7 @@ const expenseView: ExpenseView = {
 };
 const financiallyLockedExpenseView: ExpenseView = {
   ...expenseView,
+  settlementStatus: "settled",
   permissions: {
     canEdit: true,
     canEditFinancialFields: false,

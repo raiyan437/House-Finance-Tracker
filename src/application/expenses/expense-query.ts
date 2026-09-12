@@ -21,6 +21,7 @@ export interface ExpenseListRow {
   readonly name: string;
   readonly iconCategory?: ExpenseIconCategory;
   readonly commentCount?: number;
+  readonly settlementStatus: "settled" | "unsettled";
   readonly amount: Poisha;
   readonly expenseDate: ExpenseDate;
   readonly createdAt: IsoInstant;

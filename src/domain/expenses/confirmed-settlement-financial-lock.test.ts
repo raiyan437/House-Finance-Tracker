@@ -90,7 +90,9 @@ describe("confirmed Settlement Expense financial lock", () => {
       const history = status === "pending"
         ? [settlement(status)]
         : [settlement(status, "2026-08-22T10:00:00.000Z")];
-      expect(latestConfirmedSettlementAt(house, history)).toBeUndefined();
+      const boundary = latestConfirmedSettlementAt(house, history);
+      expect(boundary).toBeUndefined();
+      expect(isExpenseFinanciallyLocked(createdAt, boundary)).toBe(false);
     },
   );
 

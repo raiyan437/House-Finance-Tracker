@@ -212,6 +212,10 @@ test("expense list composes filters and opens accessible desktop rows", async ({
   await expect(paymentMethod).not.toContainText("All Payment Methods");
   await expect(page.getByText("Groceries", { exact: true })).toBeVisible();
   await expect(page.getByText("Internet", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Unsettled" })).toHaveCount(2);
+  await page.reload();
+  await chooseSelectOption(page, "Month", "August 2026");
+  await expect(page.getByRole("img", { name: "Unsettled" })).toHaveCount(2);
 
   await page.getByLabel("Search expenses by name").fill(" inter ");
   await chooseSelectOption(page, "Paid By", "John");
@@ -278,10 +282,17 @@ test("creates, edits, reloads, and lists semantic icons with append-only plain-t
   await page.getByRole("link", { name: "Back to expenses" }).click();
   await chooseSelectOption(page, "Month", "August 2026");
   const headings = page.locator('[aria-hidden="true"]').filter({ hasText: "Comments" }).first().locator("span");
-  await expect(headings).toHaveText(["Expense", "Comments", "Date", "Paid By", "Payment", "Split", "Amount"]);
+  await expect(headings).toHaveText(["Expense", "Settlement", "Comments", "Date", "Paid By", "Payment", "Split", "Amount"]);
   const row = page.getByRole("listitem").filter({ hasText: "Cat supplies" });
   await expect(row.getByRole("img", { name: "Repairs category" })).toBeVisible();
   await expect(row).toContainText("2");
+
+  await insertConfirmedSettlement(page, "settlement-expense-status-ui", "2026-09-12T00:00:00.000Z");
+  await page.reload();
+  await chooseSelectOption(page, "Month", "August 2026");
+  await expect(page.locator('[role="img"][aria-label="Settled"]:visible')).toHaveCount(2);
+  await expect(page.locator('[role="img"][aria-label="Unsettled"]:visible')).toHaveCount(1);
+  await expect(page.getByRole("listitem").filter({ hasText: "Cat supplies" }).locator('[role="img"][aria-label="Unsettled"]:visible')).toBeVisible();
 
   const axe = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -371,6 +382,17 @@ for (const viewport of [
     await page.goto("/expenses");
     const paymentMethod = page.getByRole("combobox", { name: "Payment Method", exact: true });
     await expect(paymentMethod).toContainText("Payment Method");
+    if (viewport.width < 900) {
+      await chooseSelectOption(page, "Month", "August 2026");
+      const mobileMetadata = page.locator('[data-slot="expense-mobile-metadata"]').first();
+      await expect(mobileMetadata.getByRole("img", { name: "Unsettled" })).toBeVisible();
+      const statusBox = await mobileMetadata.getByRole("img", { name: "Unsettled" }).boundingBox();
+      const dateBox = await mobileMetadata.locator("time").boundingBox();
+      expect(statusBox).not.toBeNull();
+      expect(dateBox).not.toBeNull();
+      expect(statusBox!.x).toBeLessThan(dateBox!.x);
+      expect(mobileMetadata).toContainText("·");
+    }
     const paymentMetrics = await paymentMethod.evaluate((element) => {
       const value = element.querySelector<HTMLElement>('[data-slot="select-value"]');
       return {

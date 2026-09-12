@@ -9,10 +9,10 @@ import {
 const payerA = { userId: userId("payer-a"), displayName: "A", former: false };
 const payerB = { userId: userId("payer-b"), displayName: "B", former: true };
 const rows: readonly ExpenseListRow[] = [
-  { expenseId: expenseId("expense-z"), name: "Groceries", amount: poisha(100), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-11T00:00:00.000Z"), payer: payerA, paymentMethod: "cash", splitMethod: "equal", participantCount: 2 },
-  { expenseId: expenseId("expense-a"), name: "Home Internet", amount: poisha(200), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-12T00:00:00.000Z"), payer: payerB, paymentMethod: "card", splitMethod: "amount", participantCount: 2 },
-  { expenseId: expenseId("expense-b"), name: "internet backup", amount: poisha(300), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-12T00:00:00.000Z"), payer: payerB, paymentMethod: "card", splitMethod: "percentage", participantCount: 3 },
-  { expenseId: expenseId("expense-old"), name: "Internet", amount: poisha(400), expenseDate: expenseDate("2026-07-31"), createdAt: isoInstant("2026-08-13T00:00:00.000Z"), payer: payerB, paymentMethod: "cash", splitMethod: "equal", participantCount: 1 },
+  { expenseId: expenseId("expense-z"), name: "Groceries", settlementStatus: "unsettled", amount: poisha(100), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-11T00:00:00.000Z"), payer: payerA, paymentMethod: "cash", splitMethod: "equal", participantCount: 2 },
+  { expenseId: expenseId("expense-a"), name: "Home Internet", settlementStatus: "settled", amount: poisha(200), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-12T00:00:00.000Z"), payer: payerB, paymentMethod: "card", splitMethod: "amount", participantCount: 2 },
+  { expenseId: expenseId("expense-b"), name: "internet backup", settlementStatus: "unsettled", amount: poisha(300), expenseDate: expenseDate("2026-08-10"), createdAt: isoInstant("2026-08-12T00:00:00.000Z"), payer: payerB, paymentMethod: "card", splitMethod: "percentage", participantCount: 3 },
+  { expenseId: expenseId("expense-old"), name: "Internet", settlementStatus: "settled", amount: poisha(400), expenseDate: expenseDate("2026-07-31"), createdAt: isoInstant("2026-08-13T00:00:00.000Z"), payer: payerB, paymentMethod: "cash", splitMethod: "equal", participantCount: 1 },
 ];
 
 describe("expense list query", () => {

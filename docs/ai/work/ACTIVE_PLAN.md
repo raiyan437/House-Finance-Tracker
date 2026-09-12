@@ -2,6 +2,14 @@
 
 ## Status and authorization
 
+### v1.3 Derived Expense settlement status — implemented, owner review pending
+
+This presentation-only slice adds `settlementStatus: "settled" | "unsettled"` to the existing Expense application projection. It derives the value from the existing `latestConfirmedSettlementAt` + `isExpenseFinanciallyLocked` policy, so the indicator and financial-lock classification share one authoritative rule. The status is not stored, does not add an Expense/Settlement relationship, and introduces no Schema V8, IndexedDB migration, backfill, cache, or provider read; the existing bounded Household Settlement history read is reused.
+
+The Expenses desktop table now places a compact accessible Settlement glyph before Comments and Date; mobile places the same status before comment count and date without forcing a desktop column or adding overflow. Expense Details already communicates financial-lock state in its existing banner/Summary and remains otherwise unchanged. Focused settlement, projection-parity, responsive, and accessibility verification is recorded with the implementation result below.
+
+Implementation verification (2026-09-12): focused settlement/projection tests pass 68/68; full Vitest passes 824/824 across 105 files; architecture guards pass 16/16; TypeScript, ESLint, production build, and diff-check pass. Explicit-local Chromium Expenses coverage passes 23/23, including reload parity, confirmed-boundary status changes, desktop placement, mobile placement at 430/390/360, and the existing financial-lock regressions. The responsive/Axe matrix passes 3/3 across 1440/1024/768/430/390/360, with serious and critical Axe findings at zero. The read-only Appwrite plan reports metadata/schema version 7, zero creates, zero drift, zero provisioning, and zero errors; no schema apply was run.
+
 ### v1.3 Receipt access + icon-selector corrections — released
 
 **Approved and released 2026-09-07.** The two corrections grant all authoritative active members of an Expense Household the existing UI-safe Receipt metadata and `available` binary content while keeping upload/removal Expense-creator-only, and place the Create Expense category selector directly below Expense Name as a compact icon-only 44px-target/19px-glyph radio row with ten non-wrapping options and internal mobile horizontal scrolling. Edit preserves the same selector styling. Former/unrelated/anonymous access, terminal-content denial, safe projection boundaries, private Storage delivery, financial rules, comments, settlements, receipt quotas/retention/idempotency, and all other behavior remain unchanged.
