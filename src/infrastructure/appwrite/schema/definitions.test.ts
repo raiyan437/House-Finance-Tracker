@@ -18,7 +18,7 @@ function columns(table: TableDefinition): Map<string, string> {
   return new Map(table.columns.map((column) => [column.key, column.kind]));
 }
 
-describe("Appwrite schema definitions (approved Schema V8)", () => {
+describe("Appwrite schema definitions (approved Schema V9)", () => {
   it("stores every exact monetary value in a bigint column", () => {
     expect(columns(tableById("expenses")!).get("amountPoisha")).toBe("bigint");
     const settlements = columns(tableById("settlements")!);
@@ -74,7 +74,7 @@ describe("Appwrite schema definitions (approved Schema V8)", () => {
   });
 
   it("exposes a stable schema version and lookup helper", () => {
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBe(9);
     expect(TABLES.every((table) => table.id.length <= 36 && /^[a-z_]+$/.test(table.id))).toBe(true);
     expect(tableById("missing")).toBeUndefined();
   });

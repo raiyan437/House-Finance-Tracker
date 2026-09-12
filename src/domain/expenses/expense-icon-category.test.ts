@@ -6,8 +6,8 @@ import { EXPENSE_ICON_CATEGORIES, expenseIconCategory } from "./expense-icon-cat
 describe("Expense semantic icon category", () => {
   it("accepts every approved stable value", () => {
     expect(EXPENSE_ICON_CATEGORIES.map(expenseIconCategory)).toEqual([
-      "internet", "gas", "groceries", "food", "entertainment",
-      "cigarettes", "pets", "repairs", "housing", "others",
+      "internet", "electricity", "gas", "groceries", "food", "entertainment",
+      "cigarettes", "pets", "repairs", "housing", "loan", "others",
     ]);
   });
 

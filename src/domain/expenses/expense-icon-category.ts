@@ -1,8 +1,8 @@
 import { DomainError } from "../shared/domain-error";
 
 export const EXPENSE_ICON_CATEGORIES = [
-  "internet", "gas", "groceries", "food", "entertainment",
-  "cigarettes", "pets", "repairs", "housing", "others",
+  "internet", "electricity", "gas", "groceries", "food", "entertainment",
+  "cigarettes", "pets", "repairs", "housing", "loan", "others",
 ] as const;
 
 export type ExpenseIconCategory = (typeof EXPENSE_ICON_CATEGORIES)[number];

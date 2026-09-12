@@ -3,6 +3,7 @@ import {
   BUCKET,
   DATABASE_ID,
   MAINTENANCE_FUNCTION,
+  SAFE_ENUM_ELEMENT_EXPANSIONS,
   SAFE_STRING_CAPACITY_INCREASES,
   SCHEMA_METADATA_ROW_ID,
   SCHEMA_VERSION,
@@ -106,6 +107,14 @@ export interface SafeStringCapacityIncrease {
   readonly required: boolean;
 }
 
+export interface SafeEnumElementExpansion {
+  readonly tableId: string;
+  readonly columnKey: string;
+  readonly fromElements: readonly string[];
+  readonly toElements: readonly string[];
+  readonly required: boolean;
+}
+
 const PROVISIONING_STATUSES = ["processing"];
 const FATAL_PROVISIONING_STATUSES = ["failed", "stuck", "deleting"];
 
@@ -115,12 +124,24 @@ function enumElementsMatch(existing: readonly string[] | undefined, desired: rea
     existing.every((element, index) => element === desired[index]);
 }
 
-function columnTypeDrift(existing: ExistingColumn, desired: ColumnDefinition): string | undefined {
+function isSafeEnumElementExpansion(existing: readonly string[] | undefined, desired: readonly string[] | undefined): boolean {
+  if (existing === undefined || desired === undefined || desired.length <= existing.length) return false;
+  if (new Set(existing).size !== existing.length || new Set(desired).size !== desired.length) return false;
+  let desiredIndex = -1;
+  for (const element of existing) {
+    const nextIndex = desired.indexOf(element);
+    if (nextIndex <= desiredIndex) return false;
+    desiredIndex = nextIndex;
+  }
+  return true;
+}
+
+function columnTypeDrift(existing: ExistingColumn, desired: ColumnDefinition, safeEnumExpansion: boolean): string | undefined {
   if (desired.kind === "enum") {
     if (existing.kind !== "string" || existing.format !== "enum" || !Array.isArray(existing.elements)) {
       return `provider type '${existing.kind ?? "unknown"}' format '${existing.format ?? "none"}' does not identify the column as enum`;
     }
-    if (!enumElementsMatch(existing.elements, desired.elements)) {
+    if (!enumElementsMatch(existing.elements, desired.elements) && !safeEnumExpansion) {
       return `provider enum elements do not exactly match the desired enum elements`;
     }
     return undefined;
@@ -149,6 +170,7 @@ export interface SchemaPlan {
   readonly errors: readonly string[];
   readonly drifts: readonly string[];
   readonly safeStringCapacityIncreases: readonly SafeStringCapacityIncrease[];
+  readonly safeEnumElementExpansions: readonly SafeEnumElementExpansion[];
 }
 
 export async function planSchemaApplication(reader: AppwriteSchemaReader): Promise<SchemaPlan> {
@@ -156,6 +178,7 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
   const errors: string[] = [];
   const provisioning: string[] = [];
   const safeStringCapacityIncreases: SafeStringCapacityIncrease[] = [];
+  const safeEnumElementExpansions: SafeEnumElementExpansion[] = [];
   const database = await reader.getDatabase(DATABASE_ID);
   if (database && database.id !== DATABASE_ID) drifts.push(`Database identifier mismatch: ${database.id}.`);
   const existingTables = new Set((await reader.listTables(DATABASE_ID)).map((table) => table.id));
@@ -181,13 +204,34 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
       if (state !== undefined && PROVISIONING_STATUSES.includes(state)) provisioning.push(`${definition.id}.column:${column.key}`);
       if (state !== undefined && FATAL_PROVISIONING_STATUSES.includes(state)) errors.push(`Column ${definition.id}.${column.key} is in provider state '${state}'.`);
       if (!existing) continue;
-      const typeDrift = columnTypeDrift(existing, column);
+      const safeEnumExpansion =
+        column.kind === "enum" &&
+        isSafeEnumElementExpansion(existing.elements, column.elements) &&
+        SAFE_ENUM_ELEMENT_EXPANSIONS.some((migration) =>
+          migration.tableId === definition.id &&
+          migration.columnKey === column.key &&
+          migration.schemaVersion === SCHEMA_VERSION &&
+          enumElementsMatch(existing.elements, migration.fromElements) &&
+          enumElementsMatch(column.elements, migration.toElements),
+        ) &&
+        (existing.required === undefined || existing.required === column.required);
+      const typeDrift = columnTypeDrift(existing, column, safeEnumExpansion);
       if (typeDrift) {
         drifts.push(`Column ${definition.id}.${column.key} ${typeDrift}; type changes are refused.`);
         continue;
       }
       if (existing.required !== undefined && existing.required !== column.required) {
         drifts.push(`Column ${definition.id}.${column.key} required=${existing.required}, expected ${column.required}; required-state changes are refused.`);
+      }
+      if (safeEnumExpansion) {
+        safeEnumElementExpansions.push({
+          tableId: definition.id,
+          columnKey: column.key,
+          fromElements: [...(existing.elements ?? [])],
+          toElements: [...(column.elements ?? [])],
+          required: column.required,
+        });
+        continue;
       }
       if (column.kind !== "string" || column.size === undefined || existing.size === undefined || existing.size === column.size) continue;
       if (existing.size > column.size) {
@@ -230,6 +274,7 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
       missingIndexes.length === 0 &&
       unexpectedColumns.length === 0 &&
       !safeStringCapacityIncreases.some((operation) => operation.tableId === definition.id) &&
+      !safeEnumElementExpansions.some((operation) => operation.tableId === definition.id) &&
       !drifts.some((entry) => entry.startsWith(`Column ${definition.id}.`) || entry.startsWith(`Table ${definition.id} `)) &&
       !provisioning.some((resource) => resource.startsWith(`${definition.id}.`)) &&
       !errors.some((entry) => entry.startsWith(`Column ${definition.id}.`) || entry.startsWith(`Index ${definition.id}.`));
@@ -251,6 +296,7 @@ export async function planSchemaApplication(reader: AppwriteSchemaReader): Promi
     bucketExists: Boolean(bucket),
     metadataRowVersion: metadataRow?.version,
     safeStringCapacityIncreases,
+    safeEnumElementExpansions,
     tables: plannedTables,
   };
 }

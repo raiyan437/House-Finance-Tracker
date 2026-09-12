@@ -211,24 +211,24 @@ describe("receipt retention presentation", () => {
     expect(actions.readReceipt).not.toHaveBeenCalled();
   });
 
-  it("renders an accessible ten-option semantic category radio group with Others selected by default", async () => {
+  it("renders an accessible twelve-option semantic category radio group with Other selected by default", async () => {
     const user = userEvent.setup();
     renderWithRuntime(<ExpenseFormPageClient mode="create" />, expenseActions());
 
     await screen.findByRole("heading", { name: "Add Expense" });
     const category = screen.getByRole("group", { name: "Expense Category" });
-    const categoryNames = ["Internet", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pets", "Repairs", "Housing", "Others"];
+    const categoryNames = ["Wifi", "Electricity", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pet", "Repair", "Household", "Loan", "Other"];
     const radios = within(category).getAllByRole("radio");
-    expect(radios).toHaveLength(10);
+    expect(radios).toHaveLength(12);
     expect(radios.map((radio) => radio.getAttribute("aria-label"))).toEqual(categoryNames);
     expect([...category.querySelectorAll("label")].map((label) => label.textContent)).toEqual(categoryNames.map(() => ""));
     expect([...category.querySelectorAll("label")].map((label) => label.title)).toEqual(categoryNames);
-    expect(within(category).getByRole("radio", { name: "Others" })).toBeChecked();
-    await user.click(within(category).getByRole("radio", { name: "Pets" }));
-    expect(within(category).getByRole("radio", { name: "Pets" })).toBeChecked();
-    expect(within(category).getByRole("radio", { name: "Others" })).not.toBeChecked();
-    within(category).getByRole("radio", { name: "Internet" }).focus();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Internet");
+    expect(within(category).getByRole("radio", { name: "Other" })).toBeChecked();
+    await user.click(within(category).getByRole("radio", { name: "Pet" }));
+    expect(within(category).getByRole("radio", { name: "Pet" })).toBeChecked();
+    expect(within(category).getByRole("radio", { name: "Other" })).not.toBeChecked();
+    within(category).getByRole("radio", { name: "Wifi" }).focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Wifi");
   });
 
   it("shows terminal receipts as read-only history on Edit without Blob reads", async () => {
@@ -268,7 +268,7 @@ describe("receipt retention presentation", () => {
       ),
     ).toBeVisible();
     expect(screen.getByLabelText("Expense Name")).toBeEnabled();
-    expect(screen.getByRole("radio", { name: "Others" })).toBeEnabled();
+    expect(screen.getByRole("radio", { name: "Other" })).toBeEnabled();
     expect(screen.getByLabelText("Amount (BDT)")).toBeDisabled();
     expect(screen.getByLabelText("Expense Date")).toBeDisabled();
     expect(screen.getByRole("radio", { name: "cash" })).toBeDisabled();

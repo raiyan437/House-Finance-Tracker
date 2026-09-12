@@ -17,7 +17,7 @@ function emptyReader(): AppwriteSchemaReader {
 }
 
 function recordingClients(
-  initialColumns: { tableId: string; key: string; status: string; size?: number; type?: string; required?: boolean }[] = [],
+  initialColumns: { tableId: string; key: string; status: string; size?: number; type?: string; elements?: readonly string[]; required?: boolean }[] = [],
   initialIndexes: { tableId: string; key: string; status: string }[] = [],
 ): AppwriteBootstrapClients & { calls: string[] } {
   const calls: string[] = [];
@@ -31,7 +31,7 @@ function recordingClients(
       calls.push(`table:${tableId}`);
     },
     listColumns: async ({ tableId }: { tableId: string }) => ({
-      columns: columns.filter((column) => column.tableId === tableId).map(({ key, status, size, type, required }) => ({ key, status, size, type, required })),
+      columns: columns.filter((column) => column.tableId === tableId).map(({ key, status, size, type, elements, required }) => ({ key, status, size, type, elements, required })),
       total: 0,
     }),
     listIndexes: async ({ tableId }: { tableId: string }) => ({
@@ -54,9 +54,9 @@ function recordingClients(
       calls.push(`col:dt:${tableId}.${key}`);
       columns.push({ tableId, key, status: "available" });
     },
-    createEnumColumn: async ({ tableId, key }: { tableId: string; key: string }) => {
+    createEnumColumn: async ({ tableId, key, elements }: { tableId: string; key: string; elements: string[] }) => {
       calls.push(`col:enum:${tableId}.${key}`);
-      columns.push({ tableId, key, status: "available" });
+      columns.push({ tableId, key, status: "available", elements });
     },
     createIndex: async ({ tableId, key }: { tableId: string; key: string }) => {
       calls.push(`index:${tableId}.${key}`);
@@ -67,6 +67,14 @@ function recordingClients(
       const column = columns.find((candidate) => candidate.tableId === tableId && candidate.key === key);
       if (!column) throw new Error("missing column");
       column.size = size;
+      column.required = required;
+      column.status = "available";
+    },
+    updateEnumColumn: async ({ tableId, key, elements, required }: { tableId: string; key: string; elements: string[]; required: boolean }) => {
+      calls.push(`col:enum-expand:${tableId}.${key}:${elements.length}`);
+      const column = columns.find((candidate) => candidate.tableId === tableId && candidate.key === key);
+      if (!column) throw new Error("missing column");
+      column.elements = elements;
       column.required = required;
       column.status = "available";
     },
@@ -105,6 +113,19 @@ function completeColumnsWithLegacyProfileDisplayName() {
     status: "available",
     size: table.id === "profiles" && column.key === "displayName" ? 64 : column.size,
     type: column.kind,
+    required: column.required,
+  })));
+}
+
+function completeColumnsWithLegacyExpenseCategories() {
+  const legacyCategories = ["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"];
+  return TABLES.flatMap((table) => table.columns.map((column) => ({
+    tableId: table.id,
+    key: column.key,
+    status: "available",
+    size: column.size,
+    type: column.kind,
+    elements: table.id === "expenses" && column.key === "iconCategory" ? legacyCategories : column.elements,
     required: column.required,
   })));
 }
@@ -158,6 +179,7 @@ describe("schema bootstrap applier", () => {
       errors: [],
       drifts: [],
       safeStringCapacityIncreases: [{ tableId: "households", columnKey: "name", fromSize: 64, toSize: 16_383, required: true }],
+      safeEnumElementExpansions: [],
     };
     await applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 50 });
     expect(clients.calls).toContain("col:widen:households.name:16383:null");
@@ -173,6 +195,7 @@ describe("schema bootstrap applier", () => {
       bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
       metadataRowVersion: 2, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
       safeStringCapacityIncreases: [{ tableId: "households", columnKey: "name", fromSize: 64, toSize: 16_383, required: true }],
+      safeEnumElementExpansions: [],
     };
     await expect(applySchemaPlan(plan, clients, { dryRun: false })).rejects.toThrow(/provider rejected widening/);
     expect(clients.calls).not.toContain(`row:${SCHEMA_METADATA_ROW_ID}`);
@@ -185,9 +208,30 @@ describe("schema bootstrap applier", () => {
       bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
       metadataRowVersion: 4, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
       safeStringCapacityIncreases: [{ tableId: "profiles", columnKey: "displayName", fromSize: 64, toSize: 16_383, required: true }],
+      safeEnumElementExpansions: [],
     };
     await applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 50 });
     expect(clients.calls).toContain("col:widen:profiles.displayName:16383:null");
+    expect(clients.calls.at(-1)).toBe(`row:${SCHEMA_METADATA_ROW_ID}`);
+  });
+
+  it("expands the approved Expense enum additively, verifies the values, then writes metadata last", async () => {
+    const clients = recordingClients(completeColumnsWithLegacyExpenseCategories(), completeIndexes());
+    const plan: SchemaPlan = {
+      databaseExists: true, createDatabase: false, tables: [], existingCompleteTables: [],
+      bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
+      metadataRowVersion: 8, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
+      safeStringCapacityIncreases: [],
+      safeEnumElementExpansions: [{
+        tableId: "expenses",
+        columnKey: "iconCategory",
+        fromElements: ["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"],
+        toElements: ["internet", "electricity", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "loan", "others"],
+        required: false,
+      }],
+    };
+    await applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 50 });
+    expect(clients.calls).toContain("col:enum-expand:expenses.iconCategory:12");
     expect(clients.calls.at(-1)).toBe(`row:${SCHEMA_METADATA_ROW_ID}`);
   });
 
@@ -210,6 +254,7 @@ describe("schema bootstrap applier", () => {
       bucketExists: true, createBucket: false, functionExists: true, createFunction: false,
       metadataRowVersion: 4, createMetadataRow: true, provisioning: [], errors: [], drifts: [],
       safeStringCapacityIncreases: [{ tableId: "profiles", columnKey: "displayName", fromSize: 64, toSize: 16_383, required: true }],
+      safeEnumElementExpansions: [],
     };
     await expect(applySchemaPlan(plan, clients, { dryRun: false, pollIntervalMs: 1, barrierTimeoutMs: 5 })).rejects.toThrow(/profiles\.displayName/);
     expect(clients.calls).not.toContain(`row:${SCHEMA_METADATA_ROW_ID}`);

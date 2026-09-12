@@ -78,6 +78,9 @@ export async function applySchemaPlan(
     for (const operation of plan.safeStringCapacityIncreases) {
       performed.push(`column:widen ${operation.tableId}.${operation.columnKey} (string ${operation.fromSize} -> ${operation.toSize})`);
     }
+    for (const operation of plan.safeEnumElementExpansions) {
+      performed.push(`column:enum-expand ${operation.tableId}.${operation.columnKey} (${operation.fromElements.length} -> ${operation.toElements.length})`);
+    }
     for (const entry of plan.tables) {
       performed.push(`table:create ${entry.table.id} (${entry.columns.length} columns, ${entry.indexes.length} indexes)`);
       for (const column of entry.columns) performed.push(`column:create ${entry.table.id}.${column.key} (${column.kind})`);
@@ -153,6 +156,30 @@ export async function applySchemaPlan(
     });
   }
 
+  async function enumElementExpansionBarrier(tableId: string, columnKey: string, expectedElements: readonly string[]): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastStatus: string | undefined;
+    let lastElements: readonly string[] | undefined;
+    while (Date.now() < deadline) {
+      const response = (await clients.tablesDB.listColumns({ databaseId: DATABASE_ID, tableId })) as {
+        columns: { key: string; status?: string; elements?: string[] }[];
+      };
+      const column = response.columns.find((candidate) => candidate.key === columnKey);
+      lastStatus = column?.status;
+      lastElements = column?.elements;
+      assertNotFatal("column", `${tableId}.${columnKey}`, lastStatus);
+      if (lastStatus === COLUMN_AVAILABLE &&
+        lastElements !== undefined &&
+        lastElements.length === expectedElements.length &&
+        lastElements.every((element, index) => element === expectedElements[index])) return;
+      await wait(intervalMs);
+    }
+    throw new BootstrapProvisioningTimeoutError("enum-elements", `${tableId}.${columnKey}`, {
+      status: lastStatus,
+      elements: lastElements?.join(","),
+    });
+  }
+
   async function listOrEmpty<T>(call: () => Promise<T>, empty: T): Promise<T> {
     try {
       return await call();
@@ -177,6 +204,20 @@ export async function applySchemaPlan(
     });
     performed.push(`column:widen ${operation.tableId}.${operation.columnKey} (${operation.fromSize} -> ${operation.toSize})`);
     await stringCapacityBarrier(operation.tableId, operation.columnKey, operation.toSize);
+  }
+  for (const operation of plan.safeEnumElementExpansions) {
+    await clients.tablesDB.updateEnumColumn({
+      databaseId: DATABASE_ID,
+      tableId: operation.tableId,
+      key: operation.columnKey,
+      elements: [...operation.toElements],
+      // Appwrite's SDK types omit null even though the API requires an explicit
+      // null default to preserve an optional enum column's existing semantics.
+      xdefault: null as unknown as string,
+      required: operation.required,
+    });
+    performed.push(`column:enum-expand ${operation.tableId}.${operation.columnKey} (${operation.fromElements.length} -> ${operation.toElements.length})`);
+    await enumElementExpansionBarrier(operation.tableId, operation.columnKey, operation.toElements);
   }
   for (const entry of plan.tables) {
     if (!entry.tableExists) {

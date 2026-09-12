@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 export function AuthShell({ title, description, children }: Readonly<{ title: string; description: string; children: ReactNode }>) {
@@ -6,7 +7,15 @@ export function AuthShell({ title, description, children }: Readonly<{ title: st
     <main className="grid min-h-dvh place-items-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <span aria-hidden="true" className="mx-auto mb-4 flex size-12 items-center justify-center rounded-[14px] bg-foreground text-lg font-semibold text-white">H</span>
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="mx-auto mb-4 size-12 rounded-[14px]"
+            height={48}
+            priority
+            src="/house-finance-logo.png"
+            width={48}
+          />
           <h1 className="text-h2 font-semibold">{title}</h1>
           <p className="mt-1 text-body text-text-secondary">{description}</p>
         </div>

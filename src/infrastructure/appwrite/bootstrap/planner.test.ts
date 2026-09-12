@@ -56,6 +56,8 @@ function readerFrom(state: {
 }
 
 const EMPTY_STATE = readerFrom({});
+const LEGACY_EXPENSE_CATEGORIES = ["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"];
+const V9_EXPENSE_CATEGORIES = ["internet", "electricity", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "loan", "others"];
 
 describe("schema bootstrap planner", () => {
   it("plans every resource as a create against an empty project", async () => {
@@ -129,6 +131,35 @@ describe("schema bootstrap planner", () => {
     expect(plan.tables).toEqual([]);
     expect(plan.drifts).toEqual([]);
     expect(plan.createMetadataRow).toBe(false);
+  });
+
+  it("plans the Expense enum as a safe additive expansion while preserving legacy order and values", async () => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.expenses = { columnOverrides: { iconCategory: { elements: LEGACY_EXPENSE_CATEGORIES } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 8 }));
+    expect(plan.safeEnumElementExpansions).toEqual([{
+      tableId: "expenses",
+      columnKey: "iconCategory",
+      fromElements: LEGACY_EXPENSE_CATEGORIES,
+      toElements: V9_EXPENSE_CATEGORIES,
+      required: false,
+    }]);
+    expect(plan.tables).toEqual([]);
+    expect(plan.drifts).toEqual([]);
+    expect(plan.createMetadataRow).toBe(true);
+    expect(plan.metadataRowVersion).toBe(8);
+  });
+
+  it.each([
+    ["an unknown legacy value", ["internet", "gas", "legacy", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "loan", "others"]],
+    ["a renamed legacy value", ["wifi", "electricity", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "loan", "others"]],
+    ["a reordered legacy value", ["gas", "electricity", "internet", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "loan", "others"]],
+  ])("refuses Expense enum expansion for %s", async (_case, elements) => {
+    const tables = Object.fromEntries(TABLES.map((table) => [table.id, {}]));
+    tables.expenses = { columnOverrides: { iconCategory: { elements } } };
+    const plan = await planSchemaApplication(readerFrom({ database: true, bucket: true, fn: true, tables, schemaVersion: 8 }));
+    expect(plan.safeEnumElementExpansions).toEqual([]);
+    expect(plan.drifts.join(" ")).toMatch(/expenses\.iconCategory.*elements do not exactly match.*refused/);
   });
 
   it("plans exactly the additive Profile avatar fields and metadata bump from clean Schema V5", async () => {

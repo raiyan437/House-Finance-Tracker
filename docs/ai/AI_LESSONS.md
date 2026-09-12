@@ -2,6 +2,11 @@
 
 Durable project learnings only. Add entries when a discovery or correction should influence future work.
 
+## 2026-09-13 — v1.5 Expense category assets and Schema V9
+
+- Supplied Flaticon pages must be checked individually: this set has multiple authors, every page currently reports free personal/commercial use with attribution required, and the visible SVG control is Premium-gated while the 512px PNG export is available for the free path. Bundle the exact local PNG exports only after the license check, strip non-visual metadata, and keep one Profile credit location linked to every source page.
+- Safe enum expansion is an explicitly authorized migration shape, not permission to accept arbitrary enum drift. The Schema V9 planner matches the exact V8 Expense `iconCategory` values, requires the desired V9 values to preserve their order, and refuses unknown, renamed, removed, reordered, type, and required-state changes before the metadata-last applier can run.
+
 ## 2026-08-12 — AIDOS initialization
 
 - The product requirements and UI/UX design are frozen, but their approved context is not present in the workspace yet.

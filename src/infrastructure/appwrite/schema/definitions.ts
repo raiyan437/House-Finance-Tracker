@@ -35,11 +35,25 @@ export const MAINTENANCE_FUNCTION_ID = "maintenance";
 export const MAINTENANCE_SCHEDULE = "0 0 * * *";
 export const MAINTENANCE_TIMEOUT_SECONDS = 300;
 /**
- * v8 (v1.4 In-App Notifications): adds only the recipient-scoped notification
- * table. V7 remains unchanged and all notification data is ephemeral.
+ * v9 (v1.5 Expense category icon refresh): expands only the existing optional
+ * Expense iconCategory enum with electricity and loan. Historical values and
+ * all other Schema V8 resources remain unchanged.
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 export const SCHEMA_METADATA_ROW_ID = "active";
+export const EXPENSE_ICON_CATEGORY_ELEMENTS = Object.freeze([
+  "internet", "electricity", "gas", "groceries", "food", "entertainment",
+  "cigarettes", "pets", "repairs", "housing", "loan", "others",
+] as const);
+export const SAFE_ENUM_ELEMENT_EXPANSIONS = Object.freeze([
+  Object.freeze({
+    tableId: "expenses",
+    columnKey: "iconCategory",
+    fromElements: Object.freeze(["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"]),
+    toElements: EXPENSE_ICON_CATEGORY_ELEMENTS,
+    schemaVersion: 9,
+  }),
+]);
 export const PROFILE_DISPLAY_NAME_STORAGE_CAPACITY = 16_383;
 export const HOUSEHOLD_NAME_STORAGE_CAPACITY = 16_383;
 export const CARD_NAME_STORAGE_CAPACITY = 16_383;
@@ -173,7 +187,7 @@ export const TABLES: readonly TableDefinition[] = [
       text("payerId", 64, true),
       enumeration("splitMethod", ["equal", "amount", "percentage"], true),
       text("name", EXPENSE_NAME_STORAGE_CAPACITY, true),
-      enumeration("iconCategory", ["internet", "gas", "groceries", "food", "entertainment", "cigarettes", "pets", "repairs", "housing", "others"], false),
+      enumeration("iconCategory", EXPENSE_ICON_CATEGORY_ELEMENTS, false),
       enumeration("paymentMethod", ["cash", "card"], true),
       text("paymentRefJson", 512, true),
       text("allocationsJson", 1024, true),

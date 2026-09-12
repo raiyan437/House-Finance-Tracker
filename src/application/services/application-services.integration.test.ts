@@ -1506,15 +1506,15 @@ describe("Phase 4 application services with IndexedDB", () => {
     const created = await application.expenses.createExpense({
       householdId: SEEDED_HOUSEHOLD_ID,
       commandId: commandId("icon-create"),
-      name: "Pet food",
-      iconCategory: "pets",
+      name: "Electricity bill",
+      iconCategory: "electricity",
       amount: positivePoisha(100),
       expenseDate: expenseDate("2026-08-13"),
       splitMethod: "amount",
       allocations: [{ participantId: SEEDED_USER_IDS.raiyan, share: positivePoisha(100) }],
       payment: { method: "cash" },
     });
-    expect(created.expense.iconCategory).toBe("pets");
+    expect(created.expense.iconCategory).toBe("electricity");
 
     await db.add("settlements", toSettlementRecord(confirmedSettlementRecord("settlement-icon-lock", isoInstant("2026-08-13T12:00:00.000Z"))));
     const before = (await repositories.expenses.getById(expenseId("expense-groceries")))!;
@@ -1525,11 +1525,13 @@ describe("Phase 4 application services with IndexedDB", () => {
       await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
     );
     const recommendationsBefore = await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID);
+    const settlementsBefore = await db.getAll("settlements");
+    const notificationsBefore = await db.getAll("notifications");
     const edited = await application.expenses.editExpense({
       expenseId: before.expenseId,
       expectedRevision: before.revision,
       name: before.name,
-      iconCategory: "groceries",
+      iconCategory: "loan",
       amount: before.amount,
       expenseDate: before.expenseDate,
       splitMethod: before.splitMethod,
@@ -1537,7 +1539,7 @@ describe("Phase 4 application services with IndexedDB", () => {
       payment: { kind: "preserve" },
       commandId: commandId("icon-settled-edit"),
     });
-    expect(edited.expense.iconCategory).toBe("groceries");
+    expect(edited.expense.iconCategory).toBe("loan");
     expect(edited.expense.revision).toBe(before.revision + 1);
     expect(calculateHouseholdBalances(
       SEEDED_HOUSEHOLD_ID,
@@ -1546,6 +1548,8 @@ describe("Phase 4 application services with IndexedDB", () => {
       await repositories.settlements.listByHousehold(SEEDED_HOUSEHOLD_ID),
     )).toEqual(balancesBefore);
     expect(await application.settlements.recommendations(SEEDED_HOUSEHOLD_ID)).toEqual(recommendationsBefore);
+    expect(await db.getAll("settlements")).toEqual(settlementsBefore);
+    expect(await db.getAll("notifications")).toEqual(notificationsBefore);
   });
 
   it("creates append-only comments with trimmed bounds, idempotency, stable order, and derived counts without touching the Expense", async () => {

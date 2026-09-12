@@ -116,7 +116,7 @@ export interface ExpenseRecordV3 {
   creatorId: string;
   payerId: string;
   name: string;
-  iconCategory?: "internet" | "gas" | "groceries" | "food" | "entertainment" | "cigarettes" | "pets" | "repairs" | "housing" | "others";
+  iconCategory?: "internet" | "electricity" | "gas" | "groceries" | "food" | "entertainment" | "cigarettes" | "pets" | "repairs" | "housing" | "loan" | "others";
   amountPoisha: number;
   expenseDate: string;
   splitMethod: "equal" | "amount" | "percentage";

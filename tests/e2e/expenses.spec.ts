@@ -243,9 +243,9 @@ test("creates, edits, reloads, and lists semantic icons with append-only plain-t
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/expenses/new");
   const category = page.getByRole("group", { name: "Expense Category" });
-  await expect(category.getByRole("radio")).toHaveCount(10);
-  await expect(category.getByRole("radio", { name: "Others" })).toBeChecked();
-  await category.getByRole("radio", { name: "Pets" }).check();
+  await expect(category.getByRole("radio")).toHaveCount(12);
+  await expect(category.getByRole("radio", { name: "Other" })).toBeChecked();
+  await category.getByRole("radio", { name: "Pet" }).check();
   await page.getByLabel("Expense Name").fill("Cat supplies");
   await page.getByLabel("Amount (BDT)").fill("12.34");
   await selectExpenseDate(page, "2026-08-18");
@@ -253,7 +253,7 @@ test("creates, edits, reloads, and lists semantic icons with append-only plain-t
 
   await expect(page).toHaveURL(/\/expenses\//u);
   await expect(page.getByRole("heading", { name: "Cat supplies" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Pets category" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pet category" })).toBeVisible();
   const comments = page.getByRole("heading", { name: "Comments (0)" }).locator("..");
   const body = "<script>alert('no')</script>\nSecond line";
   await comments.getByLabel("Write a comment").fill(body);
@@ -270,21 +270,21 @@ test("creates, edits, reloads, and lists semantic icons with append-only plain-t
   expect(await longComment.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 
   await page.reload();
-  await expect(page.getByRole("img", { name: "Pets category" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pet category" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Comments (2)" })).toBeVisible();
   await expect(page.getByText(body)).toBeVisible();
 
   await page.getByRole("link", { name: "Edit" }).click();
-  await category.getByRole("radio", { name: "Repairs" }).check();
+  await category.getByRole("radio", { name: "Repair" }).check();
   await page.getByRole("button", { name: "Save Changes" }).click();
-  await expect(page.getByRole("img", { name: "Repairs category" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Repair category" })).toBeVisible();
 
   await page.getByRole("link", { name: "Back to expenses" }).click();
   await chooseSelectOption(page, "Month", "August 2026");
   const headings = page.locator('[aria-hidden="true"]').filter({ hasText: "Comments" }).first().locator("span");
   await expect(headings).toHaveText(["Expense", "Settlement", "Comments", "Date", "Paid By", "Payment", "Split", "Amount"]);
   const row = page.getByRole("listitem").filter({ hasText: "Cat supplies" });
-  await expect(row.getByRole("img", { name: "Repairs category" })).toBeVisible();
+  await expect(row.getByRole("img", { name: "Repair category" })).toBeVisible();
   await expect(row).toContainText("2");
 
   await insertConfirmedSettlement(page, "settlement-expense-status-ui", "2026-09-12T00:00:00.000Z");
@@ -409,12 +409,12 @@ for (const viewport of [
 
     await page.goto("/expenses/new");
     const category = page.getByRole("group", { name: "Expense Category" });
-    await expect(category.getByRole("radio")).toHaveCount(10);
-    for (const label of ["Internet", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pets", "Repairs", "Housing", "Others"]) {
+    await expect(category.getByRole("radio")).toHaveCount(12);
+    for (const label of ["Wifi", "Electricity", "Gas", "Groceries", "Food", "Entertainment", "Cigarettes", "Pet", "Repair", "Household", "Loan", "Other"]) {
       await expect(category.getByText(label, { exact: true })).toHaveCount(0);
     }
-    await category.getByRole("radio", { name: "Internet" }).focus();
-    await expect(page.getByRole("tooltip")).toHaveText("Internet");
+    await category.getByRole("radio", { name: "Wifi" }).focus();
+    await expect(page.getByRole("tooltip")).toHaveText("Wifi");
     const nameBounds = await page.getByLabel("Expense Name").boundingBox();
     const categoryBounds = await category.boundingBox();
     expect(nameBounds).not.toBeNull();
@@ -425,9 +425,9 @@ for (const viewport of [
     const strip = page.getByTestId("expense-category-scroll-strip");
     const selectorMetrics = await strip.evaluate((element) => {
       const row = element.firstElementChild as HTMLElement;
-      const input = row.querySelector<HTMLInputElement>('input[aria-label="Internet"]')!;
+      const input = row.querySelector<HTMLInputElement>('input[aria-label="Wifi"]')!;
       const button = input.closest("label") as HTMLElement;
-      const icon = button.querySelector("svg") as SVGElement;
+      const icon = button.querySelector("img") as HTMLImageElement;
       return {
         stripClientWidth: element.clientWidth,
         stripScrollWidth: element.scrollWidth,
@@ -445,16 +445,16 @@ for (const viewport of [
     expect(selectorMetrics.buttonWidth).toBeLessThanOrEqual(44);
     expect(selectorMetrics.buttonHeight).toBeGreaterThanOrEqual(40);
     expect(selectorMetrics.buttonHeight).toBeLessThanOrEqual(44);
-    expect(selectorMetrics.iconWidth).toBeGreaterThanOrEqual(18);
-    expect(selectorMetrics.iconWidth).toBeLessThanOrEqual(20);
-    expect(selectorMetrics.iconHeight).toBeGreaterThanOrEqual(18);
-    expect(selectorMetrics.iconHeight).toBeLessThanOrEqual(20);
+    expect(selectorMetrics.iconWidth).toBeGreaterThanOrEqual(22);
+    expect(selectorMetrics.iconWidth).toBeLessThanOrEqual(24);
+    expect(selectorMetrics.iconHeight).toBeGreaterThanOrEqual(22);
+    expect(selectorMetrics.iconHeight).toBeLessThanOrEqual(24);
     expect(selectorMetrics.pageOverflow).toBe(false);
     if (viewport.width <= 430) {
       expect(selectorMetrics.overflowX).toBe("auto");
       expect(selectorMetrics.stripScrollWidth).toBeGreaterThan(selectorMetrics.stripClientWidth);
       await strip.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
-      await expect(category.getByRole("radio", { name: "Others" })).toBeInViewport();
+      await expect(category.getByRole("radio", { name: "Other" })).toBeInViewport();
     }
     const dateTrigger = page.locator('[data-slot="date-picker-trigger"]');
     await expect(dateTrigger).toBeVisible();

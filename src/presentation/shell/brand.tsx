@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 type BrandProps = Omit<React.ComponentProps<typeof Link>, "href">;
@@ -20,9 +21,15 @@ export function Brand({ className, compact = false, ...props }: BrandPropsWithSt
       prefetch={false}
       {...props}
     >
-      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-foreground text-lg font-semibold text-white">
-        H
-      </span>
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="size-10 shrink-0 rounded-[12px]"
+        height={40}
+        priority
+        src="/house-finance-logo.png"
+        width={40}
+      />
       <span
         aria-hidden={compact}
         className={cn(
