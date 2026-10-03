@@ -7,6 +7,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/ui/password-field";
+import { requestJson } from "@/presentation/runtime/production-transport";
+import { ApplicationError } from "@/application/errors/application-error";
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required.").max(256, "Current password is too long."),
@@ -38,25 +40,19 @@ export function PasswordUpdateForm() {
       onSubmit={form.handleSubmit(async (values) => {
         setServerError(undefined);
         try {
-          const response = await fetch("/api/auth/password", {
+          await requestJson("/api/auth/password", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(values),
           });
-          const payload = (await response.json().catch(() => ({}))) as { error?: unknown };
-          if (!response.ok) {
-            if (response.status === 401) {
-              router.replace("/login");
-              return;
-            }
-            setServerError(typeof payload.error === "string" ? payload.error : "Password could not be updated. Please try again.");
-            form.setFocus("currentPassword");
-            return;
-          }
           router.replace("/login?passwordUpdated=1");
           router.refresh();
-        } catch {
-          setServerError("The service is temporarily unavailable. Please try again.");
+        } catch (error) {
+          if (error instanceof ApplicationError && error.code === "SESSION_UNAVAILABLE") {
+            router.replace("/login?sessionExpired=1");
+            return;
+          }
+          setServerError(error instanceof ApplicationError ? error.message : "The service is temporarily unavailable. Please try again.");
           form.setFocus("currentPassword");
         }
       })}

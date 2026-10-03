@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ApplicationError, BackdatedExpenseConfirmationRequiredError, ReceiptSagaPartialSuccessError, type ApplicationErrorCode } from "@/application/errors/application-error";
+import { ApplicationError, ReceiptSagaPartialSuccessError } from "@/application/errors/application-error";
 import type { ProductCapabilities } from "@/application/runtime-capabilities";
 import type { CalendarMonth } from "@/application/analytics/calendar-month";
-import { parseWithBigInt } from "@/application/transport/json-bigint";
+import { requestJson as transportJson, requestResponse, SESSION_EXPIRED_EVENT, FORBIDDEN_EVENT, BEFORE_WRITE_EVENT } from "@/presentation/runtime/production-transport";
+import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import type {
   CardPageView,
@@ -62,37 +63,6 @@ interface ProductionBootstrapPayload {
   readonly businessDate: string;
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(path, { ...init, headers: { accept: "application/json", ...(init?.headers ?? {}) } });
-  } catch {
-    throw Object.assign(new ApplicationError("PERSISTENCE_FAILURE", "The service is temporarily unavailable."), { status: 0 });
-  }
-  const text = await response.text();
-  const payload = text.length > 0 ? parseWithBigInt<{ data?: T; error?: string; code?: ApplicationErrorCode; confirmationToken?: string }>(text) : {};
-  if (!response.ok) {
-    if (payload.code === "BACKDATED_EXPENSE_CONFIRMATION_REQUIRED" && payload.confirmationToken) {
-      throw Object.assign(new BackdatedExpenseConfirmationRequiredError(payload.confirmationToken), { status: response.status });
-    }
-    const code =
-      payload.code ?? (response.status === 404 ? "NOT_FOUND"
-      : response.status === 409 ? "CONFLICT"
-      : response.status === 429 ? "RATE_LIMITED"
-      : response.status === 401 || response.status === 403 ? "SESSION_UNAVAILABLE"
-      : "PERSISTENCE_FAILURE");
-    throw Object.assign(
-      new ApplicationError(code, payload.error ?? "The service is temporarily unavailable."),
-      { status: response.status },
-    );
-  }
-  return (payload.data ?? payload) as T;
-}
-
-function isStatusFailure(error: unknown): error is Error & { status: number } {
-  return error instanceof Error && typeof (error as { status?: unknown }).status === "number";
-}
-
 function LoadingScreen() {
   return (
     <main className="grid min-h-dvh place-items-center bg-background" role="status" aria-label="Loading">
@@ -101,11 +71,11 @@ function LoadingScreen() {
   );
 }
 
-function AnonymousRedirect() {
+function AnonymousRedirect({ expired }: Readonly<{ expired: boolean }>) {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/login");
-  }, [router]);
+    router.replace(expired ? "/login?sessionExpired=1" : "/login");
+  }, [router, expired]);
   return <LoadingScreen />;
 }
 
@@ -125,10 +95,12 @@ function buildReadyState(
   bootstrap: ProductionBootstrapPayload,
   signOut: () => Promise<void>,
   refresh: () => Promise<void>,
+  requestJson: typeof transportJson,
+  readSignal: AbortSignal,
+  retryCommandIds: Map<string, string>,
 ): ApplicationRuntimeState {
   const { session, household, capabilities, businessDate } = bootstrap;
 
-  const retryCommandIds = new Map<string, string>();
   const postCommand = async (path: string, body: Record<string, unknown>): Promise<void> => {
     await requestJson(path, {
       method: "POST",
@@ -164,15 +136,15 @@ function buildReadyState(
         ...(receipt.originalFilename ? { "x-receipt-filename": encodeURIComponent(receipt.originalFilename) } : {}),
       },
       body,
-    });
+    }, { continuation: true });
   };
 
-  const removeReceipt = async (receiptIdValue: string, receiptCommandId: string): Promise<void> => {
+  const removeReceipt = async (receiptIdValue: string, receiptCommandId: string, continuation = false): Promise<void> => {
     await requestJson("/api/app/receipt-remove", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ receiptId: receiptIdValue, commandId: receiptCommandId }),
-    });
+    }, { continuation });
   };
 
   const finishReceiptSagas = async (
@@ -187,7 +159,7 @@ function buildReadyState(
       const receiptCommandId = removalCommandIds[receiptIdValue] ?? retryCommandIds.get(retryKey) ?? crypto.randomUUID();
       retryCommandIds.set(retryKey, receiptCommandId);
       try {
-        await removeReceipt(receiptIdValue, receiptCommandId);
+        await removeReceipt(receiptIdValue, receiptCommandId, true);
       } catch {
         failures += 1;
       }
@@ -204,14 +176,12 @@ function buildReadyState(
   };
 
   const readReceiptContent = async (receiptIdValue: string): Promise<ExpenseReceiptContent> => {
-    const response = await fetch(`/api/app/receipts/${encodeURIComponent(receiptIdValue)}/content`, {
+    const response = await requestResponse(`/api/app/receipts/${encodeURIComponent(receiptIdValue)}/content`, {
       headers: { accept: "image/jpeg, image/png, image/webp" },
       cache: "no-store",
-    });
+    }, { signal: readSignal });
     if (!response.ok) {
-      const text = await response.text();
-      const payload = text ? parseWithBigInt<{ error?: string; code?: ApplicationErrorCode }>(text) : {};
-      throw Object.assign(new ApplicationError(payload.code ?? "NOT_FOUND", payload.error ?? "Receipt not found."), { status: response.status });
+      throw Object.assign(new ApplicationError(response.status === 401 ? "SESSION_UNAVAILABLE" : "PERSISTENCE_FAILURE", response.status === 401 ? "Sign in to continue." : "Receipt could not be loaded. Please retry."), { status: response.status });
     }
     const mimeType = response.headers.get("content-type")?.split(";", 1)[0];
     if (mimeType !== "image/jpeg" && mimeType !== "image/png" && mimeType !== "image/webp") {
@@ -430,53 +400,127 @@ function buildReadyState(
 
 export function ProductionApplicationRuntime({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<ApplicationRuntimeState>({ status: "loading" });
-  const [anonymous, setAnonymous] = useState(false);
-  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
+  const [anonymous, setAnonymous] = useState<{ expired: boolean }>();
+  const [connection, setConnection] = useState<"checking" | "ready" | "unavailable">("checking");
+  const refreshRef = useRef<(saved?: boolean) => Promise<void>>(async () => undefined);
 
-  const refresh = useCallback(async () => {
-    try {
-      const bootstrap = await requestJson<ProductionBootstrapPayload>("/api/app/bootstrap");
-      const signOut = async () => {
-        try {
-          await fetch("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-        } catch {
-          // Even without remote confirmation, the local cookie is cleared by the endpoint.
-        }
-        setAnonymous(true);
-      };
-      setState(buildReadyState(bootstrap, signOut, () => refreshRef.current()));
-    } catch (error) {
-      if (isStatusFailure(error) && (error.status === 401 || error.status === 403)) {
-        setAnonymous(true);
-        return;
+  useEffect(() => {
+    let disposed = false;
+    let invalidated = false;
+    let hadReadyState = false;
+    let currentConnection: typeof connection = "checking";
+    let inFlight: Promise<void> | undefined;
+    let refreshAgain = false;
+    let savedAction = false;
+    let scheduled: ReturnType<typeof setTimeout> | undefined;
+    const readController = new AbortController();
+    const retryCommandIds = new Map<string, string>();
+    const live = () => !disposed && !invalidated;
+    const updateConnection = (next: typeof connection) => {
+      currentConnection = next;
+      if (live()) setConnection(next);
+    };
+    const invalidate = (expired: boolean) => {
+      if (!live()) return;
+      invalidated = true;
+      readController.abort();
+      clearTimeout(scheduled);
+      retryCommandIds.clear();
+      setAnonymous({ expired });
+      setState({ status: "loading" });
+    };
+    const onExpired = () => invalidate(hadReadyState);
+    const onBeforeWrite = (event: Event) => {
+      if (!live() || currentConnection !== "ready") event.preventDefault();
+    };
+    const requestJson: typeof transportJson = (path, init, options) => transportJson(path, init, {
+      ...options,
+      ...((init?.method ?? "GET").toUpperCase() === "GET" ? { signal: readController.signal } : {}),
+    });
+    const signOut = async () => {
+      invalidate(false);
+      try {
+        await transportJson("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      } catch {
+        toast.warning("Signed out of this page. Remote sign-out could not be confirmed; retry signing out when connected.");
       }
-      setState({ status: "error", message: "Your data could not be loaded right now.", retry: () => void refreshRef.current() });
-    }
+    };
+    const refresh = (saved = false): Promise<void> => {
+      if (!live()) return Promise.resolve();
+      savedAction ||= saved;
+      if (inFlight) {
+        // A mutation may complete after an earlier focus check began.
+        refreshAgain ||= saved;
+        return inFlight;
+      }
+      clearTimeout(scheduled);
+      scheduled = undefined;
+      updateConnection("checking");
+      inFlight = (async () => {
+        do {
+          refreshAgain = false;
+          try {
+            const bootstrap = await requestJson<ProductionBootstrapPayload>("/api/app/bootstrap");
+            if (!live()) return;
+            hadReadyState = true;
+            setState(buildReadyState(bootstrap, signOut, () => refresh(true), requestJson, readController.signal, retryCommandIds));
+            updateConnection("ready");
+          } catch {
+            if (!live()) return;
+            updateConnection("unavailable");
+            if (!hadReadyState) setState({ status: "error", message: "Your data could not be loaded right now.", retry: () => void refresh() });
+            if (savedAction) toast.warning("Your action was saved, but the view could not refresh. Retry the connection to load the current state.");
+          }
+        } while (refreshAgain && live());
+        savedAction = false;
+      })().finally(() => { inFlight = undefined; });
+      return inFlight;
+    };
+    const scheduleRefresh = () => {
+      if (!live() || document.visibilityState === "hidden" || inFlight || scheduled !== undefined) return;
+      updateConnection("checking");
+      scheduled = setTimeout(() => { scheduled = undefined; void refresh(); }, 500);
+    };
+    const onForbidden = (event: Event) => {
+      if ((event as CustomEvent<{ path: string }>).detail?.path !== "/api/app/bootstrap") scheduleRefresh();
+    };
+    refreshRef.current = refresh;
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    window.addEventListener(BEFORE_WRITE_EVENT, onBeforeWrite);
+    window.addEventListener(FORBIDDEN_EVENT, onForbidden);
+    window.addEventListener("focus", scheduleRefresh);
+    window.addEventListener("pageshow", scheduleRefresh);
+    window.addEventListener("online", scheduleRefresh);
+    document.addEventListener("visibilitychange", scheduleRefresh);
+    void refresh();
+    return () => {
+      disposed = true;
+      readController.abort();
+      clearTimeout(scheduled);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+      window.removeEventListener(BEFORE_WRITE_EVENT, onBeforeWrite);
+      window.removeEventListener(FORBIDDEN_EVENT, onForbidden);
+      window.removeEventListener("focus", scheduleRefresh);
+      window.removeEventListener("pageshow", scheduleRefresh);
+      window.removeEventListener("online", scheduleRefresh);
+      document.removeEventListener("visibilitychange", scheduleRefresh);
+    };
   }, []);
 
-  useEffect(() => {
-    refreshRef.current = refresh;
-  }, [refresh]);
-
-  useEffect(() => {
-    void refresh();
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [refresh]);
-
-  if (anonymous) return <AnonymousRedirect />;
-
-  if (state.status === "error") {
-    return <UnavailableScreen onRetry={() => void refresh()} />;
-  }
-
+  if (anonymous) return <AnonymousRedirect expired={anonymous.expired} />;
+  if (state.status === "error") return <UnavailableScreen onRetry={() => void refreshRef.current()} />;
   if (state.status !== "ready") return <LoadingScreen />;
 
   return (
     <ApplicationRuntimeProvider value={state}>
       <DevelopmentToolsSlotsProvider value={undefined}>
-        <AppShell>{children}</AppShell>
+        <AppShell>
+          {connection !== "ready" ? <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-secondary px-4 py-3 text-sm" role="status" aria-live="polite">
+            <p>{connection === "checking" ? "Checking your connection. Please wait before saving." : "Connection unavailable. Your draft is still here. Reconnect before saving."}</p>
+            {connection === "unavailable" ? <Button type="button" variant="outline" onClick={() => void refreshRef.current()}>Retry connection</Button> : null}
+          </div> : null}
+          {children}
+        </AppShell>
       </DevelopmentToolsSlotsProvider>
       <Toaster closeButton position="top-right" richColors />
     </ApplicationRuntimeProvider>

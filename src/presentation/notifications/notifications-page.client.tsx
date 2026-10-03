@@ -10,6 +10,9 @@ import { notificationHref } from "@/application/notifications/notification-route
 import type { NotificationPageView, NotificationView } from "@/domain/notifications/notification-types";
 import { expenseId } from "@/domain/shared/identifiers";
 import { formatNotificationTimestamp, NotificationIcon, notificationStatusLabel } from "./notification-display";
+import { toast } from "sonner";
+import { ApplicationError } from "@/application/errors/application-error";
+import { userErrorMessage } from "@/presentation/errors/user-error-message";
 
 export function NotificationsPageClient() {
   const router = useRouter();
@@ -74,12 +77,20 @@ export function NotificationsPageClient() {
   };
 
   const openNotification = async (notification: NotificationView) => {
-    if (!notification.readAt && actions) await actions.markRead(notification.notificationId).catch(() => undefined);
+    if (!notification.readAt && actions) {
+      try {
+        await actions.markRead(notification.notificationId);
+      } catch (error) {
+        toast.error(userErrorMessage(error, "Notification could not be marked as read. Please retry."));
+        return;
+      }
+    }
     let href = notificationHref(notification);
     if (notification.entityId && (notification.entityType === "expense" || notification.entityType === "expense-comment" || notification.entityType === "receipt") && runtime.status === "ready") {
       try {
         await runtime.expenseActions.getExpense(expenseId(notification.entityId));
-      } catch {
+      } catch (error) {
+        if (error instanceof ApplicationError && error.code === "SESSION_UNAVAILABLE") return;
         href = "/expenses";
       }
     }

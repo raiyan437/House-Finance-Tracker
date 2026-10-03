@@ -2,6 +2,10 @@
 
 ## Status and authorization
 
+### Session and idle-return resilience — implemented, release withheld by owner
+
+The owner authorized implementation according to [SESSION_RESILIENCE_PLAN.md](SESSION_RESILIENCE_PLAN.md) on 2026-10-03. S1-S4 implement centralized protected-request 401 handling, 403/session distinction, bounded safe-read recovery, coalesced tab-resume checks, race protection, draft retention, and preserved mutation/Receipt outcomes. After an unpatched dependency advisory was identified, the owner explicitly selected "Keep the strict audit gate; prepare the fixes without deploying". That instruction withholds S5: prepare a reviewable branch/draft PR but do not merge or deploy. The audit command remains unchanged and reports eight inherited high-severity entries from the single unpatched braces advisory. Session duration, financial rules, schema, provider permissions, and production business data remain unchanged; final verification is in progress.
+
 ### v1.5.0 Expense category icon refresh — production release complete
 
 **Owner-requested controlled UI/category phase (2026-09-13).** The final ordered set is Wifi, Electricity, Gas, Groceries, Food, Entertainment, Cigarettes, Pet, Repair, Household, Loan, Other. Persisted historical keys remain `internet`, `gas`, `groceries`, `food`, `entertainment`, `cigarettes`, `pets`, `repairs`, `housing`, and `others`; only `electricity` and `loan` are new semantic values. Category remains non-financial metadata, category-only edits remain notification-silent, and no Expense, Settlement, comment, Receipt, Household, authentication, privacy, or notification rule changes are authorized.

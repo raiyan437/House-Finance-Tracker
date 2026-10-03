@@ -194,7 +194,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
         participantIds: nextMembers
           .filter((member) => member.status === "active")
           .map((member) => member.userId),
-      });
+      }, { keepDirtyValues: true });
       setLoading(false);
       return;
     }
@@ -235,7 +235,7 @@ export function ExpenseFormPageClient({ mode, expenseId }: ExpenseFormPageClient
     );
     if (!isCurrent() || completeReceiptPreviews.length !== receiptPreviews.length) return;
     setExistingReceipts(completeReceiptPreviews);
-    form.reset(editFormValues(view));
+    form.reset(editFormValues(view), { keepDirtyValues: true });
     setLoading(false);
   }, [expenseId, form, household, mode, runtime]);
 
