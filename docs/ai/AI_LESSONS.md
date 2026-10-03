@@ -1,5 +1,10 @@
 # AI Lessons
 
+## 2026-10-03 — Unpatched tooling dependency remediation
+
+- An unpatched advisory cannot be resolved by changing audit severity, impersonating a patched upstream version, or applying a forced downgrade that changes CSS/lint behavior. When retaining a small licensed local fork, identify its source and private identity, patch every recursive entry point and direct-library path, retain licensing, prove exploit rejection and ordinary caller compatibility, and document removal when upstream is patched.
+- npm local-file overrides need a canonical root dependency reference (`braces: "$braces"` plus the local file dependency). Verify the lockfile and a clean install: a relative override alone can produce a nested unresolved vendor link rather than the intended root source. Keep the unchanged strict audit plus security regressions as separate gates.
+
 ## 2026-10-03 - Session and idle-return recovery
 
 - Session invalidation belongs at the protected transport boundary, including binary reads and password updates. A 401 must invalidate mounted private UI immediately; a 403 is not proof of expiry, and provider/network failures must not clear a valid session.

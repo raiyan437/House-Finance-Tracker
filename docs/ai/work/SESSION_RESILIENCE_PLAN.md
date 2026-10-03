@@ -1,13 +1,13 @@
 # Session and idle-return resilience plan
 
 Date: 2026-10-03 (Asia/Dhaka)
-Status: S1-S4 implemented; local verification complete; Ubuntu cross-browser CI passes 27/27, while verification CI remains blocked by the strict audit. S5 deployment explicitly withheld by the owner on 2026-10-03 because the strict dependency audit gate remains red.
+Status: S1-S4 implemented. The owner subsequently authorized autonomous dependency remediation and production delivery once every release gate passes. Strict audit remains unchanged. A local bounded braces fork is under security/compatibility verification before S5.
 
 ## Outcome and scope
 
 Returning after inactivity must either restore a usable authenticated application, clearly request sign-in when the session is invalid, or show a recoverable connectivity state. Buttons must not silently fail or remain pending indefinitely. Temporary failures must not be presented as session expiry or cause duplicate financial actions.
 
-This is one owner-authorized maintenance phase, split into the ordered slices below. The owner initially authorized implementation and delivery on 2026-10-03, then explicitly selected "Keep the strict audit gate; prepare the fixes without deploying" after the unresolved dependency advisory was identified. That later instruction supersedes release authorization: prepare a reviewable branch/draft PR, keep the strict audit command unchanged, and do not merge or deploy. Update ACTIVE_PLAN and this document as verification completes.
+This is one owner-authorized maintenance phase, split into the ordered slices below. The owner initially withheld release pending the strict audit, then renewed conditional production authorization and explicitly requested autonomous resolution of all remaining blockers. Complete dependency remediation, retain the strict audit, verify regressions, and deliver S5 when all gates pass. No financial or provider behavior change is authorized.
 
 ## Evidence and remaining uncertainty
 
@@ -86,7 +86,7 @@ Exit: complete matrix green with no duplicate Expense, Settlement, comment, or R
 
 ## S5 — Separately authorized release and production acceptance
 
-Entry: all verification gates green and renewed owner release authorization. S5 is currently withheld by the owner's explicit strict-audit/no-deployment decision.
+Entry: all verification gates green. Renewed owner authorization covers S5 once those gates pass.
 
 Deploy using the existing zero-cost workflow and retain the previous Ready deployment for rollback. Perform anonymous read-only smoke and, where authorized, authenticated read-only navigation/resume smoke. Compare first request after inactivity with subsequent requests and inspect sanitized diagnostics if available. Do not fabricate production business events or revoke a real user's session for testing.
 
@@ -94,7 +94,7 @@ If measured evidence identifies hosting timeout/cold-start or provider limits, p
 
 Exit: deployed acceptance recorded in PROJECT_STATE and ACTIVE_PLAN. Roll back on authentication loops, private-data exposure, duplicate actions, or loss of normal navigation; use the retained deployment rather than changing production data.
 
-## Release blocker and verification environment
+## Initial release blocker and verification environment (historical)
 
 The 2026-10-03 audit identified newly reported vulnerabilities in the existing dependency graph. Compatible updates include Next.js/eslint-config-next 16.3.8 and transitive fixes for brace-expansion, fast-uri, ip-address, and undici. The shadcn direct version remains 4.17.0; no forced downgrade, replacement library, or audit exception was applied.
 
@@ -105,3 +105,9 @@ Local Chromium verifies the recovery scenarios against production composition an
 Local final gate: full Vitest 885/885 across 113 files; architecture 16/16; ESLint, TypeScript, Next.js 16.3.8 production build, and whitespace check pass. Chromium production-composition recovery 9/9 and anonymous regression 3/3 pass. Recovery/Login Axe serious/critical findings are zero; reconnection status has no horizontal overflow at 360/390/430/768/1024/1440. Built-client server-secret/private-Storage-field marker scan is clean. Remaining audit: eight high entries, zero critical/moderate, all from the one unpatched braces advisory. No deployment, live Auth/business mutation, schema operation, or provider configuration change occurred.
 
 Ubuntu evidence: [CI run 37121009613](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/37121009613) passes recovery 27/27 (9 scenarios per browser). Its verify job passes lint, TypeScript, full tests and build, then fails only the strict dependency audit. Final local review additionally covers a stalled 403 body without retry or logout. A read-only production Login probe still returns the original page without the new expiry notice, confirming production is unchanged. Draft [PR #1](https://github.com/raiyan437/House-Finance-Tracker/pull/1) is the review artifact; no merge or production activation is authorized.
+
+## Authorized blocker remediation
+
+The subsequent owner instruction authorizes autonomous remediation and S5 once all gates pass. `vendor/bounded-braces` retains MIT-licensed upstream 3.0.3 runtime source and adds a fixed 128-level stack-safety ceiling across parser, direct AST walkers, parent traversal, append, and flatten. The root override points every braces consumer to that committed source, with an explicit private fork name rather than an invented upstream release version. Strict audit is unchanged, with no exception, filter, downgrade, or postinstall patch.
+
+The original deep-brace expansion reproduced native `RangeError: Maximum call stack size exceeded`. The installed fork rejects that trigger with bounded `SyntaxError`; 28 security/compatibility tests cover mixed/paren/unclosed nesting, public/direct APIs, deep/cyclic ASTs, safe depth boundaries, options, literals, ranges, and actual fast-glob/micromatch paths. An independent read-only boundary investigation and candidate review found no concrete surviving bypass or regression. Clean `npm ci --include=dev --ignore-scripts` passes with zero vulnerabilities; lint, TypeScript, Appwrite-composition production build, client sensitive-marker scan, whitespace, and local Chromium recovery/anonymous 12/12 pass. Full regression and fresh Ubuntu CI are the remaining gates before release.
