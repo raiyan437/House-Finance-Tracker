@@ -2,6 +2,10 @@
 
 ## Status and authorization
 
+### Session and idle-return resilience — implemented, dependency remediation and release authorized
+
+The owner authorized implementation according to [SESSION_RESILIENCE_PLAN.md](SESSION_RESILIENCE_PLAN.md) on 2026-10-03. S1-S4 implement centralized protected-request 401 handling, 403/session distinction, bounded safe-read recovery, coalesced tab-resume checks, race protection, draft retention, and preserved mutation/Receipt outcomes. After initially withholding release at the strict audit, the owner renewed production authorization conditional on all gates passing and explicitly requested autonomous resolution of remaining blockers. The current slice replaces vulnerable braces with a private MIT-licensed local fork of 3.0.3 that bounds parser nesting, recursive walkers, and ancestry/array recursion; it preserves ordinary tooling behavior and the unchanged strict audit. No forced downgrade or exception is permitted. Security reproduction, direct-library bypass, compatibility, clean-install, full regression, and Ubuntu browser gates precede S5. Session duration, financial rules, schema, provider permissions, and production business data remain unchanged. Previous application verification passed 885/885 Vitest, 16/16 architecture, lint, TypeScript, build, Chromium 12/12, and Ubuntu recovery 27/27. PR #1 remains the review artifact; production remains unchanged until release gates pass.
+
 ### v1.5.0 Expense category icon refresh — production release complete
 
 **Owner-requested controlled UI/category phase (2026-09-13).** The final ordered set is Wifi, Electricity, Gas, Groceries, Food, Entertainment, Cigarettes, Pet, Repair, Household, Loan, Other. Persisted historical keys remain `internet`, `gas`, `groceries`, `food`, `entertainment`, `cigarettes`, `pets`, `repairs`, `housing`, and `others`; only `electricity` and `loan` are new semantic values. Category remains non-financial metadata, category-only edits remain notification-silent, and no Expense, Settlement, comment, Receipt, Household, authentication, privacy, or notification rule changes are authorized.

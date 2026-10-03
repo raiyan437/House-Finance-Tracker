@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Retained upstream CommonJS source; exercised by dependency security tests.
+    "vendor/bounded-braces/**",
   ]),
 ]);
 

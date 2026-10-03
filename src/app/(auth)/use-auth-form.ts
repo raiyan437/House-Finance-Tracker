@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { requestJson } from "@/presentation/runtime/production-transport";
+import { ApplicationError } from "@/application/errors/application-error";
 
 export function useAuthForm() {
   const router = useRouter();
@@ -19,21 +21,17 @@ export function useAuthForm() {
       setPending(true);
       setError(undefined);
       try {
-        const response = await fetch(endpoint, {
+        const payload = await requestJson<Record<string, unknown>>(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-        if (!response.ok) {
-          setError(typeof payload.error === "string" ? payload.error : "Something went wrong. Please try again.");
-          onFailed?.(payload);
-          return;
-        }
         onDone?.(payload);
         router.refresh();
-      } catch {
-        setError("The service is temporarily unavailable. Please try again.");
+      } catch (error) {
+        const message = error instanceof ApplicationError ? error.message : "The service is temporarily unavailable. Please try again.";
+        setError(message);
+        onFailed?.(error instanceof ApplicationError ? (error as ApplicationError & { body?: Record<string, unknown> }).body ?? { error: message } : { error: message });
       } finally {
         setPending(false);
       }

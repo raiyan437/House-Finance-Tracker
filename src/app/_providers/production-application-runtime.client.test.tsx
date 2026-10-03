@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCTION_R2_CAPABILITIES } from "@/application/runtime-capabilities";
@@ -83,6 +83,115 @@ describe("production application runtime composition", () => {
     expect(screen.queryByText("SECRET_CHILDREN")).toBeNull();
   });
 
+  it("expires a ready session when an individual action returns 401", async () => {
+    currentPathname = "/household";
+    globalThis.fetch = vi.fn(async (path) => new Response(JSON.stringify(
+      String(path) === "/api/app/bootstrap" ? bootstrapPayload() : { error: "Sign in to continue." },
+    ), { status: String(path) === "/api/app/bootstrap" ? 200 : 401 }));
+    render(<ProductionApplicationRuntime><HouseholdCommandProbe /></ProductionApplicationRuntime>);
+    fireEvent.click(await screen.findByRole("button", { name: "create" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?sessionExpired=1"));
+    expect(screen.queryByRole("button", { name: "create" })).toBeNull();
+  });
+
+  it("keeps a mounted draft when resume checks fail and recovers through Retry", async () => {
+    currentPathname = "/household";
+    let unavailable = false;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(unavailable ? { error: "busy" } : bootstrapPayload()), { status: unavailable ? 503 : 200 }));
+    render(<ProductionApplicationRuntime><input aria-label="draft" defaultValue="" /></ProductionApplicationRuntime>);
+    fireEvent.change(await screen.findByLabelText("draft"), { target: { value: "unsaved" } });
+    unavailable = true;
+    fireEvent(window, new Event("pageshow"));
+    expect(await screen.findByText("Connection unavailable. Your draft is still here. Reconnect before saving.", {}, { timeout: 5000 })).toBeVisible();
+    expect(screen.getByLabelText("draft")).toHaveValue("unsaved");
+    unavailable = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Retry connection" })).toBeNull());
+    expect(screen.getByLabelText("draft")).toHaveValue("unsaved");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("coalesces resume events and blocks new writes while checking", async () => {
+    currentPathname = "/household";
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(bootstrapPayload())));
+    globalThis.fetch = fetch;
+    render(<ProductionApplicationRuntime><HouseholdCommandProbe /></ProductionApplicationRuntime>);
+    await screen.findByRole("button", { name: "create" });
+    fireEvent(window, new Event("focus"));
+    fireEvent(window, new Event("pageshow"));
+    fireEvent(document, new Event("visibilitychange"));
+    fireEvent.click(screen.getByRole("button", { name: "create" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2), { timeout: 2000 });
+    expect(fetch.mock.calls.every(([path]) => path === "/api/app/bootstrap")).toBe(true);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a valid-session 403 into a logout", async () => {
+    currentPathname = "/household";
+    const fetch = vi.fn(async (path) => new Response(JSON.stringify(String(path) === "/api/app/bootstrap" ? bootstrapPayload() : { error: "Not permitted." }), { status: String(path) === "/api/app/bootstrap" ? 200 : 403 }));
+    globalThis.fetch = fetch;
+    render(<ProductionApplicationRuntime><HouseholdCommandProbe /></ProductionApplicationRuntime>);
+    fireEvent.click(await screen.findByRole("button", { name: "create" }));
+    await waitFor(() => expect(fetch.mock.calls.filter(([path]) => String(path) === "/api/app/bootstrap")).toHaveLength(2));
+    expect(screen.getByRole("button", { name: "create" })).toBeVisible();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("cannot restore a late bootstrap after an action invalidates the session", async () => {
+    currentPathname = "/household";
+    let resolveBootstrap: (response: Response) => void = () => undefined;
+    let bootstrapCalls = 0;
+    globalThis.fetch = vi.fn(async (path) => {
+      if (String(path) !== "/api/app/bootstrap") return new Response("{}", { status: 401 });
+      if (++bootstrapCalls === 1) return new Response(JSON.stringify(bootstrapPayload()));
+      return new Promise<Response>((resolve) => { resolveBootstrap = resolve; });
+    });
+    render(<ProductionApplicationRuntime><ExpiredReadProbe /></ProductionApplicationRuntime>);
+    await screen.findByRole("button", { name: "read-session" });
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(bootstrapCalls).toBe(2));
+    fireEvent.click(screen.getByRole("button", { name: "read-session" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?sessionExpired=1"));
+    resolveBootstrap(new Response(JSON.stringify(bootstrapPayload())));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("button", { name: "read-session" })).toBeNull();
+  });
+
+  it("retains the generated command ID after a lost response and focus recovery", async () => {
+    currentPathname = "/household";
+    const bodies: string[] = [];
+    globalThis.fetch = vi.fn(async (path, init) => {
+      if (String(path) === "/api/app/bootstrap") return new Response(JSON.stringify(bootstrapPayload()));
+      bodies.push(String(init?.body));
+      if (bodies.length === 1) throw new TypeError("response lost");
+      return new Response('{"data":null}');
+    });
+    render(<ProductionApplicationRuntime><HouseholdCommandProbe /></ProductionApplicationRuntime>);
+    fireEvent.click(await screen.findByRole("button", { name: "rename" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(screen.queryByText("Checking your connection. Please wait before saving.")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "rename" }));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[0]).toBe(bodies[1]);
+  });
+
+  it("keeps a successful command successful when its following refresh is unavailable", async () => {
+    currentPathname = "/household";
+    let bootstrapCalls = 0;
+    let commands = 0;
+    globalThis.fetch = vi.fn(async (path) => {
+      if (String(path) !== "/api/app/bootstrap") { commands += 1; return new Response('{"data":null}'); }
+      const ready = ++bootstrapCalls === 1;
+      return new Response(JSON.stringify(ready ? bootstrapPayload() : { error: "busy" }), { status: ready ? 200 : 503 });
+    });
+    render(<ProductionApplicationRuntime><SavedCommandProbe /></ProductionApplicationRuntime>);
+    fireEvent.click(await screen.findByRole("button", { name: "save-command" }));
+    expect(await screen.findByText("command-saved", {}, { timeout: 4000 })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry connection" })).toBeVisible();
+    expect(commands).toBe(1);
+  });
+
   it("shows a retrying unavailable state when the data plane cannot be reached", async () => {
     const failing = vi.fn().mockRejectedValue(new TypeError("network down"));
     globalThis.fetch = failing as unknown as typeof fetch;
@@ -91,7 +200,7 @@ describe("production application runtime composition", () => {
         <div>CHILD</div>
       </ProductionApplicationRuntime>,
     );
-    expect(await screen.findByText("Service temporarily unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("Service temporarily unavailable", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(failing).toHaveBeenCalled();
 
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(bootstrapPayload()), { status: 200 }));
@@ -282,4 +391,17 @@ function HouseholdCommandProbe() {
 function fireEventClickRetry(): void {
   const retry = screen.getByRole("button", { name: "Retry" });
   retry.click();
+}
+
+function ExpiredReadProbe() {
+  const runtime = useApplicationRuntime();
+  if (runtime.status !== "ready") return null;
+  return <button onClick={() => void runtime.householdActions.generateCode().catch(() => undefined)}>read-session</button>;
+}
+
+function SavedCommandProbe() {
+  const runtime = useApplicationRuntime();
+  const [saved, setSaved] = useState(false);
+  if (runtime.status !== "ready") return null;
+  return <><button onClick={() => void runtime.householdActions.renameHousehold("Saved").then(() => setSaved(true))}>save-command</button>{saved ? <span>command-saved</span> : null}</>;
 }

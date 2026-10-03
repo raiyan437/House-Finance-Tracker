@@ -36,7 +36,7 @@ function ReadyDisplayNameForm({ runtime }: Readonly<{ runtime: Extract<ReturnTyp
     defaultValues: { displayName: runtime.session.displayName },
   });
   useEffect(() => {
-    form.reset({ displayName: runtime.session.displayName });
+    form.reset({ displayName: runtime.session.displayName }, { keepDirtyValues: true });
   }, [form, runtime.session.displayName, runtime.session.profileVersion]);
 
   return (

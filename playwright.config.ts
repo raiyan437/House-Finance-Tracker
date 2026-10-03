@@ -21,17 +21,19 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous)\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous|session-resilience)\.spec\.ts/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous)\.spec\.ts/,
+      testMatch: /(cross-browser-smoke|auth-live|r1-anonymous|session-resilience)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],
   webServer: deployedBaseURL ? undefined : {
-    command: "npm run dev -- --hostname 127.0.0.1",
+    command: process.env.SESSION_RESILIENCE_E2E === "1"
+      ? "npm run start -- --hostname 127.0.0.1"
+      : "npm run dev -- --hostname 127.0.0.1",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

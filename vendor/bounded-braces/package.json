@@ -1,0 +1,21 @@
+{
+  "name": "@house-finance-tracker/bounded-braces",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local MIT-licensed braces 3.0.3 fork with bounded recursion; see README.md",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=8"
+  },
+  "dependencies": {
+    "fill-range": "^7.1.1"
+  }
+}
