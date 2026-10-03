@@ -75,6 +75,10 @@ export async function requestResponse(path: string, init?: RequestInit, options:
         return new Response(bytes.byteLength ? bytes : null, { status: response.status, statusText: response.statusText, headers: response.headers });
       }
     } catch {
+      // A known denial must keep its HTTP meaning even if its body is lost.
+      if (!outerSignal?.aborted && response && !response.ok && (!read || ![502, 503, 504].includes(response.status))) {
+        return new Response(null, { status: response.status });
+      }
       if (outerSignal?.aborted || !read || attempt >= RETRY_DELAYS.length) throw unavailable(read);
     } finally { clearTimeout(timer); }
     if (outerSignal?.aborted || Date.now() >= deadline) throw unavailable(read);

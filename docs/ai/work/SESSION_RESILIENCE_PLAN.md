@@ -1,7 +1,7 @@
 # Session and idle-return resilience plan
 
 Date: 2026-10-03 (Asia/Dhaka)
-Status: S1-S4 implemented; local verification complete and Ubuntu cross-browser CI pending. S5 deployment explicitly withheld by the owner on 2026-10-03 because the strict dependency audit gate remains red.
+Status: S1-S4 implemented; local verification complete; Ubuntu cross-browser CI passes 27/27, while verification CI remains blocked by the strict audit. S5 deployment explicitly withheld by the owner on 2026-10-03 because the strict dependency audit gate remains red.
 
 ## Outcome and scope
 
@@ -102,4 +102,6 @@ The remaining audit has eight inherited high-severity entries, all rooted in [GH
 
 Local Chromium verifies the recovery scenarios against production composition and API fixtures. Firefox and WebKit cannot launch on this Windows host: dependency validation reports mozglue.dll, icuin77.dll, and libsharpyuv.dll despite a fresh isolated download containing those files. agent-browser is explicitly blocked by Device Guard; it was not bypassed. A separate public-repository GitHub Actions job runs the fixture-only recovery suite against Chromium/Firefox/WebKit on Ubuntu with no production credentials or business mutations.
 
-Local final gate: full Vitest 884/884 across 113 files; architecture 16/16; ESLint, TypeScript, Next.js 16.3.8 production build, and whitespace check pass. Chromium production-composition recovery 9/9 and anonymous regression 3/3 pass. Recovery/Login Axe serious/critical findings are zero; reconnection status has no horizontal overflow at 360/390/430/768/1024/1440. Built-client server-secret/private-Storage-field marker scan is clean. Remaining audit: eight high entries, zero critical/moderate, all from the one unpatched braces advisory. No deployment, live Auth/business mutation, schema operation, or provider configuration change occurred.
+Local final gate: full Vitest 885/885 across 113 files; architecture 16/16; ESLint, TypeScript, Next.js 16.3.8 production build, and whitespace check pass. Chromium production-composition recovery 9/9 and anonymous regression 3/3 pass. Recovery/Login Axe serious/critical findings are zero; reconnection status has no horizontal overflow at 360/390/430/768/1024/1440. Built-client server-secret/private-Storage-field marker scan is clean. Remaining audit: eight high entries, zero critical/moderate, all from the one unpatched braces advisory. No deployment, live Auth/business mutation, schema operation, or provider configuration change occurred.
+
+Ubuntu evidence: [CI run 37121009613](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/37121009613) passes recovery 27/27 (9 scenarios per browser). Its verify job passes lint, TypeScript, full tests and build, then fails only the strict dependency audit. Final local review additionally covers a stalled 403 body without retry or logout. A read-only production Login probe still returns the original page without the new expiry notice, confirming production is unchanged. Draft [PR #1](https://github.com/raiyan437/House-Finance-Tracker/pull/1) is the review artifact; no merge or production activation is authorized.

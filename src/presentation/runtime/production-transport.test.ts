@@ -61,6 +61,15 @@ describe("production transport recovery", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry a denial when its body stalls", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 403 }));
+    vi.stubGlobal("fetch", fetch);
+    const result = expect(requestJson("/api/app/test")).rejects.toMatchObject({ status: 403, code: "COMMANDS_UNAVAILABLE" });
+    await vi.advanceTimersByTimeAsync(35_000);
+    await result;
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("bounds all GET attempts by the 45-second total deadline", async () => {
     const fetch = vi.fn(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetch);
