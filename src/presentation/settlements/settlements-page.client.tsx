@@ -281,7 +281,7 @@ export function SettlementsPageClient() {
       <PageHeader title="Settlements" description="Review your current position and record payments made outside House Finance Tracker." />
       <p aria-live="polite" className="sr-only" role="status">{feedback}</p>
 
-      <section aria-labelledby="settlement-summary-heading" className="space-y-4">
+      <section aria-labelledby="settlement-summary-heading" className="journey-group space-y-4">
         <h2 className="sr-only" id="settlement-summary-heading">Current financial position</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard label="You Owe" value={<MoneyValue aria-label="You Owe amount" value={view.summary.youOwe} />} />
@@ -289,6 +289,7 @@ export function SettlementsPageClient() {
         </div>
       </section>
 
+      <div className="journey-settlement-workflow grid gap-4 lg:grid-cols-2">
       <section aria-labelledby="settle-up-heading" className="space-y-4">
         <div><h2 className="panel-title" id="settle-up-heading">Settle Up</h2><p className="compact-caption mt-1 text-text-muted">Current recommendations are derived from household history.</p></div>
         {view.recommendations.length === 0 ? (
@@ -298,7 +299,7 @@ export function SettlementsPageClient() {
             <p className="mt-2 text-text-secondary">Nobody currently owes anything.</p>
           </Surface>
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
+          <ul className="grid gap-4">
             {view.recommendations.map((item) => (
               <RecommendationCard
                 actionsDisabled={!settlementMutationsEnabled}
@@ -320,7 +321,7 @@ export function SettlementsPageClient() {
       <section aria-labelledby="pending-heading" className="space-y-4">
         <div><h2 className="panel-title" id="pending-heading">Pending</h2><p className="compact-caption mt-1 text-text-muted">Payments waiting for confirmation or cancellation.</p></div>
         {view.pending.length === 0 ? <Surface><p className="text-text-secondary">No Pending payments involve you.</p></Surface> : (
-          <ul className="grid gap-4 lg:grid-cols-2">
+          <ul className="grid gap-4">
             {view.pending.map((item) => (
               <PendingCard
                 actionsDisabled={!settlementMutationsEnabled}
@@ -336,6 +337,7 @@ export function SettlementsPageClient() {
         )}
       </section>
 
+      </div>
       <section aria-labelledby="history-heading" className="space-y-4">
         <div><h2 className="panel-title" id="history-heading">History</h2><p className="compact-caption mt-1 text-text-muted">Completed household settlement records.</p></div>
         <History items={view.history} />

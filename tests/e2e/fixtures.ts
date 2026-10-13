@@ -157,6 +157,9 @@ async function seedBrowserDatabase(page: Page): Promise<void> {
 
 const test = base.extend({
   page: async ({ page }, applyFixture) => {
+    // Seeded dates must remain inside the frozen entry/retention windows as real time advances.
+    // Fixed Date values preserve running timers and normal event handling.
+    await page.clock.setFixedTime(new Date("2026-09-13T12:00:00.000Z"));
     await page.goto("/");
     await expect(page.locator('[data-slot="app-shell"]')).toHaveAttribute("data-runtime-state", "ready");
     await seedBrowserDatabase(page);

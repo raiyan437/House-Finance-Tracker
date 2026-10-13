@@ -10,9 +10,9 @@ export default async function LoginPage({ searchParams }: Readonly<{ searchParam
       {passwordUpdated ? <p className="mb-4 rounded-xl bg-success-soft px-4 py-3 text-sm text-success" role="status">Password updated successfully. Sign in with your new password.</p> : null}
       {params.sessionExpired === "1" ? <p className="mb-4 rounded-xl bg-secondary px-4 py-3 text-sm" role="status">Your session has expired. Please sign in again.</p> : null}
       <LoginForm />
-      <div className="mt-4 grid gap-2 text-center text-caption text-text-secondary sm:grid-cols-2 sm:text-left">
+      <div className="journey-auth-links mt-6 grid gap-5 text-center text-sm text-text-secondary">
         <Link href="/forgot-password" className="underline underline-offset-4">Forgot password?</Link>
-        <span className="sm:text-right">Don&apos;t have an account? <Link href="/signup" className="underline underline-offset-4">Sign up</Link></span>
+        <span className="border-t pt-6">Don&apos;t have an account? <Link href="/signup" className="font-semibold underline underline-offset-4">Sign up</Link></span>
       </div>
     </AuthShell>
   );

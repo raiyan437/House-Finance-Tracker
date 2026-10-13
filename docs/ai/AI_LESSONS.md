@@ -1,5 +1,31 @@
 # AI Lessons
 
+## 2026-10-12 — U3 independent shell alignment
+
+- Center header navigation with symmetric flexible side columns; measure its center independently of actual wordmark/account widths and check intrinsic text bounds at laptop/mobile widths. Center a sticky menu against the screen by accounting for header height; keep development controls separate and preserve reachability in short viewports.
+- When the owner removes duplicate rail Profile, retain identity/role descriptions on the header Profile control and move existing identity/authority selectors there. Wait for page-entry animation completion before measuring physical touch targets. No-overflow checks should reject positive width differences, allowing the negative difference produced by a reserved scrollbar gutter during navigation.
+
+## 2026-10-12 — U2 page motion and scrollbar polish
+
+- Reserve the viewport scrollbar gutter on short and long pages. When using Radix scroll locking, remove only redundant body-margin compensation under stable-gutter support; retain the real wheel/focus lock and verify panel/header geometry plus attempted background scrolling.
+- Entry animation must yield immediately to pointer/focus interaction. Animate the persistent arriving surface once, wait for loading content, retain opacity and native event delivery, and cancel the observer/animation on navigation or reduced-motion changes. Use instant native scrolling: global smooth scrolling moved Firefox click targets during automatic scroll-to-control; traced Household checks pass after removing it. Do not key financial forms or keep private exit snapshots.
+- New navigation/footer text can reveal substring-based test selectors (`Edit` also matches `Credits`). Use exact accessible control names or scoped roles, keeping financial/privacy assertions unchanged. Capture settled visual layouts with finite animations disabled only for screenshots; verify real motion separately.
+- Read installed Next.js conventions before adding fallback files. Root/fatal errors must use sanitized content; fatal errors need their own document/styles. Preserve existing `reset` semantics when restyling an existing error boundary. Keep attribution available separately when the owner removes it from Profile.
+
+## 2026-10-12 — Presentation redesign with preserved behavior
+
+- Compare redesign scope with a hashed starting working tree, not just HEAD, when approved maintenance is already uncommitted. Keep domain/application/persistence/API/runtime hashes unchanged and identify presentation/test/documentation changes separately.
+- Route motion is progressive enhancement: animate the arriving persistent surface, respect reduced motion, feature-detect browser animation/media APIs, and keep authorization clearing independent of animation. Do not key/remount drafts or retain private-content exit snapshots.
+- Update geometry/default-layout assertions when an appearance change is explicitly approved; keep financial, authority, persistence and keyboard assertions intact. The owner now requires a permanently compact rail: verify identity/role through the Profile link's accessible description and hover title, without restoring expansion controls. Visual captures must wait for both lazy-loaded charts, exclude focus changes introduced by accessibility instrumentation and return to the page top before full-page capture so fixed navigation/skip links are rendered at the intended origin.
+- Center constrained page containers with automatic inline margins and symmetric padding at every breakpoint. Keep mobile avatar notches below their headings; reduced-motion rules must not disable the static transforms required for centering. Moving navigation decoration must preserve native link navigation, active text contrast and keyboard focus; ignore ResizeObserver's unchanged initial notification so it does not cancel the selection animation.
+- A notification dropdown moved into a persistent shell must reset on viewer/Household access-context changes. Keep its existing recipient-filtered actions, use one instance, and isolate its reads in runtime-command unit fixtures while testing the real dropdown in intercepted browser journeys. Disable the development launcher when it covers mobile navigation; compile/runtime error reporting remains enabled.
+
+## 2026-10-11 — Maintenance and current-state reconciliation
+
+- Keep current status and execution authorization short and separate from dated checkpoint history. Preserve original evidence in linked archives, but do not treat historical pending states or approvals as current gates. Distinguish recorded production acceptance from a fresh live verification.
+- Split feature application services behind a stable public composition facade. Compare moved declaration bodies and public exports with the original source, check import cycles, and retain existing financial/privacy integration tests; module movement does not justify changing validation order or persistence behavior.
+- React component tests must wrap direct focus/click interactions and manually resolved asynchronous updates through Testing Library/act. Next Link doubles must consume framework-only props such as prefetch before spreading native anchor props. Fix the test boundary rather than silencing console warnings.
+
 ## 2026-10-03 — Unpatched tooling dependency remediation
 
 - An unpatched advisory cannot be resolved by changing audit severity, impersonating a patched upstream version, or applying a forced downgrade that changes CSS/lint behavior. When retaining a small licensed local fork, identify its source and private identity, patch every recursive entry point and direct-library path, retain licensing, prove exploit rejection and ordinary caller compatibility, and document removal when upstream is patched.
@@ -227,3 +253,33 @@ Durable project learnings only. Add entries when a discovery or correction shoul
 - Retention is a calendar policy, not a duration: calculate the first day of the current Dhaka month minus two calendar months once in the domain and reproduce that exact UTC boundary in maintenance. Read filtering remains authoritative while physical cleanup is resumable.
 - Household notifications are cached context, not permission. Always query by the server-derived recipient first, then suppress household-scoped rows for former members while allowing minimal account-scoped membership-change rows to remain visible. Store an existing safe parent entity id for comment/receipt deep links instead of leaking child/provider identifiers.
 - An explicit recipient rule deserves its own policy function even when it currently equals a broad audience: comment notifications add the authoritative active Expense creator first, then other active members except the commenter, through a Set. Mark-all read state is a naturally idempotent mutation, but still needs a hard provider batch ceiling, one server timestamp per request, and a retryable partial result so a 100-operation transaction limit never becomes a hidden scalability assumption.
+
+## 2026-10-11 - Maintenance, browser CI and measured history reads
+
+- Atomic adapter feature modules must share one internal context per adapter. Compare moved command bodies and public signatures, and preserve transaction stores, guard/OCC/idempotency ordering, rollback and diagnostic counters. Composition makes feature boundaries explicit without coupling application/domain logic to providers.
+- Expense form sections can move without moving hooks, registration, mutation state or Receipt URL ownership. Typed props and module-scoped components preserve the existing controls while making the sections readable independently.
+- Fixed-date financial fixtures need a fixed browser Date while timers continue normally. CI fixture journeys must require local composition, reject remote base URLs, and retain failure artifacts through global teardown. Browser clipboard permissions are engine-specific. Windows WebKit's IndexedDB Blob failure was reproduced separately; keep a narrow Windows Receipt skip and retain receipt-free percentage coverage plus the complete Linux CI journey.
+- A request-local Settlement index removes repeated history validation/scans from Expense lists while preserving whole-snapshot validation, strict-before comparisons and first-row tie behavior. Keep individual/mutation paths authoritative and compare optimized projections with the original scans. Record synthetic timing limits explicitly; provider request counts do not measure network latency or server limits.
+- A row-count cap must detect overflow before returning financial history. A loop stopping at exactly the cap paired with a later `count > cap` guard can silently truncate. The 5,001-to-5,000 synthetic reproduction and proposed fail-closed resolution are recorded in [HISTORY_READ_BENCHMARK_2026-10-11.md](work/HISTORY_READ_BENCHMARK_2026-10-11.md); changing overflow behavior needs separate owner approval.
+
+## 2026-10-12 - Dropdown dismissal and modal browser checks
+
+- Radix Presence keeps closed popup content mounted until its CSS exit animation ends. A measured 150ms dismissal wait can be removed by removing only closed-state animation utilities, preserving opening animation, modal semantics and existing focus/selection handlers.
+- Modal popups hide background triggers from accessibility queries while open. Capture trigger attributes/geometry before opening when testing native repeat-click dismissal. Nonmodal calendar triggers can use locator clicks, which account for focus-driven scroll and page-entry movement. Test real close paths and retained values rather than class names alone.
+
+## 2026-10-12 - Shared click motion and floating popup geometry
+
+- Keep floating-popup anchors stationary during press feedback. Radix Select uses the implicit popup semantics of `role="combobox"` without an explicit `aria-haspopup` attribute; checking only that attribute misses Select triggers. Applying scale to those triggers produced repeated WebKit ResizeObserver warnings during filtering. Highlight feedback for explicit popup/combobox triggers and menu items preserves animation without destabilizing anchor measurements. Test held pointer geometry, reduced motion, focus and real filter commands; do not suppress observer errors.
+
+## 2026-10-12 - Single metric counts and browser mutation completion
+
+- When removing repeated count text beneath a visible metric, expose the remaining number to assistive technology instead of leaving its former `aria-hidden` attribute in place.
+- A browser click resolves before an asynchronous command necessarily finishes. Await the existing success status before navigating away from Settlement confirmation; immediate navigation reproduced a stale pending count in WebKit, while the synchronized journey passes across all three engines.
+
+## 2026-10-12 - Optimization with protected production data
+
+- Record the current working tree, not only Git HEAD, before refactoring an uncommitted redesign. Compare protected business/persistence/API/runtime/operational hashes and preserve maintenance entry points that an import-only scan cannot discover.
+- Separate the UI scaffolding CLI from production dependencies. Import only the CSS states the generated components actually use; broad tooling styles can add unused global properties even when JavaScript tree-shaking works. Audit the full development graph as well as production, and use a fresh registry audit rather than treating offline cached results as current security evidence.
+- Maintain a fixture-only API barrier for intercepted production browser tests. Explicit fixtures override the abort route; unmocked calls never fall through to live handlers. Keep production-mode test servers separate from the local review port.
+- Verify chart labels as visible glyphs, not merely DOM text. Fixed card heights can clip them when mobile headers wrap; reclaiming internal padding and allowing intrinsic panel growth preserves full fonts and data. Transform native SVG glyph bounds into screen coordinates instead of including Firefox's extra screen-rectangle padding.
+- Keep the app source and test inputs stable during a broad browser run. Diagnose failed navigation/assertions with retained traces and isolated replays; fix selectors/synchronization while retaining financial, privacy and keyboard assertions. Document aggregate failures and corrected passes instead of claiming one uninterrupted green run.

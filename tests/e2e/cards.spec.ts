@@ -64,7 +64,7 @@ test("creates, edits, persists, and physically deletes a private Card", async ({
   expect(browserErrors).toEqual([]);
 });
 
-test("keeps Cards owner-private across identity changes and works without Household access", async ({ page }) => {
+test("keeps Cards owner-private across identity changes and works without Household access", { tag: "@critical" }, async ({ page }) => {
   await page.goto("/cards");
   await expect(page.getByText("Daily Debit", { exact: true })).toBeVisible();
   await expect(page.getByText("John Credit", { exact: true })).toHaveCount(0);
@@ -82,7 +82,7 @@ test("keeps Cards owner-private across identity changes and works without Househ
   await expect(page.getByText("Alex Private", { exact: true })).toHaveCount(0);
 });
 
-test("Card edits and archives never rewrite the owner's historical Expense snapshot", async ({ page }) => {
+test("Card edits and archives never rewrite the owner's historical Expense snapshot", { tag: "@critical" }, async ({ page }) => {
   await page.goto("/cards");
   await switchIdentity(page, "john");
   await page.getByRole("button", { name: /actions for john credit/i }).click();
@@ -108,7 +108,7 @@ test("Card edits and archives never rewrite the owner's historical Expense snaps
 
   await page.goto("/expenses/expense-internet");
   await expect(page.getByText(/John Credit.*credit.*Powder Blue/)).toBeVisible();
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
   const archivedCardSelect = page.getByRole("combobox", { name: "Your Card" });
   await expect(archivedCardSelect).toContainText("Keep John Credit (archived)");
   await archivedCardSelect.click();

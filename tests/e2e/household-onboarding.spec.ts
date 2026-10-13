@@ -20,6 +20,11 @@ async function cancelAlexPendingRequest(page: Page) {
   await expect(page.getByText("You aren't part of a household yet.")).toBeVisible();
 }
 
+async function verifyCompactProfile(page: Page) {
+  await expect(page.locator("#desktop-sidebar")).toHaveAttribute("data-sidebar-collapsed", "true");
+  await expect(page.locator('.journey-header a[href="/profile"]')).toBeVisible();
+}
+
 function collectBrowserErrors(page: Page) {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
@@ -57,7 +62,7 @@ test("guards only household-dependent routes for a Pending requester", async ({ 
   expectNoErrors();
 });
 
-test("creates a household with exact manual code and persists leader state after close and reopen", async ({ context, page }) => {
+test("creates a household with exact manual code and persists leader state after close and reopen", { tag: "@critical" }, async ({ context, page }) => {
   const expectNoErrors = collectBrowserErrors(page);
   await page.goto("/household");
   await switchIdentity(page, "alex");
@@ -71,8 +76,9 @@ test("creates a household with exact manual code and persists leader state after
   await page.getByRole("button", { name: "Create Household" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
-  await expect(page.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
+  await verifyCompactProfile(page);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Alex/);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Leader/);
   const persisted = await page.evaluate(async () => {
     const request = indexedDB.open("house-finance-tracker-local");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -99,8 +105,9 @@ test("creates a household with exact manual code and persists leader state after
   const reopened = await context.newPage();
   const expectNoReopenErrors = collectBrowserErrors(reopened);
   await reopened.goto("/dashboard");
-  await expect(reopened.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
-  await expect(reopened.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
+  await verifyCompactProfile(reopened);
+  await expect(reopened.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Alex/);
+  await expect(reopened.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Leader/);
   expectNoErrors();
   expectNoReopenErrors();
 });
@@ -132,7 +139,7 @@ test("validates lookup, exposes only minimal identity, sends a request, and pers
   expectNoErrors();
 });
 
-test("leader accepts atomically and the requester reconstructs active membership", async ({ page }) => {
+test("leader accepts atomically and the requester reconstructs active membership", { tag: "@critical" }, async ({ page }) => {
   const expectNoErrors = collectBrowserErrors(page);
   await page.goto("/household");
   await expect(page.getByRole("list", { name: "Pending join requests" })).toContainText("Alex");
@@ -142,10 +149,12 @@ test("leader accepts atomically and the requester reconstructs active membership
   await expect(page.getByText("No Pending join requests.")).toBeVisible();
 
   await switchIdentity(page, "alex");
-  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
+  await verifyCompactProfile(page);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Member/);
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('a[href="/profile"]').getByText("Alex", { exact: true })).toBeVisible();
+  await verifyCompactProfile(page);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Alex/);
   expectNoErrors();
 });
 

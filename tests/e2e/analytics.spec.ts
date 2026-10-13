@@ -55,8 +55,8 @@ test("Dashboard uses the selected Expense Date month while current financial sta
   await expect(outstanding).toContainText("You Are Owed");
   await expect(outstanding).toContainText("৳200.00");
   const health = page.locator('[data-slot="surface"]').filter({ hasText: /^Settlement Health/ });
-  await expect(health).toContainText("1 outstanding");
-  await expect(health).toContainText("1 pending");
+  await expect(health.locator(".journey-health-grid strong")).toHaveText(["1", "1"]);
+  await expect(health.locator(".journey-health-grid p")).toHaveText(["Outstanding", "Pending"]);
   await expect(page.getByRole("img", { name: /day 1 through day 31/i })).toBeVisible();
   await expect(page.getByText("Cash").first()).toBeVisible();
   const paymentMix = page.locator('[data-slot="surface"]').filter({ hasText: /^Payment Mix/ });
@@ -118,9 +118,11 @@ test("Dashboard reconstructs after Expense creation, Settlement confirmation, an
   const johnClaim = page.getByRole("listitem").filter({ hasText: "John says they paid you" });
   await johnClaim.getByRole("button", { name: /confirm receipt of payment from john/i }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Confirm Received" }).click();
+  await expect(page.locator('p[role="status"][aria-live="polite"]')).toHaveText("Payment confirmed and balances refreshed.");
   await dashboardReady(page);
   const health = page.locator('[data-slot="surface"]').filter({ hasText: /^Settlement Health/ });
-  await expect(health).toContainText("0 pending");
+  await expect(health.locator(".journey-health-grid > div").nth(1).locator("strong")).toHaveText("0");
+  await expect(health.locator(".journey-health-grid > div").nth(1).locator("p")).toHaveText("Pending");
 
   await page.getByTestId("development-tools-trigger").click();
   await page.getByTestId("development-identity-user-john").click();
@@ -151,7 +153,17 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
       const canvas = element.querySelector<HTMLElement>('[data-slot="daily-spending-chart-canvas"]');
       const ticks = [...element.querySelectorAll("svg text")];
       const bars = [...element.querySelectorAll(".recharts-bar-rectangle")];
-      const tickBoxes = ticks.map((tick) => tick.getBoundingClientRect());
+      // Measure SVG glyphs, excluding Firefox's extra screen-rectangle padding.
+      const tickBoxes = ticks.map((tick) => {
+        const text = tick as SVGTextElement;
+        const box = text.getBBox();
+        const matrix = text.getScreenCTM()!;
+        const left = new DOMPoint(box.x, box.y).matrixTransform(matrix).x;
+        const right = new DOMPoint(box.x + box.width, box.y).matrixTransform(matrix).x;
+        const bottom = new DOMPoint(box.x, box.y + box.height).matrixTransform(matrix).y;
+        return { left, right, bottom };
+      });
+      const panelBottom = element.closest('[data-slot="surface"]')!.getBoundingClientRect().bottom;
       const tickCenters = ticks.map(center).filter((value): value is number => value !== undefined);
       const barCenters = bars.map(center).filter((value): value is number => value !== undefined);
       return {
@@ -165,6 +177,7 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
           const next = tickBoxes[index + 1];
           return next !== undefined && next.left < box.right - 0.5;
         }),
+        labelsVerticallyClipped: tickBoxes.some((box) => box.bottom > panelBottom),
         pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     });
@@ -179,6 +192,7 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
     expect(Math.abs((measurements.finalTickCenter ?? 0) - (measurements.firstTickCenter ?? 0) - measurements.tickStep * 29)).toBeLessThanOrEqual(3);
     expect(measurements.barAlignmentDistances.every((distance) => distance <= 2)).toBe(true);
     expect(measurements.labelsOverlap, `date labels overlap at ${viewport.width}px`).toBe(false);
+    expect(measurements.labelsVerticallyClipped, `date labels are clipped at ${viewport.width}px`).toBe(false);
     await expect(labels.first()).toHaveText("1");
     await expect(labels.last()).toHaveText("30");
   }
@@ -207,7 +221,7 @@ test("Spending Trend uses the actual last day for every calendar month", async (
   }
 });
 
-test("Dashboard gives Spending Trend the full analytics width and places support cards below it", async ({ page }) => {
+test("Dashboard gives Spending Trend the full analytics width below the paired support panels", async ({ page }) => {
   for (const viewport of [
     { width: 1024, height: 768 },
     { width: 1280, height: 900 },
@@ -219,7 +233,7 @@ test("Dashboard gives Spending Trend the full analytics width and places support
       const trend = document.querySelector('[data-slot="surface"]:has(h2:nth-of-type(1))');
       const trendChart = document.querySelector('[data-slot="daily-spending-chart"]');
       const trendCard = [...document.querySelectorAll('[data-slot="surface"]')].find((surface) => surface.textContent?.includes("Spending Trend"));
-      const supportGrid = document.querySelector(".dashboard-bottom-grid");
+      const supportGrid = document.querySelector(".journey-dashboard-secondary");
       const payment = document.querySelector(".dashboard-payment-mix-card");
       const rect = (element: Element | null) => element?.getBoundingClientRect();
       return {
@@ -236,12 +250,8 @@ test("Dashboard gives Spending Trend the full analytics width and places support
     expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
     expect(geometry.chartOverflow).toBeLessThanOrEqual(1);
     expect(geometry.trendCard?.width ?? 0).toBeGreaterThan((geometry.dashboardWidth ?? 0) * 0.8);
-    expect(geometry.supportGrid?.top ?? 0).toBeGreaterThan(geometry.trendCard?.bottom ?? 0);
-    if (viewport.width >= 1280) {
-      expect(geometry.payment?.top ?? 0).toBeCloseTo(geometry.supportGrid?.top ?? 0, 0);
-    } else {
-      expect(geometry.payment?.top ?? 0).toBeGreaterThan(geometry.supportGrid?.top ?? 0);
-    }
+    expect(geometry.trendCard?.top ?? 0).toBeGreaterThanOrEqual(geometry.supportGrid?.bottom ?? 0);
+    expect(geometry.payment?.top ?? 0).toBeCloseTo(geometry.supportGrid?.top ?? 0, 0);
   }
 });
 

@@ -1,5 +1,5 @@
 import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -227,7 +227,7 @@ describe("receipt retention presentation", () => {
     await user.click(within(category).getByRole("radio", { name: "Pet" }));
     expect(within(category).getByRole("radio", { name: "Pet" })).toBeChecked();
     expect(within(category).getByRole("radio", { name: "Other" })).not.toBeChecked();
-    within(category).getByRole("radio", { name: "Wifi" }).focus();
+    act(() => within(category).getByRole("radio", { name: "Wifi" }).focus());
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Wifi");
   });
 

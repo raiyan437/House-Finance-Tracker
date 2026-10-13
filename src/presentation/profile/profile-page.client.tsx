@@ -10,7 +10,6 @@ import { PageHeader } from "@/presentation/shell/page-header";
 import { PasswordUpdateForm } from "./password-update-form.client";
 import { DisplayNameForm } from "./display-name-form.client";
 import { ProfilePictureForm } from "./profile-picture-form.client";
-import { EXPENSE_ICON_OPTIONS } from "@/presentation/expenses/expense-icon";
 
 export function ProfilePageClient() {
   const runtime = useApplicationRuntime();
@@ -46,13 +45,13 @@ export function ProfilePageClient() {
   const passwordUpdateAvailable = Boolean(runtime.signOut);
 
   return (
-    <PageContainer>
+    <PageContainer className="journey-profile-page">
       <PageHeader
         title="Profile"
         description="Your local account and current household membership."
       />
 
-      <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+      <div className="journey-profile-account mt-6 grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
         <Surface className="h-full" padding="large" aria-labelledby="profile-account-heading">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <MemberAvatar
@@ -104,6 +103,7 @@ export function ProfilePageClient() {
         </Surface>
       </div>
 
+      <div className="journey-profile-edit-grid grid gap-4 md:grid-cols-2">
       {avatarEditingAvailable ? (
         <Surface className="mt-4" padding="large" aria-labelledby="profile-picture-heading">
           <h2 className="panel-title" id="profile-picture-heading">Profile Picture</h2>
@@ -120,6 +120,7 @@ export function ProfilePageClient() {
         </Surface>
       ) : null}
 
+      </div>
       {passwordUpdateAvailable ? (
         <Surface className="mt-4" padding="large" aria-labelledby="profile-password-heading">
           <h2 className="panel-title" id="profile-password-heading">Password</h2>
@@ -128,18 +129,6 @@ export function ProfilePageClient() {
         </Surface>
       ) : null}
 
-      <Surface className="mt-4" padding="large" aria-labelledby="profile-icon-credits-heading">
-        <h2 className="panel-title" id="profile-icon-credits-heading">Icon Credits</h2>
-        <p className="mt-1 text-sm text-text-secondary">Expense category icons are from Flaticon and used under the free license with attribution.</p>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {EXPENSE_ICON_OPTIONS.map(({ value, label, author, sourceUrl }) => (
-            <a className="rounded-xl border bg-secondary px-3 py-2 transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={sourceUrl} key={value} rel="noreferrer" target="_blank">
-              <span className="block text-sm font-medium">{label}</span>
-              <span className="mt-0.5 block text-xs text-text-muted">by {author} · Flaticon</span>
-            </a>
-          ))}
-        </div>
-      </Surface>
     </PageContainer>
   );
 }

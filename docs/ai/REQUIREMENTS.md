@@ -4,7 +4,7 @@
 
 This file consolidates the approved product, business, UX, visual, architecture, and quality context supplied on 2026-08-12. It is the repository source of truth for implementation planning. Requirements are frozen: contradictions, security issues, missing financial rules, and behavior changes must be raised before inventing a solution.
 
-Product discovery, business rules, UX architecture, visual direction, design system, wireframes, and canonical desktop UI are complete. The local/provider-independent application is complete through the approved pre-production hardening checkpoint. Phase 13A Appwrite foundation/schema work is complete; Phase 13B authentication/session work is implemented but remains uncommitted and separately gated from Phase 13C.
+Product discovery, business rules, UX architecture, visual direction, design system, wireframes, and canonical desktop UI are complete. The local/provider-independent MVP and the Appwrite production composition are implemented and released through v1.5.0/Schema V9, including the completed session-resilience maintenance release. Current implementation state and phase authorization live in PROJECT_STATE.md and work/ACTIVE_PLAN.md. Dated phase clarifications below preserve their approved behavior and historical scope; statements about deferred integration describe that original phase, not current delivery status. This status reconciliation changes no frozen product requirement.
 
 ## Product boundary
 
@@ -60,6 +60,8 @@ Out of scope: recurring expenses, budgets, multiple currencies, multiple househo
 - Local receipts use private local representations. Future storage must be private and authorization-enforced.
 
 ## Accounts and households
+
+- **REQUIREMENT CHANGE approved on 2026-10-13:** production sessions last at most 24 hours from login through Appwrite's Session length policy (86,400 seconds). The owner reports saving this setting in the production Console; automated Console inspection is unavailable on this host. Existing protected-request 401 handling and tab-return session checks remain authoritative. This release introduces no session-renewal loop, new timer, user/session deletion, account recreation, financial-record change, schema migration or permission change. Deploy the accepted design and verified maintenance/optimization through the existing code-only workflow, preserving all production user data and stored files.
 
 - **REQUIREMENT CHANGE approved on 2026-10-03:** production recovers from idle/tab suspension through coalesced focus, visible-tab, restored-page, and online session checks. Confirmed protected-request 401 removes protected content and redirects to Login; 403 remains a denial and triggers at most an authoritative session check, never an assumed logout. Temporary read/network failures use bounded GET-only retries and deadlines; mounted forms retain drafts during transient recovery, new writes are blocked until recovery, and Retry remains available. Successful mutations remain successful if the following view refresh fails; uncertain mutation outcomes retain the existing command ID for explicit retry. No automatic mutation replay, session-lifetime change, private draft persistence, schema change, or financial-rule change is introduced. Receipt partial-success semantics and server authorization remain authoritative.
 
@@ -164,6 +166,28 @@ Out of scope: recurring expenses, budgets, multiple currencies, multiple househo
 - Analytics are limited to spending trend, payment mix, member contributions/shares, expense count, largest expenses, and month-over-month spending.
 
 ## Visual and interaction system
+
+### REQUIREMENT CHANGE — approved U8 presentation refinement, 2026-10-12
+
+The owner explicitly requests centered Dashboard calendar/month/dropdown contents between the month arrows, signed green/red Housemate Balance pills matching the supplied reference, consistent Expense Settlement-through-Amount column spacing, and click micro-animations throughout the interface. Positive balances use the existing success palette, negative balances use the existing danger palette, and zero remains neutral; retain full exact-money text, signs and Gets back/Owes/Settled labels. Expense headers and rows share aligned responsive tracks. Press/release feedback is decorative and reduced-motion-aware; floating popup anchors remain stationary and use highlight/arrow/opening feedback so sizing stays stable. No delayed/replayed action, new validation, financial calculation, source-data change, dependency or deployment is authorized. This amendment changes presentation only.
+
+### REQUIREMENT CHANGE — approved U3 shell alignment, 2026-10-12
+
+The owner requires a screen-centered desktop navigation stack with Logout directly below Household and no duplicate rail Profile button. Align the wordmark's left edge and icon center with the rail controls; center header navigation independently of branding and account controls. This supersedes earlier bottom rail Profile/Logout placement. Retain identity and role in the top-right Profile control's accessible description/title, existing mobile navigation, badge semantics, sign-out capability guards and all financial/privacy contracts. On very short desktop viewports, keep every control reachable through a scrollable rail. Implementation and verification remain local; no deployment is authorized.
+
+### REQUIREMENT CHANGE — approved U2 presentation refinement, 2026-10-12
+
+The owner requested removal of the duplicate Home rail button, the decorative selected-menu outline and Profile's Icon Credits section; smaller Cards; stable scrollbar geometry; redesigned error/404/other fallback views; and clearer page-opening animation. This supersedes the U1 outline decoration and earlier full-size Card/Profile-attribution placement. Keep the normal selected black pill and a neutral keyboard-only focus indication. Preserve Card metadata/actions/design identifiers, financial/privacy contracts, mounted drafts and existing error retry behavior. Existing icon attribution moves to a separate Credits page. Page entry motion remains optional, reduced-motion-aware and immediate, with no keyed form remount, private exit snapshot or delayed/replayed command. Implementation and verification remain local; deployment is not authorized.
+
+### REQUIREMENT CHANGE — approved navigation/layout refinement, 2026-10-12
+
+The owner explicitly requested a permanently compact desktop sidebar with no collapse/expand control, consistently centered pages, the notification bell beside the top-right Profile control, corrected Dashboard panel/avatar spacing and animated navigation selection. This supersedes the earlier sidebar collapse/expand and Dashboard-only bell placement provisions. Preserve icon-only accessible names, current identity/role information, Profile/Logout/development controls, routes, badges, mobile navigation and every financial/privacy/command contract. The existing notification dropdown moves to one shared header instance, isolated by viewer and Household access context; its recipient filtering and commands remain unchanged. Selection motion is decorative, reduced-motion-aware and never delays navigation or changes keyboard focus. Local-only implementation/verification is authorized; production deployment remains outside scope.
+
+### REQUIREMENT CHANGE — approved presentation redesign, 2026-10-11
+
+The owner approved the 22 generated House Finance Tracker concepts and explicitly requested local implementation with responsive web/mobile styling and button/page-navigation animations. This amendment supersedes conflicting appearance-only provisions below: use a pearl-gray canvas with a subtle blue-gray lower wash, near-white inset panels inside rounded pale grouped surfaces, black selected pills, 24–32px large-panel corners, and the approved desktop horizontal primary navigation plus compact expandable account/navigation rail. Preserve the existing sidebar collapse/expand operation and session semantics, route destinations/active rules, badges, role/Profile/Logout/development controls, and mobile/tablet bottom navigation below 1024px. No dark-theme toggle or new product action is introduced.
+
+The concepts are visual references only. All existing functionality, fields, confirmations, permissions, validations, financial calculations, data/privacy/history, navigation destinations, errors and session-recovery behavior remain frozen. Missing controls/states in a picture must remain implemented. Motion is restrained, reduced-motion-aware, never delays/repeats commands, and keeps financial/readable text at full opacity. Existing chart data animation stays disabled. [UI_REDESIGN_PLAN.md](work/UI_REDESIGN_PLAN.md) defines the complete coverage and local acceptance contract. No schema/provider/data change or production deployment is authorized by this amendment.
 
 - Direction: Soft Premium Finance - light, airy, minimal, trustworthy, spacious, rounded, subtly elevated, and financially clear. Avoid generic purple SaaS styling, heavy gradients/glass/shadows, visual noise, dense accounting treatment, and excessive animation.
 - Inter typography: page 32/40/600; H1 28/36/600; H2 24/32/600; H3 20/28/600; body-large 16/24; body 14/22; label 13/18/500; caption 12/16. Financial values use tabular numerals where useful.

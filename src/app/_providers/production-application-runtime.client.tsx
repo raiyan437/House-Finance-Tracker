@@ -35,7 +35,7 @@ import type {
 import type { ExpenseDate } from "@/domain/dates/expense-date";
 import type { CardId, CommandId, ExpenseId, HouseholdId, JoinRequestId, SettlementId, UserId, NotificationId } from "@/domain/shared/identifiers";
 import type { NotificationLatestView, NotificationMarkAllReadView, NotificationPageView } from "@/domain/notifications/notification-types";
-import { Surface } from "@/presentation/components/surface";
+import { StandalonePage } from "@/presentation/shell/standalone-page";
 import {
   ApplicationRuntimeProvider,
   type AnalyticsApplicationActions,
@@ -65,9 +65,7 @@ interface ProductionBootstrapPayload {
 
 function LoadingScreen() {
   return (
-    <main className="grid min-h-dvh place-items-center bg-background" role="status" aria-label="Loading">
-      <div className="grid gap-3 text-center text-body text-text-muted">Loading…</div>
-    </main>
+    <StandalonePage title="Loading…" description="Opening your House Finance Tracker." role="status" aria-label="Loading" />
   );
 }
 
@@ -81,13 +79,7 @@ function AnonymousRedirect({ expired }: Readonly<{ expired: boolean }>) {
 
 function UnavailableScreen({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <main className="grid min-h-dvh place-items-center bg-background px-4 py-10" role="status">
-      <Surface padding="canonical" className="max-w-md text-center">
-        <h1 className="text-h2 font-semibold">Service temporarily unavailable</h1>
-        <p className="mt-2 text-body text-text-secondary">We could not reach your data right now. Please retry shortly.</p>
-        <Button className="mx-auto mt-6" onClick={onRetry}>Retry</Button>
-      </Surface>
-    </main>
+    <StandalonePage title="Service temporarily unavailable" description="We could not reach your data right now. Please retry shortly." role="status" action={<Button onClick={onRetry}>Retry</Button>} />
   );
 }
 

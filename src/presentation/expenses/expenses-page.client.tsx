@@ -46,6 +46,22 @@ function expenseTileClass(expenseId: ExpenseListRow["expenseId"]): string {
   return palette[hash % palette.length];
 }
 
+function ExpenseFilterSelect({ label, children, triggerClassName, displayValue, ...props }: React.ComponentProps<typeof Select> & {
+  readonly label: string;
+  readonly triggerClassName?: string;
+  readonly displayValue?: string;
+}) {
+  return (
+    <div>
+      <span aria-hidden="true" className="expense-filter-label">{label}</span>
+      <Select {...props}>
+        <SelectTrigger aria-label={label} className={triggerClassName} size="compact"><SelectValue>{displayValue}</SelectValue></SelectTrigger>
+        <SelectContent align="start">{children}</SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export function ExpensesPageClient() {
   const runtime = useApplicationRuntime();
   const searchParams = useSearchParams();
@@ -115,26 +131,23 @@ export function ExpensesPageClient() {
 
       <section aria-label="Expense filters" className="expense-filter-grid mt-[26px] grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="relative sm:col-span-2 lg:col-span-1">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-text-muted" />
+          <span aria-hidden="true" className="expense-filter-label">Search by expense name</span>
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[42px] size-4 text-text-muted" />
           <Input aria-label="Search expenses by name" className="rounded-[12px] pl-10 text-row" placeholder="Search by expense name" value={query.search} onChange={(event) => updateQuery((current) => ({ ...current, search: event.target.value }))} />
         </div>
-        <Select value={query.month} onValueChange={(value) => updateQuery((current) => ({ ...current, month: value as ExpenseListQuery["month"] }))}>
-          <SelectTrigger aria-label="Month" size="compact"><SelectValue /></SelectTrigger>
-          <SelectContent align="start"><SelectItem value="all">All Months</SelectItem>{months.map((month) => <SelectItem key={month} value={month}>{monthOptionLabel(month)}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={query.payerId} onValueChange={(value) => updateQuery((current) => ({ ...current, payerId: value === "all" ? "all" : userId(value) }))}>
-          <SelectTrigger aria-label="Paid By" size="compact"><SelectValue /></SelectTrigger>
-          <SelectContent align="start"><SelectItem value="all">All Members</SelectItem>{payers.map((payer) => <SelectItem key={payer.userId} value={payer.userId}>{payer.displayName}{payer.former ? " (Former member)" : ""}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={query.paymentMethod} onValueChange={(value) => updateQuery((current) => ({ ...current, paymentMethod: value as ExpenseListQuery["paymentMethod"] }))}>
-          <SelectTrigger aria-label="Payment Method" className="min-w-[9rem]" size="compact"><SelectValue>{query.paymentMethod === "all" ? "Payment Method" : undefined}</SelectValue></SelectTrigger>
-          <SelectContent align="start"><SelectItem value="all">All Payment Methods</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem></SelectContent>
-        </Select>
-        <Select value={query.sort} onValueChange={(value) => updateQuery((current) => ({ ...current, sort: value as ExpenseListQuery["sort"] }))}>
-          <SelectTrigger aria-label="Sort" size="compact"><SelectValue /></SelectTrigger>
-          <SelectContent align="start"><SelectItem value="newest">Newest to Oldest</SelectItem><SelectItem value="oldest">Oldest to Newest</SelectItem></SelectContent>
-        </Select>
-        <Button className="rounded-[12px] border bg-card text-row" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
+        <ExpenseFilterSelect label="Month" value={query.month} onValueChange={(value) => updateQuery((current) => ({ ...current, month: value as ExpenseListQuery["month"] }))}>
+          <SelectItem value="all">All Months</SelectItem>{months.map((month) => <SelectItem key={month} value={month}>{monthOptionLabel(month)}</SelectItem>)}
+        </ExpenseFilterSelect>
+        <ExpenseFilterSelect label="Paid By" value={query.payerId} onValueChange={(value) => updateQuery((current) => ({ ...current, payerId: value === "all" ? "all" : userId(value) }))}>
+          <SelectItem value="all">All Members</SelectItem>{payers.map((payer) => <SelectItem key={payer.userId} value={payer.userId}>{payer.displayName}{payer.former ? " (Former member)" : ""}</SelectItem>)}
+        </ExpenseFilterSelect>
+        <ExpenseFilterSelect label="Payment Method" triggerClassName="min-w-[9rem]" displayValue={query.paymentMethod === "all" ? "Payment Method" : undefined} value={query.paymentMethod} onValueChange={(value) => updateQuery((current) => ({ ...current, paymentMethod: value as ExpenseListQuery["paymentMethod"] }))}>
+          <SelectItem value="all">All Payment Methods</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem>
+        </ExpenseFilterSelect>
+        <ExpenseFilterSelect label="Sort" value={query.sort} onValueChange={(value) => updateQuery((current) => ({ ...current, sort: value as ExpenseListQuery["sort"] }))}>
+          <SelectItem value="newest">Newest to Oldest</SelectItem><SelectItem value="oldest">Oldest to Newest</SelectItem>
+        </ExpenseFilterSelect>
+        <Button className="self-end rounded-[12px] border bg-card text-row" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
       </section>
 
       {status === "loading" ? <Surface className="mt-6"><p role="status" className="text-text-secondary">Loading expenses…</p></Surface> : null}
@@ -165,12 +178,12 @@ export function ExpensesPageClient() {
             <p className="hidden compact-caption text-text-muted sm:block">Sorted {query.sort === "newest" ? "newest first" : "oldest first"}</p>
           </div>
           <div>
-            <div aria-hidden="true" className="table-label hidden h-11 grid-cols-[minmax(0,1.4fr)_64px_80px_104px_136px_100px_104px_100px] items-center gap-3 border-b bg-secondary/60 px-5 text-text-secondary min-[900px]:grid min-[1400px]:grid-cols-[minmax(0,1.6fr)_68px_90px_118px_160px_108px_120px_110px]"><span>Expense</span><span>Settlement</span><span>Comments</span><span>Date</span><span>Paid By</span><span>Payment</span><span>Split</span><span className="text-right">Amount</span></div>
+            <div aria-hidden="true" className="journey-expense-columns table-label hidden h-11 items-center gap-3 border-b bg-secondary/60 px-5 text-text-secondary min-[900px]:grid"><span>Expense</span><span>Settlement</span><span>Comments</span><span>Date</span><span>Paid By</span><span>Payment</span><span>Split</span><span className="text-right">Amount</span></div>
             <ul className="divide-y">
               {pagedRows.map((row) => (
-                <li className="group relative min-h-[84px] transition-colors hover:bg-secondary/70 focus-within:rounded-xl focus-within:bg-secondary/70 min-[900px]:h-[72px] min-[900px]:min-h-0 min-[900px]:focus-within:mx-2" key={row.expenseId}>
+                <li className="journey-expense-row group relative min-h-[84px] transition-colors hover:bg-secondary/70 focus-within:rounded-xl focus-within:bg-secondary/70 min-[900px]:h-[72px] min-[900px]:min-h-0" key={row.expenseId}>
                   <Link aria-label={`Open ${row.name} expense details`} className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${row.expenseId}`} />
-                  <div className="table-body grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 min-[900px]:grid-cols-[minmax(0,1.4fr)_64px_80px_104px_136px_100px_104px_100px] min-[900px]:items-center min-[900px]:px-5 min-[900px]:py-0 min-[1400px]:grid-cols-[minmax(0,1.6fr)_68px_90px_118px_160px_108px_120px_110px]">
+                  <div className="journey-expense-columns table-body grid h-full grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 min-[900px]:items-center min-[900px]:px-5 min-[900px]:py-0">
                     <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:items-center min-[900px]:gap-3"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${expenseTileClass(row.expenseId)}`}><ExpenseSemanticIcon category={row.iconCategory} className="size-4" /></span><div className="min-w-0"><p className="truncate font-semibold text-foreground">{row.name}</p><p data-slot="expense-mobile-metadata" className="mt-1 flex min-w-0 items-center gap-1 text-xs text-text-muted min-[900px]:hidden"><ExpenseSettlementStatusIndicator status={row.settlementStatus} /><span className="inline-flex shrink-0 items-center gap-1"><MessageCircle aria-hidden="true" className="size-3" />{row.commentCount ?? 0}</span><span aria-hidden="true">·</span><time className="shrink-0" dateTime={row.expenseDate}>{formatExpenseDate(row.expenseDate)}</time><span aria-hidden="true">·</span><span className="truncate">{row.payer.displayName}</span></p><p className="mt-1 text-xs text-text-secondary min-[900px]:hidden">{row.paymentMethod === "cash" ? "Cash" : "Card"} · {splitLabel(row)}</p></div></div>
                     <div className="hidden items-center min-[900px]:flex"><ExpenseSettlementStatusIndicator status={row.settlementStatus} /></div>
                     <p className="hidden items-center gap-1 text-text-secondary min-[900px]:flex"><MessageCircle aria-hidden="true" className="size-4" /><span>{row.commentCount ?? 0}</span></p>

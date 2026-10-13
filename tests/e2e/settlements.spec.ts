@@ -16,7 +16,7 @@ function collectBrowserErrors(page: Page) {
   return () => expect(errors).toEqual([]);
 }
 
-test("cross-identity Mark Paid stays zero-effect until receiver confirmation and persists History", async ({ context, page }) => {
+test("cross-identity Mark Paid stays zero-effect until receiver confirmation and persists History", { tag: "@critical" }, async ({ context, page }) => {
   const expectNoErrors = collectBrowserErrors(page);
   await page.goto("/settlements");
   await expect(page.getByRole("heading", { name: "Settlements" })).toBeVisible();
@@ -54,7 +54,7 @@ test("cross-identity Mark Paid stays zero-effect until receiver confirmation and
   expectNoReopenErrors();
 });
 
-test("duplicate Pending blocks Settle Up while receiver Reject and sender Cancel remain actor-specific", async ({ page }) => {
+test("duplicate Pending blocks Settle Up while receiver Reject and sender Cancel remain actor-specific", { tag: "@critical" }, async ({ page }) => {
   await page.goto("/settlements");
   await switchIdentity(page, "john");
   await expect(page.getByText("You owe Raiyan")).toBeVisible();

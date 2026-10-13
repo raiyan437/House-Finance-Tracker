@@ -10,7 +10,13 @@ import { DashboardContent } from "./dashboard-page.client";
 import { MonthlyReportContent } from "./monthly-report-page.client";
 import { MonthSelector } from "./month-selector";
 
-vi.mock("next/link", () => ({ default: ({ children, href, ...props }: React.ComponentProps<"a">) => <a href={href} {...props}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: (props: React.ComponentProps<"a"> & { prefetch?: boolean }) => {
+    const anchorProps = { ...props };
+    delete anchorProps.prefetch;
+    return <a {...anchorProps} />;
+  },
+}));
 vi.mock("./analytics-charts.client", () => ({
   DailySpendingChart: ({ label }: { label: string }) => <div aria-label={label} role="img" />,
   PaymentMixChart: ({ label }: { label: string }) => <div aria-label={label} role="img" />,
@@ -51,11 +57,15 @@ const dashboard: DashboardPageView = {
 describe("Dashboard analytics presentation", () => {
   it("renders combined outstanding, factual health, amount mix, balances, and safe expense payment", () => {
     render(<DashboardContent view={dashboard} />);
-    expect(screen.getByText("Outstanding")).toBeInTheDocument();
+    expect(screen.getAllByText("Outstanding")).toHaveLength(2);
     expect(screen.getByText("You Owe")).toBeInTheDocument();
     expect(screen.getByText("You Are Owed")).toBeInTheDocument();
-    expect(screen.getByText("1 outstanding")).toBeInTheDocument();
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    for (const label of ["Outstanding", "Pending"]) {
+      const statistic = screen.getByText(label, { selector: ".journey-health-grid p" }).parentElement!;
+      const count = statistic.querySelector("strong")!;
+      expect(count).toHaveTextContent("1");
+      expect(count).not.toHaveAttribute("aria-hidden", "true");
+    }
     expect(screen.getByText("70.46%")).toBeInTheDocument();
     expect(screen.getByText("29.54%")).toBeInTheDocument();
     expect(screen.getByText("Gets back")).toBeInTheDocument();
@@ -114,6 +124,21 @@ describe("Dashboard analytics presentation", () => {
 });
 
 describe("Month selector", () => {
+  it("offers an empty intermediate month reachable by the chevrons", () => {
+    const onChange = vi.fn();
+    const options = [calendarMonth("2026-10"), calendarMonth("2026-08")];
+    const { rerender } = render(<MonthSelector includeIntermediateMonths onChange={onChange} options={options} value={calendarMonth("2026-10")} />);
+    fireEvent.click(screen.getByRole("combobox", { name: "Select month" }));
+    fireEvent.click(screen.getByRole("option", { name: "September 2026" }));
+    expect(onChange).toHaveBeenCalledWith("2026-09");
+    rerender(<MonthSelector includeIntermediateMonths onChange={onChange} options={options} value={calendarMonth("2026-09")} />);
+    expect(screen.getByRole("combobox", { name: "Select month" })).toHaveTextContent("September 2026");
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(onChange).toHaveBeenLastCalledWith("2026-08");
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(onChange).toHaveBeenLastCalledWith("2026-10");
+  });
+
   it("is keyboard-compatible and emits only a valid calendar month", () => {
     const onChange = vi.fn();
     render(<MonthSelector onChange={onChange} options={[month, calendarMonth("2028-02")]} value={month} />);

@@ -12,26 +12,13 @@ import {
   YAxis,
 } from "recharts";
 import type { CalendarMonth } from "@/application/analytics/calendar-month";
-import type { DailySpendingPoint, PaymentMixResult } from "@/application/analytics/monthly-analytics";
-
-interface DailySpendingChartProps {
-  readonly data: readonly DailySpendingPoint[];
-  readonly label: string;
-  readonly descriptionId: string;
-  readonly month?: CalendarMonth;
-}
-
-interface PaymentMixChartProps {
-  readonly mix: PaymentMixResult;
-  readonly label: string;
-  readonly descriptionId: string;
-  readonly month?: CalendarMonth;
-  readonly compact?: boolean;
-}
+import type { DailySpendingPoint } from "@/application/analytics/monthly-analytics";
+import { formatBdt } from "@/presentation/finance/format-bdt";
+import type { DailySpendingChartProps, PaymentMixChartProps } from "./analytics-charts.client";
 
 const DAILY_CHART_MIN_DAY_WIDTH = 22;
-const WEEKEND_BAR_FILL = "#dde2ea";
-const WEEKDAY_BAR_FILL = "#e9edf2";
+const WEEKEND_BAR_FILL = "#729cea";
+const WEEKDAY_BAR_FILL = "#86acf1";
 
 function currentLocalMonthKey(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -128,13 +115,14 @@ export function DailySpendingChart({ data, label, descriptionId, month }: DailyS
 export function PaymentMixChart({ mix, label, descriptionId, compact = false }: PaymentMixChartProps) {
   const data = [
     { name: "Cash", value: mix.cash.basisPoints ?? 0, color: WEEKDAY_BAR_FILL },
-    { name: "Card", value: mix.card.basisPoints ?? 0, color: "var(--brand-primary)" },
+    { name: "Card", value: mix.card.basisPoints ?? 0, color: "#ed9291" },
   ];
-  const size = compact ? 104 : 138;
-  const innerRadius = compact ? 32 : 43;
-  const outerRadius = compact ? 52 : 69;
+  const size = compact ? 180 : 200;
+  const innerRadius = compact ? 58 : 64;
+  const outerRadius = compact ? 90 : 100;
   return (
-    <div aria-describedby={descriptionId} aria-label={label} className="shrink-0" role="img" style={{ height: size, width: size }}>
+    <div aria-describedby={descriptionId} aria-label={label} className="relative shrink-0" role="img" style={{ height: size, width: size }}>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-center"><strong className="financial-numerals text-sm">{formatBdt(mix.total)}</strong><span className="text-xs text-text-secondary">Total</span></div>
       <ResponsiveContainer height="100%" width="100%">
         <PieChart>
           <Pie

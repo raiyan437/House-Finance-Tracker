@@ -73,6 +73,7 @@ export function CardFormDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!pending) onOpenChange(nextOpen); }}>
       <DialogContent
+        className="journey-card-dialog max-w-2xl"
         aria-busy={pending}
         onCloseAutoFocus={(event) => {
           if (!restoreFocusRef?.current) return;

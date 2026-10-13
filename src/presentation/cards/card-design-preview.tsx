@@ -14,6 +14,7 @@ export interface CardDesignPreviewProps {
   readonly cardType: string;
   readonly className?: string;
   readonly compact?: boolean;
+  readonly standalone?: boolean;
 }
 
 export function CardDesignPreview({
@@ -23,6 +24,7 @@ export function CardDesignPreview({
   cardType,
   className,
   compact = false,
+  standalone = false,
 }: CardDesignPreviewProps) {
   const light = option.foreground === "light";
   return (
@@ -30,11 +32,12 @@ export function CardDesignPreview({
       aria-hidden="true"
       className={cn(
         "relative flex aspect-[1.586] w-full select-none flex-col justify-between overflow-hidden rounded-xl p-4 text-left shadow-[var(--shadow-card)]",
+        standalone && "journey-owned-card rounded-[24px] p-7",
         compact && "rounded-[10px] p-2.5",
         light ? "text-white" : "text-foreground",
         className,
       )}
-      style={{ backgroundColor: option.hex }}
+      style={{ backgroundColor: option.hex, backgroundImage: "radial-gradient(ellipse at 110% -10%, rgb(255 255 255 / 22%) 0 42%, transparent 42%), radial-gradient(ellipse at 10% 120%, rgb(0 0 0 / 12%) 0 60%, transparent 60%), linear-gradient(135deg, transparent, rgb(0 0 0 / 12%))" }}
     >
       <span
         aria-hidden="true"
@@ -46,7 +49,7 @@ export function CardDesignPreview({
       />
       <div className={cn("relative flex items-start justify-between gap-2", compact && "gap-1")}>
         <p className={cn("min-w-0 truncate font-semibold", compact ? "text-[7px]" : "text-sm")}>
-          {cardName || "Card Name"}
+          {standalone ? holderName || "Your Name" : cardName || "Card Name"}
         </p>
         <span
           aria-hidden="true"
@@ -59,16 +62,16 @@ export function CardDesignPreview({
           <Wifi aria-hidden="true" className={cn("rotate-90", compact ? "size-2" : "size-3.5")} />
         </span>
       </div>
-      <p className={cn("financial-numerals relative whitespace-nowrap font-medium tracking-[0.08em]", compact ? "text-[8px]" : "text-[15px]")}>
+      <p className={cn("financial-numerals relative whitespace-nowrap font-medium tracking-[0.08em]", compact ? "text-[8px]" : standalone ? "text-[clamp(14px,2vw,24px)]" : "text-[15px]")}>
         {DEMO_CARD_NUMBER_GROUPS.join(" ")}
       </p>
       <div className={cn("relative flex items-end justify-between gap-2", compact && "gap-1")}>
-        <div className="min-w-0">
+        {standalone ? null : <div className="min-w-0">
           <p className={cn("uppercase tracking-wide", compact ? "text-[5px]" : "text-[8px]")}>Card Holder</p>
           <p className={cn("truncate font-semibold uppercase", compact ? "max-w-20 text-[7px]" : "max-w-40 text-xs")}>
             {holderName || "Your Name"}
           </p>
-        </div>
+        </div>}
         <div className="shrink-0 text-right">
           <p className={cn("uppercase tracking-wide", compact ? "text-[5px]" : "text-[8px]")}>Valid Thru</p>
           <p className={cn("financial-numerals font-semibold", compact ? "text-[7px]" : "text-xs")}>{DEMO_CARD_EXPIRY}</p>

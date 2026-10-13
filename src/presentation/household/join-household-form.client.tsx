@@ -82,7 +82,7 @@ export function JoinHouseholdForm() {
   }
 
   return (
-    <PageContainer className="grid gap-6">
+    <PageContainer className="journey-onboarding grid gap-6">
       <PageHeader description="Enter the household's nine-digit code, then confirm where you want to send the request." title="Join Household" />
       <Surface className="max-w-2xl" padding="large">
         <form className="grid gap-6" noValidate onSubmit={form.handleSubmit(findHousehold)}>

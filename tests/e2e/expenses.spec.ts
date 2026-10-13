@@ -238,7 +238,7 @@ test("expense list composes filters and opens accessible desktop rows", async ({
   expect(errors).toEqual([]);
 });
 
-test("creates, edits, reloads, and lists semantic icons with append-only plain-text comments", async ({ page }) => {
+test("creates, edits, reloads, and lists semantic icons with append-only plain-text comments", { tag: "@critical" }, async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/expenses/new");
@@ -274,7 +274,7 @@ test("creates, edits, reloads, and lists semantic icons with append-only plain-t
   await expect(page.getByRole("heading", { name: "Comments (2)" })).toBeVisible();
   await expect(page.getByText(body)).toBeVisible();
 
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
   await category.getByRole("radio", { name: "Repair" }).check();
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.getByRole("img", { name: "Repair category" })).toBeVisible();
@@ -311,7 +311,7 @@ test("renders retention-expired receipt history without a broken image on Detail
   await expect(page.getByRole("img", { name: "groceries.png" })).toHaveCount(0);
   await expect(page.getByText("Preview unavailable")).toHaveCount(0);
 
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit Expense" })).toBeVisible();
   await expect(page.getByText("Receipt no longer available")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
@@ -347,7 +347,7 @@ test("active members can preview another creator's Receipt while mutation remain
   await expect(page.getByRole("img", { name: "groceries.png" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open groceries.png" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove groceries.png" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit", exact: true })).toHaveCount(0);
 
   await page.getByTestId("development-tools-trigger").click();
   await page.getByTestId("development-identity-user-raiyan").click();
@@ -355,7 +355,7 @@ test("active members can preview another creator's Receipt while mutation remain
   await expect(page.getByRole("img", { name: "internet-receipt.png" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open internet-receipt.png" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove internet-receipt.png" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("img", { name: "internet-receipt.png" })).toBeVisible();
   await expect(page.getByText("All active Household members can view available receipts. Only the Expense creator can add or remove them.")).toBeVisible();
   await expect(page.getByText("Add receipt images")).toHaveCount(0);
@@ -517,7 +517,14 @@ test("Expense Date calendar disables dates and navigation outside the Dhaka entr
   expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
 });
 
-test("Expense Date bounds stay server-authoritative across browser timezones", async ({ page }) => {
+test("Expense Date bounds stay server-authoritative across browser timezones", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Timezone emulation in this test uses Chromium CDP.",
+  );
   const session = await page.context().newCDPSession(page);
   let authoritativeMonth: string | null = null;
 
@@ -529,60 +536,93 @@ test("Expense Date bounds stay server-authoritative across browser timezones", a
     const month = await calendar.getAttribute("aria-label");
     authoritativeMonth ??= month;
     expect(month).toBe(authoritativeMonth);
-    await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Next month" }),
+    ).toBeDisabled();
     await page.keyboard.press("Escape");
   }
 });
 
-test("creates and reloads an exact percentage expense with a receipt", async ({ page }) => {
-  await page.goto("/expenses/new");
-  await expect(page.getByRole("heading", { name: "Add Expense" })).toBeVisible();
-  await expect(page.getByText("You", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("radio", { name: "cash" })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "You" })).toBeChecked();
+for (const withReceipt of [true, false]) {
+  test(
+    `creates and reloads an exact percentage expense ${withReceipt ? "with" : "without"} a receipt`,
+    { tag: "@critical" },
+    async ({ page, browserName }) => {
+      test.skip(
+        withReceipt && browserName === "webkit" && process.platform === "win32",
+        "Windows WebKit cannot store Blob/File data in IndexedDB; Linux CI exercises this journey.",
+      );
+      await page.goto("/expenses/new");
+      await expect(
+        page.getByRole("heading", { name: "Add Expense" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("You", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(page.getByRole("radio", { name: "cash" })).toBeChecked();
+      await expect(page.getByRole("checkbox", { name: "You" })).toBeChecked();
 
-  await page.getByLabel("Expense Name").fill("Percentage dinner");
-  await page.getByLabel("Amount (BDT)").fill("100");
-  await selectExpenseDate(page, "2026-08-18");
-  await page.getByRole("radio", { name: "percentage" }).check();
-  await page.getByLabel("Percentage share for Raiyan").fill("33.34");
-  await page.getByLabel("Percentage share for John").fill("33.33");
-  await page.getByLabel("Percentage share for Sarah").fill("33.33");
-  await expect(page.getByText("Percentages must total exactly 100%.")).toHaveCount(0);
+      await page.getByLabel("Expense Name").fill("Percentage dinner");
+      await page.getByLabel("Amount (BDT)").fill("100");
+      await selectExpenseDate(page, "2026-08-18");
+      await page.getByRole("radio", { name: "percentage" }).check();
+      await page.getByLabel("Percentage share for Raiyan").fill("33.34");
+      await page.getByLabel("Percentage share for John").fill("33.33");
+      await page.getByLabel("Percentage share for Sarah").fill("33.33");
+      await expect(
+        page.getByText("Percentages must total exactly 100%."),
+      ).toHaveCount(0);
 
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-    "base64",
+      if (withReceipt) {
+        const png = Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          "base64",
+        );
+        await page.locator('input[type="file"]').setInputFiles({
+          name: "dinner.png",
+          mimeType: "image/png",
+          buffer: png,
+        });
+        await expect(page.getByText("dinner.png")).toBeVisible();
+      }
+      await page.getByRole("button", { name: "Create Expense" }).click();
+
+      await expect(
+        page.getByRole("heading", { name: "Percentage dinner" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("18 Aug 2026", { exact: true }),
+      ).toBeVisible();
+      await expect(page.getByText("33.34%", { exact: false })).toBeVisible();
+      if (withReceipt) {
+        await expect(page.getByText("dinner.png")).toBeVisible();
+        await expect(
+          page.getByRole("img", { name: "dinner.png" }),
+        ).toBeVisible();
+      }
+      await expect(page.getByText("Preview unavailable")).toHaveCount(0);
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name: "Percentage dinner" }),
+      ).toBeVisible();
+      await expect(page.getByText("33.34%", { exact: false })).toBeVisible();
+      if (withReceipt)
+        await expect(
+          page.getByRole("img", { name: "dinner.png" }),
+        ).toBeVisible();
+      await expect(page.getByText("Preview unavailable")).toHaveCount(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+      expect(
+        results.violations.filter((violation) =>
+          ["serious", "critical"].includes(violation.impact ?? ""),
+        ),
+      ).toEqual([]);
+    },
   );
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "dinner.png",
-    mimeType: "image/png",
-    buffer: png,
-  });
-  await expect(page.getByText("dinner.png")).toBeVisible();
-  await page.getByRole("button", { name: "Create Expense" }).click();
-
-  await expect(page.getByRole("heading", { name: "Percentage dinner" })).toBeVisible();
-  await expect(page.getByText("18 Aug 2026", { exact: true })).toBeVisible();
-  await expect(page.getByText("33.34%", { exact: false })).toBeVisible();
-  await expect(page.getByText("dinner.png")).toBeVisible();
-  await expect(page.getByRole("img", { name: "dinner.png" })).toBeVisible();
-  await expect(page.getByText("Preview unavailable")).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Percentage dinner" })).toBeVisible();
-  await expect(page.getByText("33.34%", { exact: false })).toBeVisible();
-  await expect(page.getByRole("img", { name: "dinner.png" })).toBeVisible();
-  await expect(page.getByText("Preview unavailable")).toHaveCount(0);
-
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze();
-  expect(
-    results.violations.filter((violation) =>
-      ["serious", "critical"].includes(violation.impact ?? ""),
-    ),
-  ).toEqual([]);
-});
+}
 
 for (const format of browserReceiptFormats) {
   test(`decodes, persists, reloads, and previews a valid ${format.label} receipt`, async ({ page }) => {
@@ -620,7 +660,7 @@ for (const format of browserReceiptFormats) {
   });
 }
 
-test("expense validation stays quiet until interaction and focuses invalid fields on submit", async ({ page }) => {
+test("expense validation stays quiet until interaction and focuses invalid fields on submit", { tag: "@critical" }, async ({ page }) => {
   await page.goto("/expenses/new");
   const name = page.getByLabel("Expense Name");
   const amount = page.getByLabel("Amount (BDT)");
@@ -684,12 +724,12 @@ test("mobile expense cards and the one-page form remain clear of bottom navigati
   expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(navigationBox!.y);
 });
 
-test("leader Card editing stays opaque and normal members remain view-only", async ({ page }) => {
+test("leader Card editing stays opaque and normal members remain view-only", { tag: "@critical" }, async ({ page }) => {
   await page.goto("/expenses/expense-internet");
   await expect(page.getByRole("heading", { name: "Internet" })).toBeVisible();
   await expect(page.getByText("11 Aug 2026", { exact: true })).toBeVisible();
   await expect(page.getByText("John Credit")).toHaveCount(0);
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
   await expect(page.locator('[data-slot="date-picker-trigger"]')).toContainText("11 Aug 2026");
   await expect(page.getByText("The existing private Card association will be preserved opaquely.")).toBeVisible();
   await expect(page.getByText("John Credit")).toHaveCount(0);
@@ -704,71 +744,110 @@ test("leader Card editing stays opaque and normal members remain view-only", asy
   await page.getByTestId("development-identity-user-sarah").click();
   await page.goto("/expenses/expense-groceries");
   await expect(page.getByRole("heading", { name: "Groceries" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
 });
 
-test("a stale Expense Save reloads the confirmed-settlement lock without committing", async ({ page }) => {
-  await page.goto("/expenses/expense-groceries/edit");
-  await expect(page.getByRole("heading", { name: "Edit Expense" })).toBeVisible();
-
-  await page.getByLabel("Expense Name").fill("Preserved stale draft");
-  await page.getByLabel("Amount (BDT)").fill("301");
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "draft.png",
-    mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-      "base64",
-    ),
-  });
-  await expect(page.getByText("draft.png", { exact: true })).toBeVisible();
-
-  await insertConfirmedSettlement(page, "settlement-stale-edit");
-  await page.getByRole("button", { name: "Save Changes" }).click();
-
-  await expect(page.getByText(/Financial details are now locked/u)).toBeVisible();
-  await expect(page.getByText("Financial details are locked", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Expense Name")).toHaveValue("Preserved stale draft");
-  await expect(page.getByLabel("Amount (BDT)")).toHaveValue("300.00");
-  await expect(page.getByLabel("Amount (BDT)")).toBeDisabled();
-  await expect(page.getByText("draft.png", { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/expenses\/expense-groceries\/edit$/u);
-
-  const persisted = await page.evaluate(async () => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("house-finance-tracker-local");
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
+test(
+  "a stale Expense Save reloads the confirmed-settlement lock without committing",
+  { tag: "@critical" },
+  async ({ page }) => {
+    const initialReceiptCount = await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("house-finance-tracker-local");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      try {
+        return await new Promise<number>((resolve, reject) => {
+          const request = database
+            .transaction("receiptMetadata", "readonly")
+            .objectStore("receiptMetadata")
+            .count();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      } finally {
+        database.close();
+      }
     });
-    const transaction = database.transaction(
-      ["expenses", "receiptMetadata", "auditEvents"],
-      "readonly",
+    await page.goto("/expenses/expense-groceries/edit");
+    await expect(
+      page.getByRole("heading", { name: "Edit Expense" }),
+    ).toBeVisible();
+
+    await page.getByLabel("Expense Name").fill("Preserved stale draft");
+    await page.getByLabel("Amount (BDT)").fill("301");
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "draft.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+    await expect(page.getByText("draft.png", { exact: true })).toBeVisible();
+
+    await insertConfirmedSettlement(page, "settlement-stale-edit");
+    await page.getByRole("button", { name: "Save Changes" }).click();
+
+    await expect(
+      page.getByText(/Financial details are now locked/u),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Financial details are locked", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Expense Name")).toHaveValue(
+      "Preserved stale draft",
     );
-    const expense = await new Promise<Record<string, unknown>>((resolve, reject) => {
-      const request = transaction.objectStore("expenses").get("expense-groceries");
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-    const receipts = await new Promise<unknown[]>((resolve, reject) => {
-      const request = transaction.objectStore("receiptMetadata").getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-    const audits = await new Promise<unknown[]>((resolve, reject) => {
-      const request = transaction.objectStore("auditEvents").getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-    database.close();
-    return { expense, receiptCount: receipts.length, auditCount: audits.length };
-  });
+    await expect(page.getByLabel("Amount (BDT)")).toHaveValue("300.00");
+    await expect(page.getByLabel("Amount (BDT)")).toBeDisabled();
+    await expect(page.getByText("draft.png", { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/expenses\/expense-groceries\/edit$/u);
 
-  expect(persisted.expense.name).toBe("Groceries");
-  expect(persisted.expense.amountPoisha).toBe(30000);
-  expect(persisted.receiptCount).toBe(1);
-  expect(persisted.auditCount).toBe(3);
-});
+    const persisted = await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("house-finance-tracker-local");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      const transaction = database.transaction(
+        ["expenses", "receiptMetadata", "auditEvents"],
+        "readonly",
+      );
+      const expense = await new Promise<Record<string, unknown>>(
+        (resolve, reject) => {
+          const request = transaction
+            .objectStore("expenses")
+            .get("expense-groceries");
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        },
+      );
+      const receipts = await new Promise<unknown[]>((resolve, reject) => {
+        const request = transaction.objectStore("receiptMetadata").getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      const audits = await new Promise<unknown[]>((resolve, reject) => {
+        const request = transaction.objectStore("auditEvents").getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      database.close();
+      return {
+        expense,
+        receiptCount: receipts.length,
+        auditCount: audits.length,
+      };
+    });
+
+    expect(persisted.expense.name).toBe("Groceries");
+    expect(persisted.expense.amountPoisha).toBe(30000);
+    expect(persisted.receiptCount).toBe(initialReceiptCount);
+    expect(persisted.auditCount).toBe(3);
+  },
+);
 
 test("a stale Expense Delete reloads the lock and leaves the Expense active", async ({ page }) => {
   await page.goto("/expenses/expense-groceries");

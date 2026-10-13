@@ -41,7 +41,7 @@ export function MemberAvatar({
       {...props}
     >
       {authorizedImageSrc ? <AvatarImage alt="" src={authorizedImageSrc} /> : null}
-      <AvatarFallback>{initials}</AvatarFallback>
+      <AvatarFallback style={{ backgroundColor: ["#d5e0ff", "#ffdacd", "#cce9e2"][(displayName.codePointAt(0) ?? 0) % 3] }}>{initials}</AvatarFallback>
     </Avatar>
   );
 }
