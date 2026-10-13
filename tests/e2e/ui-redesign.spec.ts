@@ -25,6 +25,7 @@ async function inspectViewport(page: Page, name: string, width: number, outputPa
 }
 
 test("approved Dashboard has responsive grouped panels and accessible navigation @critical", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
   for (const width of [360, 390, 768, 1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/dashboard");
@@ -477,11 +478,18 @@ test("U5 dropdowns dismiss without an exit wait and Household keeps only its hea
       expect(await page.evaluate(() => Reflect.get(window, "dropdownExitAnimations"))).toEqual([]);
     }
   };
+  const dismissNotifications = async () => {
+    const trigger = page.getByRole("button", { name: /^Notifications/ });
+    // The unread count loads separately from the shell. Capture stable fixture
+    // content before asserting that opening/closing never changes it.
+    await expect(trigger).toHaveAccessibleName("Notifications, 2 unread");
+    await dismissRepeatedly(trigger, page.getByRole("menu"));
+  };
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard");
   await expect(page.locator(".journey-avatar-notch")).toBeVisible();
-  await dismissRepeatedly(page.getByRole("button", { name: /^Notifications/ }), page.getByRole("menu"));
+  await dismissNotifications();
   await dismissRepeatedly(page.getByRole("combobox", { name: "Select month" }), page.getByRole("listbox"));
   await page.getByRole("link", { name: /Navigate to Household/ }).click();
   await expect(page.getByRole("heading", { name: "House Leader", exact: true })).toBeVisible();
@@ -502,7 +510,7 @@ test("U5 dropdowns dismiss without an exit wait and Household keeps only its hea
   await expect(page.getByRole("heading", { name: "House Leader", exact: true })).toBeVisible();
   await expect(page.locator(".journey-avatar-notch")).toHaveCount(0);
   await expect(page.locator("header [data-slot='avatar']")).toHaveCount(1);
-  await dismissRepeatedly(page.getByRole("button", { name: /^Notifications/ }), page.getByRole("menu"));
+  await dismissNotifications();
   await page.screenshot({ path: testInfo.outputPath("u5-household-mobile.png"), animations: "disabled" });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const bell = page.getByRole("button", { name: /^Notifications/ });

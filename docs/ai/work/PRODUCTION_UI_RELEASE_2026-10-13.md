@@ -27,6 +27,10 @@ The initial fixture route changes from membership-gated Dashboard to independent
 
 Focused Windows verification passes 15/15 across Chromium/Firefox/WebKit (1.4 minutes), including native receipt creation, exact percentage shares, persistence after reload, image preview, membership acceptance, Settlement History and dropdown dismissal. TypeScript, zero-warning lint and whitespace pass. A first focused invocation was intentionally interrupted to rename the Playwright callback from `use` to `applyContext`, avoiding React-hook lint misclassification; the final complete invocation passes. The application source, provider configuration and production data are unchanged by this correction.
 
+Candidate `026c024` passes the complete push workflow; its critical job has 129 passed and three recovered flaky cases. Its parallel PR workflow fails only the Dashboard visual case at its original 30-second whole-test timeout (six viewport screenshots plus Axe and persistent-profile setup); it has 130 passed, one recovered notification-dropdown race and one timeout failure. Receipt persistence now passes on hosted Linux WebKit. The Dashboard case adopts the existing 90-second visual-test budget without changing assertions. Dropdown testing explicitly waits for the known fixture's two unread notifications before capturing trigger text, retaining the unchanged-content and dismissal assertions. A fresh candidate must pass both complete workflows before merge.
+
+The final focused Dashboard/dropdown invocation passes 6/6 across all three browsers (59.1 seconds), with zero-warning lint and TypeScript. No assertion, browser coverage, production code or data-preservation check is removed.
+
 ## R1 — Code deployment (pending R0)
 
 Merge/deploy only after hosted checks pass. Retain the previous source revision and available Ready deployment for rollback; do not delete deployments or change hosting/environment/worker settings.
