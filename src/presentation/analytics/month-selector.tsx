@@ -14,6 +14,7 @@ interface MonthSelectorProps {
   readonly value: CalendarMonth;
   readonly onChange: (month: CalendarMonth) => void;
   readonly ariaLabel?: string;
+  readonly includeIntermediateMonths?: boolean;
 }
 
 export function MonthSelector({
@@ -21,16 +22,25 @@ export function MonthSelector({
   value,
   onChange,
   ariaLabel = "Select month",
+  includeIntermediateMonths = false,
 }: MonthSelectorProps) {
-  const availableOptions = options.includes(value) ? options : [value, ...options];
-  const oldestOption = availableOptions.reduce(
+  const suppliedOptions = options.includes(value) ? options : [value, ...options];
+  const oldestOption = suppliedOptions.reduce(
     (oldest, option) => (compareCalendarMonths(option, oldest) < 0 ? option : oldest),
-    availableOptions[0],
+    suppliedOptions[0],
   );
-  const newestOption = availableOptions.reduce(
+  const newestOption = suppliedOptions.reduce(
     (newest, option) => (compareCalendarMonths(option, newest) > 0 ? option : newest),
-    availableOptions[0],
+    suppliedOptions[0],
   );
+  const availableOptions = includeIntermediateMonths ? [] : [...suppliedOptions];
+  if (includeIntermediateMonths) {
+    // The chevrons already allow every calendar month inside these bounds.
+    for (let option = newestOption; ; option = previousCalendarMonth(option)) {
+      availableOptions.push(option);
+      if (option === oldestOption) break;
+    }
+  }
   const canStepPrevious = compareCalendarMonths(previousCalendarMonth(value), oldestOption) >= 0;
   const canStepNext = compareCalendarMonths(nextCalendarMonth(value), newestOption) <= 0;
 

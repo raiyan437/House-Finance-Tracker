@@ -3,7 +3,7 @@ import { PageContainer } from "@/presentation/shell/page-container";
 
 export default function ProductLoading() {
   return (
-    <PageContainer>
+    <PageContainer className="journey-route-state">
       <LoadingState label="Loading page" />
     </PageContainer>
   );

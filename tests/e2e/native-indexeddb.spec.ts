@@ -19,8 +19,8 @@ test("native IndexedDB persists the selected development identity across runtime
     "data-runtime-state",
     "ready",
   );
-  await expect(page.locator('a[href="/profile"]').getByText("Raiyan", { exact: true })).toBeVisible();
-  await expect(page.locator('a[href="/profile"]').getByText("Leader", { exact: true })).toBeVisible();
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Raiyan/);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Leader/);
 
   const databases = await page.evaluate(async () =>
     (await indexedDB.databases()).map((database) => database.name),
@@ -29,8 +29,8 @@ test("native IndexedDB persists the selected development identity across runtime
 
   await page.getByTestId("development-tools-trigger").click();
   await page.getByTestId("development-identity-user-john").click();
-  await expect(page.locator('a[href="/profile"]').getByText("John", { exact: true })).toBeVisible();
-  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/John/);
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Member/);
 
   const closeCount = await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent("pagehide"));
@@ -46,10 +46,6 @@ test("native IndexedDB persists the selected development identity across runtime
     "data-runtime-state",
     "ready",
   );
-  await expect(
-    reopenedPage.locator('a[href="/profile"]').getByText("John", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    reopenedPage.locator('a[href="/profile"]').getByText("Member", { exact: true }),
-  ).toBeVisible();
+  await expect(reopenedPage.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/John/);
+  await expect(reopenedPage.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Member/);
 });

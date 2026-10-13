@@ -11,16 +11,13 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "House Finance Tracker",
   description: "Shared household expense tracking, developed locally first.",
-  icons: {
-    icon: "/house-finance-logo.png",
-  },
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${inter.className} h-full`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${inter.variable} ${inter.className} h-full`}>
       <body className="min-h-full antialiased" suppressHydrationWarning>{children}</body>
     </html>
   );

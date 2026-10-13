@@ -198,20 +198,20 @@ export function ExpenseDetailsPageClient({ expenseId }: { readonly expenseId: st
     <PageContainer>
       <Button asChild variant="ghost" className="-ml-3 min-h-11 rounded-xl lg:min-h-9"><Link href="/expenses"><ArrowLeft /> Back to expenses</Link></Button>
       {view.permissions.canDelete ? <ConfirmDialog destructive open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} title="Delete this expense?" description="The expense will leave normal lists and balances. Financial history and receipt metadata remain, while receipt files continue under the normal retention period." confirmLabel="Delete Expense" onConfirm={deleteExpense} /> : null}
-      <header className="mt-1.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <header className="journey-expense-detail-header mt-1.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft"><ExpenseSemanticIcon category={expense.iconCategory} className="size-5" /></span><h1 className="page-title break-words">{expense.name}</h1></div>
-          <p className="financial-numerals mt-1 text-xl font-semibold leading-7">{formatBdt(expense.amount)}</p>
           <p className="compact-caption mt-1 text-text-muted">{formatExpenseDate(expense.expenseDate)} · {expense.deletedAt ? "Deleted historical expense · read-only" : "Household expense"}</p>
           {view.addedAfterSettlement ? <p className="compact-caption mt-1 text-text-muted">Added after settlement</p> : null}
         </div>
+        <p className="financial-numerals text-2xl font-semibold">{formatBdt(expense.amount)}</p>
         <div className="flex shrink-0 items-center gap-3">{view.permissions.canEdit ? (expenseMutationsEnabled ? <Link aria-label="Edit" className="inline-flex h-11 w-40 items-center justify-center gap-2 rounded-xl border border-border-strong bg-card text-sm font-medium shadow-[var(--shadow-small)] transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30" href={`/expenses/${expense.expenseId}/edit`}><Pencil aria-hidden="true" className="size-4" /> Edit Expense</Link> : <span aria-disabled className="inline-flex h-11 w-40 cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-border-strong bg-card text-sm font-medium text-text-muted opacity-60" data-capability-pending title="This action arrives with the next production update."><Pencil aria-hidden="true" className="size-4" /> Edit Expense</span>) : null}{view.permissions.canDelete ? <DropdownMenu><DropdownMenuTrigger asChild disabled={!expenseMutationsEnabled}><Button aria-label="More expense actions" className="w-[66px] rounded-xl" variant="outline"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-danger focus:bg-danger-soft" onSelect={() => setDeleteDialogOpen(true)}><Trash2 aria-hidden="true" className="size-4" />Delete Expense</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}</div>
       </header>
       {(!expenseMutationsEnabled || !receiptMutationsEnabled) && (view.permissions.canEdit || view.permissions.canDelete) ? <CapabilityNotice active /> : null}
       {expense.deletedAt ? <div className="mt-4 rounded-xl border border-danger/20 bg-danger-soft p-4 font-medium text-danger" role="status">Deleted</div> : null}
       {financiallyLocked ? <div className="mt-4 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm" role="status"><p className="font-semibold">{view.financialEditability.title}</p><p className="mt-1">{view.financialEditability.description}</p>{view.financialEditability.deleteDescription ? <p className="mt-1 text-text-secondary">{view.financialEditability.deleteDescription}</p> : null}</div> : null}
 
-      <div className="expense-details-grid mt-12 grid gap-6">
+      <div className="expense-details-grid mt-6 grid gap-6">
         <div className="grid content-start gap-4">
           <Surface className="expense-overview-panel" padding="canonical">
             <h2 className="panel-title">Overview</h2>

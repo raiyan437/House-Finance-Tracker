@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCTION_R2_CAPABILITIES } from "@/application/runtime-capabilities";
@@ -11,6 +11,12 @@ let currentPathname = "/household";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn(), back: vi.fn() }),
   usePathname: () => currentPathname,
+}));
+
+// These fixtures exercise runtime commands/session recovery. The real shared
+// bell's reads and recipient isolation are covered by notification/browser tests.
+vi.mock("@/presentation/notifications/notification-bell.client", () => ({
+  NotificationBell: () => null,
 }));
 
 import { ProductionApplicationRuntime } from "./production-application-runtime.client";
@@ -53,7 +59,7 @@ describe("production application runtime composition", () => {
     );
     expect(await screen.findByText("ROUTE_CHILDREN")).toBeInTheDocument();
     expect(document.querySelector('[data-slot="app-shell"]')).not.toBeNull();
-    expect(screen.getByText("Raiyan")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Your profile" })).toHaveAccessibleDescription("Raiyan · No active household");
     // DEV identity tooling is never rendered in production composition.
     expect(screen.queryByRole("button", { name: "Open development tools" })).toBeNull();
     expect(replace).not.toHaveBeenCalled();
@@ -152,8 +158,9 @@ describe("production application runtime composition", () => {
     await waitFor(() => expect(bootstrapCalls).toBe(2));
     fireEvent.click(screen.getByRole("button", { name: "read-session" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?sessionExpired=1"));
-    resolveBootstrap(new Response(JSON.stringify(bootstrapPayload())));
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await act(async () => {
+      resolveBootstrap(new Response(JSON.stringify(bootstrapPayload())));
+    });
     expect(screen.queryByRole("button", { name: "read-session" })).toBeNull();
   });
 
@@ -204,7 +211,7 @@ describe("production application runtime composition", () => {
     expect(failing).toHaveBeenCalled();
 
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(bootstrapPayload()), { status: 200 }));
-    fireEventClickRetry();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.queryByText("Service temporarily unavailable")).toBeNull());
   });
 
@@ -222,7 +229,7 @@ describe("production application runtime composition", () => {
 
     let expectedCount = 0;
     for (const name of ["create", "request", "cancel", "accept", "reject", "leave", "remove", "transfer", "rename", "delete"]) {
-      screen.getByRole("button", { name }).click();
+      fireEvent.click(screen.getByRole("button", { name }));
       expectedCount += 1;
       await waitFor(() => expect(commands).toHaveLength(expectedCount));
     }
@@ -264,9 +271,9 @@ describe("production application runtime composition", () => {
     render(<ProductionApplicationRuntime><ExpenseReceiptProbe /></ProductionApplicationRuntime>);
     const save = await screen.findByRole("button", { name: "save-with-receipt" });
 
-    save.click();
+    fireEvent.click(save);
     expect(await screen.findByText("RECEIPT_PARTIAL_SUCCESS")).toBeVisible();
-    save.click();
+    fireEvent.click(save);
     expect(await screen.findByText("saved:e_saved")).toBeVisible();
 
     const expenseCalls = calls.filter((call) => call.path === "/api/app/expense-create");
@@ -302,7 +309,7 @@ describe("production application runtime composition", () => {
     });
 
     render(<ProductionApplicationRuntime><MultipleExpenseReceiptsProbe /></ProductionApplicationRuntime>);
-    (await screen.findByRole("button", { name: "save-with-multiple-receipts" })).click();
+    fireEvent.click(await screen.findByRole("button", { name: "save-with-multiple-receipts" }));
 
     expect(await screen.findByText("saved:e_saved")).toBeVisible();
     expect(uploadedCommands).toEqual(["receipt-command-1", "receipt-command-2", "receipt-command-3"]);
@@ -323,7 +330,7 @@ describe("production application runtime composition", () => {
     });
     render(<ProductionApplicationRuntime><ReceiptReadProbe /></ProductionApplicationRuntime>);
     const read = await screen.findByRole("button", { name: "read-private-receipt" });
-    read.click();
+    fireEvent.click(read);
     expect(await screen.findByText("image/png:2")).toBeVisible();
     expect(paths).toContain("/api/app/receipts/r_private/content");
   });
@@ -386,11 +393,6 @@ function HouseholdCommandProbe() {
     <button onClick={invoke(() => actions.renameHousehold("Renamed"))}>rename</button>
     <button onClick={invoke(() => actions.deleteHousehold())}>delete</button>
   </div>;
-}
-
-function fireEventClickRetry(): void {
-  const retry = screen.getByRole("button", { name: "Retry" });
-  retry.click();
 }
 
 function ExpiredReadProbe() {

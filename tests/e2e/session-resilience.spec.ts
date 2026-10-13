@@ -1,8 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { PRODUCTION_R2_CAPABILITIES } from "../../src/application/runtime-capabilities";
+import { PRODUCTION_R2_CAPABILITIES, PRODUCTION_R4_CAPABILITIES } from "../../src/application/runtime-capabilities";
+import { resolve } from "node:path";
 
 // Production composition with intercepted API fixtures; no live business mutations.
+test.beforeEach(async ({ page }) => {
+  // Only later explicit fixtures may handle API calls; unmatched requests never reach a provider.
+  await page.route("**/api/**", (route) => route.abort());
+  await page.route("**/api/app/notifications/latest", (route) => route.fulfill({ json: { data: { notifications: [], unreadCount: 0 } } }));
+});
 function bootstrap() {
   return { data: {
     session: { userId: "fixture-user", displayName: "Fixture", displayEmail: "fixture@example.test", profileVersion: 1, roleLabel: "No active household", settlementActionCount: 0 },
@@ -154,5 +160,89 @@ test.describe("production session resilience", () => {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
+  });
+
+  test("production Profile photo and password controls reflow without losing drafts", async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
+    const unexpected: string[] = [];
+    // Block every unmatched API request so this visual check cannot reach a provider.
+    await page.route("**/api/**", (route) => {
+      unexpected.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
+      return route.fulfill({ status: 404, json: { error: "Unmatched test request." } });
+    });
+    await page.route("**/api/app/profile-avatar**", (route) => route.fulfill({ status: 404 }));
+    await page.route("**/api/app/notifications/latest", (route) => route.fulfill({ json: { data: { notifications: [], unreadCount: 0 } } }));
+    const fixture = bootstrap();
+    await page.route("**/api/app/bootstrap", (route) => route.fulfill({ json: { data: { ...fixture.data, capabilities: PRODUCTION_R4_CAPABILITIES } } }));
+    await page.goto("/profile");
+    await page.getByRole("textbox", { name: "Display Name", exact: true }).fill("Private draft");
+    await page.getByLabel("Current Password", { exact: true }).fill("fixture-password");
+    const visibility = page.locator('button[aria-controls="profile-current-password"]');
+    // Filling a password scrolls it into view; finish positioning its adjacent control before pointer activation.
+    await visibility.scrollIntoViewIfNeeded();
+    await expect(visibility).toHaveAccessibleName("Show password");
+    await visibility.click();
+    await expect(page.getByLabel("Current Password", { exact: true })).toHaveAttribute("type", "text");
+    await expect(visibility).toHaveAccessibleName("Hide password");
+    await expect(visibility).toHaveCSS("translate", "none");
+    await visibility.click();
+    await expect(page.getByLabel("Current Password", { exact: true })).toHaveAttribute("type", "password");
+    for (const width of [360, 390, 768, 1024, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(page.getByRole("button", { name: "Change Photo", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Update Password", exact: true })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Display Name", exact: true })).toHaveValue("Private draft");
+      await expect(page.getByLabel("Current Password", { exact: true })).toHaveValue("fixture-password");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      if (width === 390 || width === 1440) {
+        await page.evaluate(() => { if (document.activeElement?.classList.contains("skip-link")) (document.activeElement as HTMLElement).blur(); });
+        await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+        const filename = `profile-production-${width}.png`;
+        await page.screenshot({ path: process.env.UI_REDESIGN_ARTIFACT_DIR && testInfo.project.name === "chromium" ? resolve(process.env.UI_REDESIGN_ARTIFACT_DIR, filename) : testInfo.outputPath(filename), fullPage: true });
+        const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+        expect(axe.violations.filter((item) => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
+      }
+    }
+    expect(unexpected).toEqual([]);
+  });
+
+  test("U2 service-unavailable screen matches the design and Retry recovers", async ({ page }, testInfo) => {
+    let unavailable = true;
+    await page.route("**/api/app/bootstrap", (route) => route.fulfill(unavailable ? { status: 503, json: { error: "fixture unavailable" } } : { json: bootstrap() }));
+    await page.goto("/profile");
+    await expect(page.getByRole("heading", { name: "Service temporarily unavailable" })).toBeVisible();
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      const filename = `u2-service-unavailable-${width}.png`;
+      await page.screenshot({ path: process.env.UI_REDESIGN_ARTIFACT_DIR && testInfo.project.name === "chromium" ? resolve(process.env.UI_REDESIGN_ARTIFACT_DIR, filename) : testInfo.outputPath(filename), fullPage: true, animations: "disabled" });
+      const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(axe.violations.filter((item) => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
+    }
+    unavailable = false;
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Display Name", exact: true })).toHaveValue("Fixture");
+  });
+
+  test("U2 route error is sanitized, responsive, and recovers through its existing reset", async ({ page }, testInfo) => {
+    await page.route("**/api/**", (route) => route.fulfill({ status: 404, json: { error: "Unmatched fixture request" } }));
+    await page.route("**/api/app/notifications/latest", (route) => route.fulfill({ json: { data: { notifications: [], unreadCount: 0 } } }));
+    await page.route("**/api/app/bootstrap", (route) => route.fulfill({ json: bootstrap() }));
+    let invalid = true;
+    await page.route("**/api/app/cards", (route) => route.fulfill({ json: { data: invalid ? null : { cards: [] } } }));
+    await page.goto("/cards");
+    await expect(page.getByRole("heading", { name: "Something went wrong", exact: true })).toBeVisible();
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(page.locator("main")).not.toContainText("Cannot read properties");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      const filename = `u2-route-error-${width}.png`;
+      await page.screenshot({ path: process.env.UI_REDESIGN_ARTIFACT_DIR && testInfo.project.name === "chromium" ? resolve(process.env.UI_REDESIGN_ARTIFACT_DIR, filename) : testInfo.outputPath(filename), fullPage: true, animations: "disabled" });
+      const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(axe.violations.filter((item) => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
+    }
+    invalid = false;
+    await page.getByRole("button", { name: "Try again", exact: true }).click();
+    await expect(page.getByText("No cards yet", { exact: true })).toBeVisible();
   });
 });

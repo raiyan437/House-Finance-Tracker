@@ -61,9 +61,10 @@ function CardTile({
   const option = getCardPaletteOption(card.colorId);
 
   return (
-    <div className="group relative">
-      <CardDesignPreview cardName={card.name} cardType={card.type} holderName={holderName} option={option} />
-      <div className="absolute right-2 top-2">
+    <div className="journey-card-tile group relative rounded-[24px] bg-card p-4">
+      <h2 className="mb-4 pr-12 text-base font-semibold">{card.name}</h2>
+      <CardDesignPreview cardName={card.name} cardType={card.type} holderName={holderName} option={option} standalone />
+      <div className="absolute right-3 top-3">
         <CardActionsMenu
           card={card}
           count={count}
@@ -230,7 +231,7 @@ function OwnedCardsPage({
           title="No cards yet"
         />
       ) : (
-        <ul aria-label="Your active Cards" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul aria-label="Your active Cards" className="journey-cards-grid grid gap-4">
           {cards.map((card, index) => (
             <li key={card.cardId}>
               <CardTile

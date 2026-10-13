@@ -18,7 +18,7 @@ import { PageContainer } from "@/presentation/shell/page-container";
 import { PageHeader } from "@/presentation/shell/page-header";
 import { DailySpendingChart, PaymentMixChart } from "./analytics-charts.client";
 import { absolutePoisha, formatBasisPointPercentage } from "./analytics-ui";
-import { PaymentMixRows } from "./dashboard-page.client";
+import { PaymentMixRows } from "./payment-mix-rows";
 import { ExpenseSummaryList } from "./expense-summary-list";
 import { MonthSelector } from "./month-selector";
 
@@ -114,17 +114,19 @@ export function MonthlyReportContent({ view }: Readonly<{ view: MonthlyReportPag
     ? "No spending this month; Cash and Card are both zero."
     : `Cash ${formatBdt(view.paymentMix.cash.amount)} (${formatBasisPointPercentage(view.paymentMix.cash.basisPoints ?? 0)}); Card ${formatBdt(view.paymentMix.card.amount)} (${formatBasisPointPercentage(view.paymentMix.card.basisPoints ?? 0)}).`;
   return (
-    <div className="space-y-6">
+    <div className="journey-report-content space-y-6">
+      <div className="journey-group journey-report-summary">
       <Surface className="flex flex-wrap items-center justify-between gap-4" padding="canonical">
         <div><p className="metric-label">Report month</p><h2 className="mt-1 text-xl font-semibold">{formatCalendarMonth(view.selectedMonth)}</h2></div>
         <FileChartColumn aria-hidden="true" className="size-7 text-text-muted" />
       </Surface>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="journey-report-metrics grid gap-4 md:grid-cols-3">
         <MetricCard label="Total Spending" value={<span className="financial-numerals">{formatBdt(view.totalSpending)}</span>} />
         <MetricCard icon={<ReceiptText className="size-5 text-text-muted" />} label="Expense Count" value={<span className="financial-numerals">{view.expenseCount}</span>} />
         <MetricCard icon={view.comparison.kind === "percentage" && view.comparison.delta < 0 ? <TrendingDown className="size-5 text-success" /> : <TrendingUp className="size-5 text-text-muted" />} label="Month-over-Month" supportingText={comparison.secondary} value={<span className="text-lg">{comparison.primary}</span>} />
       </div>
 
+      </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(20rem,0.8fr)]">
         <ChartCard description="Daily household spending" summary={trendSummary} title="Daily Spending Trend">
           <p className="sr-only" id="report-spending-trend-description">{trendSummary}</p>
@@ -132,11 +134,14 @@ export function MonthlyReportContent({ view }: Readonly<{ view: MonthlyReportPag
         </ChartCard>
         <ChartCard description="By amount spent" summary={paymentSummary} title="Payment Mix">
           <p className="sr-only" id="report-payment-mix-description">{paymentSummary}</p>
-          {view.paymentMix.total > 0 ? <PaymentMixChart descriptionId="report-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} month={view.selectedMonth} /> : <p className="py-12 text-center text-body text-text-secondary">No spending this month</p>}
-          <PaymentMixRows mix={view.paymentMix} />
+          <div className="journey-report-payment">
+            {view.paymentMix.total > 0 ? <PaymentMixChart compact descriptionId="report-payment-mix-description" label={`Payment Mix for ${formatCalendarMonth(view.selectedMonth)}`} mix={view.paymentMix} month={view.selectedMonth} /> : <p className="py-12 text-center text-body text-text-secondary">No spending this month</p>}
+            <PaymentMixRows compact mix={view.paymentMix} />
+          </div>
         </ChartCard>
       </div>
 
+      <div className="journey-report-bottom grid gap-4">
       <Surface>
         <h2 className="panel-title">Member Contributions and Expense Shares</h2>
         <p className="mt-1 text-body text-text-secondary">Amount Paid and Expense Share are calculated independently from source Expenses and allocations.</p>
@@ -153,7 +158,6 @@ export function MonthlyReportContent({ view }: Readonly<{ view: MonthlyReportPag
         )}
       </Surface>
 
-      <div className="grid gap-4 xl:grid-cols-2">
         <Surface>
           <h2 className="panel-title">Largest Expenses</h2>
           <div className="mt-5"><ExpenseSummaryList emptyMessage="No expenses this month" expenses={view.largestExpenses} /></div>

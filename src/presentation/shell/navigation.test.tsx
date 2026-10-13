@@ -127,8 +127,7 @@ describe("responsive navigation", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByText("Raiyan Uddin")).toBeVisible();
-    expect(screen.getByText("Leader")).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Open profile/ })).not.toBeInTheDocument();
     const logout = screen.getByRole("button", { name: "Log Out" });
     expect(logout).toHaveAttribute("aria-disabled", "true");
     expect(logout).toHaveAccessibleDescription(
@@ -146,24 +145,15 @@ describe("responsive navigation", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("smoothly collapses the desktop shell while keeping controls accessible", async () => {
-    const user = userEvent.setup();
+  it("keeps the rail permanently compact while retaining accessible controls", () => {
     renderWithRuntime(<DesktopSidebar />);
 
-    const sidebar = screen.getByRole("navigation", { name: "Primary navigation" }).parentElement;
-    const collapse = screen.getByRole("button", { name: "Collapse sidebar" });
-    expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeVisible();
-
-    await user.click(collapse);
-
+    const sidebar = screen.getByRole("navigation", { name: "Primary navigation" }).closest("aside");
     expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "true");
-    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /(?:Expand|Collapse) sidebar/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open profile for Raiyan Uddin" })).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
-    expect(sidebar).toHaveAttribute("data-sidebar-collapsed", "false");
+    expect(screen.queryByRole("link", { name: /Open profile/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log Out" })).toBeVisible();
   });
 
   it("exposes destinations and the separated final Log Out action through the mobile More sheet", async () => {

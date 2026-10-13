@@ -37,7 +37,7 @@ function HouseholdIdentity({ name, code }: Readonly<{ name: string; code: string
 
 function NoHouseholdState() {
   return (
-    <div className="grid gap-5 md:grid-cols-2">
+    <div className="journey-household-onboarding grid gap-5 md:grid-cols-2">
       <Surface className="flex min-h-56 flex-col">
         <span className="flex size-11 items-center justify-center rounded-full bg-brand-soft">
           <House aria-hidden="true" className="size-5" />
@@ -159,8 +159,9 @@ function ActiveHouseholdView({
   }
 
   return (
-    <div className="grid max-w-4xl gap-6">
-      <Surface padding="large">
+    <div className={`journey-household-grid grid gap-4 ${page.viewerRole === "member" ? "journey-household-member-grid" : ""}`}>
+      <Surface className="journey-household-info" padding="large">
+        <h2 className="panel-title mb-5">Household Information</h2>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <HouseholdIdentity name={page.household.name} code={page.household.code} />
           {page.viewerRole === "leader" ? (
@@ -177,7 +178,7 @@ function ActiveHouseholdView({
         </div>
       </Surface>
 
-      <Surface padding="large">
+      <Surface className="journey-household-leader" padding="large">
         <div className="flex items-center gap-2">
           <Crown aria-hidden="true" className="size-5" />
           <h2 className="panel-title">House Leader</h2>
@@ -191,7 +192,7 @@ function ActiveHouseholdView({
         </div>
       </Surface>
 
-      <Surface padding="large">
+      <Surface className="journey-household-members" padding="large">
         <div className="flex items-center gap-2">
           <Users aria-hidden="true" className="size-5" />
           <h2 className="panel-title">Members</h2>
@@ -207,7 +208,7 @@ function ActiveHouseholdView({
       </Surface>
 
       {page.viewerRole === "leader" ? (
-        <Surface padding="large">
+        <Surface className="journey-household-requests" padding="large">
           <h2 className="panel-title">Join requests</h2>
           <p className="mt-2 text-body text-text-secondary">Review people waiting to join this household.</p>
           {joinRequests.length ? (
@@ -226,6 +227,7 @@ function ActiveHouseholdView({
         </Surface>
       ) : null}
 
+      <div className="journey-household-management grid content-start gap-4">
       <Surface padding="large">
         <h2 className="panel-title">Household management</h2>
         <p className="mt-2 text-body text-text-secondary">Leave only after your exact balance and Pending settlements are clear.</p>
@@ -258,6 +260,7 @@ function ActiveHouseholdView({
         </Surface>
       ) : null}
 
+      </div>
       {dialog && (dialog.action === "leave" || dialog.action === "delete" || selectedMember) ? (
         <HouseholdManagementDialog
           action={dialog.action}
@@ -315,7 +318,8 @@ export function HouseholdPageClient() {
       {household.status === "no-household" ? <NoHouseholdState /> : null}
 
       {household.status === "pending-request" ? (
-        <Surface className="max-w-2xl" padding="large">
+        <Surface className="journey-household-pending max-w-2xl" padding="large">
+          <span aria-hidden="true" className="journey-pending-icon"><House className="size-7" /></span>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="break-words text-h3">{household.request.household.name}</p>

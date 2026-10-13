@@ -93,27 +93,49 @@ async function storedRows(page: Page, stores: readonly string[]) {
   }, stores);
 }
 
-test("active Leader and Member views protect the House Code and Leader-only controls", async ({
-  context,
-  page,
-}) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/household");
-  await expect(page.getByLabel("House Code hidden")).toHaveText("•••••••••");
-  await page.getByRole("button", { name: "Show House Code" }).click();
-  await expect(page.getByLabel("House Code 012345678")).toHaveText("012345678");
-  await page.getByRole("button", { name: "Copy exact House Code" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("012345678");
-  await expect(page.getByText("Join requests")).toBeVisible();
-  await expect(page.getByText("Danger zone")).toBeVisible();
+test(
+  "active Leader and Member views protect the House Code and Leader-only controls",
+  { tag: "@critical" },
+  async ({ context, page, browserName }) => {
+    if (browserName === "chromium") {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    } else {
+      // These engines do not expose Chromium's clipboard permissions. Verify the
+      // exact requested payload with a clipboard fixture; Chromium covers the native API.
+      await page.addInitScript(() => {
+        let copied = "";
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            writeText: async (value: string) => {
+              copied = value;
+            },
+            readText: async () => copied,
+          },
+        });
+      });
+    }
+    await page.goto("/household");
+    await expect(page.getByLabel("House Code hidden")).toHaveText("•••••••••");
+    await page.getByRole("button", { name: "Show House Code" }).click();
+    await expect(page.getByLabel("House Code 012345678")).toHaveText(
+      "012345678",
+    );
+    await page.getByRole("button", { name: "Copy exact House Code" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "012345678",
+    );
+    await expect(page.getByText("Join requests")).toBeVisible();
+    await expect(page.getByText("Danger zone")).toBeVisible();
 
-  await switchIdentity(page, "john");
-  await expect(page.getByLabel("House Code hidden")).toBeVisible();
-  await expect(page.getByText("Join requests")).toHaveCount(0);
-  await expect(page.getByText("Danger zone")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Manage / })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
-});
+    await switchIdentity(page, "john");
+    await expect(page.getByLabel("House Code hidden")).toBeVisible();
+    await expect(page.getByText("Join requests")).toHaveCount(0);
+    await expect(page.getByText("Danger zone")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Manage / })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
+  },
+);
 
 test("Leader renames the House name atomically while members see no control", async ({
   page,
@@ -148,7 +170,7 @@ test("Leader renames the House name atomically while members see no control", as
   await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
 });
 
-test("cross-identity transfer, Leave, and Remove reconstruct authority and route access", async ({
+test("cross-identity transfer, Leave, and Remove reconstruct authority and route access", { tag: "@critical" }, async ({
   page,
 }) => {
   await page.goto("/household");
@@ -160,7 +182,7 @@ test("cross-identity transfer, Leave, and Remove reconstruct authority and route
   await page.getByRole("menuitem", { name: "Transfer Leadership" }).click();
   await page.getByRole("button", { name: "Transfer Leadership" }).click();
   await expect(page.getByText("Danger zone")).toHaveCount(0);
-  await expect(page.locator('a[href="/profile"]').getByText("Member", { exact: true })).toBeVisible();
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Member/);
 
   await page.getByRole("button", { name: "Leave Household" }).click();
   await page.getByRole("button", { name: "Leave Household" }).click();
@@ -187,7 +209,7 @@ test("cross-identity transfer, Leave, and Remove reconstruct authority and route
   await expect(page.getByRole("heading", { name: "No household" })).toBeVisible();
 });
 
-test("Household deletion closes Pending requests, preserves private history, and persists across reopen", async ({
+test("Household deletion closes Pending requests, preserves private history, and persists across reopen", { tag: "@critical" }, async ({
   context,
   page,
 }) => {
@@ -246,6 +268,10 @@ for (const viewport of [
       ),
     ).toBe(false);
     if (viewport.name === "mobile") {
+      // Measure settled touch targets separately from the page-entry transform.
+      await page.locator('[data-slot="route-surface"]').evaluate(async (surface) => {
+        await Promise.all(surface.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+      });
       for (const name of ["Show House Code", "Copy exact House Code", "Accept", "Reject"]) {
         const box = await page.getByRole("button", { name, exact: true }).boundingBox();
         expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

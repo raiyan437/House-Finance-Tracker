@@ -6,6 +6,10 @@ test("Dashboard notification bell is keyboard accessible and navigates to retain
   const bell = page.getByRole("button", { name: /^Notifications/u });
   await expect(bell).toBeVisible();
   await expect(bell).toHaveClass(/size-11/);
+  await expect(page.locator("header").getByRole("button", { name: /^Notifications/u })).toHaveCount(1);
+  const bellBox = await bell.boundingBox();
+  const profileBox = await page.getByRole("link", { name: "Your profile", exact: true }).boundingBox();
+  expect(profileBox!.x - bellBox!.x - bellBox!.width).toBe(8);
   await bell.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitem", { name: /New expense/u })).toBeVisible();
@@ -20,6 +24,24 @@ test("Dashboard notification bell is keyboard accessible and navigates to retain
   await seeMore.click();
   await expect(page).toHaveURL(/\/notifications$/u);
   await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
+});
+
+test("shared header notifications remain recipient-isolated across navigation and identity changes", async ({ page }) => {
+  await page.goto("/profile");
+  const bell = page.locator("header").getByRole("button", { name: /^Notifications/u });
+  await bell.click();
+  await expect(page.getByRole("menuitem", { name: /New expense/u })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("development-tools-trigger").click();
+  await page.getByTestId("development-identity-user-alex").click();
+  await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription(/Alex/);
+  await bell.click();
+  await expect(page.getByRole("menuitem", { name: /New expense/u })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /Household membership changed/u })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Navigate to Cards", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "My Cards" })).toBeVisible();
+  await expect(bell).toHaveCount(1);
 });
 
 test("Notifications page marks every retained unread row, not only the loaded page", async ({ page }) => {
@@ -54,7 +76,10 @@ for (const viewport of [
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
     await page.keyboard.press("Escape");
     await page.goto("/notifications");
-    expect(await page.evaluate(() => ({ document: document.documentElement.scrollWidth - document.documentElement.clientWidth, body: document.body.scrollWidth - document.body.clientWidth }))).toEqual({ document: 0, body: 0 });
+    const overflow = await page.evaluate(() => ({ document: document.documentElement.scrollWidth - document.documentElement.clientWidth, body: document.body.scrollWidth - document.body.clientWidth }));
+    // A reserved scrollbar gutter can make this difference negative during navigation.
+    expect(overflow.document).toBeLessThanOrEqual(0);
+    expect(overflow.body).toBeLessThanOrEqual(0);
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
   });

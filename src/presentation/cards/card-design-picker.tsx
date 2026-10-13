@@ -4,6 +4,7 @@ import type { CardColorId } from "@/domain/cards/card-color";
 import { CARD_DESIGN_IDS } from "@/domain/cards/card-color";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
 import { CardDesignPreview } from "./card-design-preview";
 import { getCardPaletteOption } from "./card-palette";
 
@@ -43,7 +44,7 @@ export function CardDesignPicker({
             className={cn(
               "relative block cursor-pointer rounded-xl transition-transform",
               "has-[button:focus-visible]:ring-3 has-[button:focus-visible]:ring-ring/40",
-              selected ? "ring-2 ring-foreground ring-offset-2" : "hover:ring-2 hover:ring-ring/30",
+              selected ? "ring-2 ring-info ring-offset-2" : "hover:ring-2 hover:ring-ring/30",
               disabled ? "cursor-not-allowed opacity-60" : "",
             )}
             key={id}
@@ -56,6 +57,7 @@ export function CardDesignPicker({
               holderName={holderName}
               option={option}
             />
+            {selected ? <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-white text-info shadow-sm"><Check className="size-4" /></span> : null}
           </label>
         );
       })}

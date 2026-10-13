@@ -1,0 +1,627 @@
+{
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 5 3600 6-Core Processor              ",
+    "timezone": "Asia/Dhaka",
+    "samples": 9,
+    "warmups": 2,
+    "selectedMonth": "2026-08"
+  },
+  "limitations": "Synthetic in-process provider and fake IndexedDB: includes real repositories, paging, validation and projections; excludes network, provider server time/limits, native browser storage, rendering, cold boot and receipt binaries. End-to-end timings include invariant assertions; parity serialization is outside timing. Projection CPU timings exclude storage, assertions and serialization, and include index construction. No production latency or capacity claim.",
+  "results": [
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "indexeddb",
+      "operation": "dashboard",
+      "medianMs": 7.75,
+      "p95Ms": 9.39
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "appwrite-memory",
+      "operation": "dashboard",
+      "medianMs": 91.72,
+      "p95Ms": 102.65,
+      "traffic": {
+        "requests": 10,
+        "rows": 202,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 2,
+            "rows": 180
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 12
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "indexeddb",
+      "operation": "monthlyReport",
+      "medianMs": 7.27,
+      "p95Ms": 12.73
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "appwrite-memory",
+      "operation": "monthlyReport",
+      "medianMs": 87.41,
+      "p95Ms": 89.44,
+      "traffic": {
+        "requests": 10,
+        "rows": 202,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 2,
+            "rows": 180
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 12
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "indexeddb",
+      "operation": "settlements",
+      "medianMs": 6.61,
+      "p95Ms": 12.04
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "appwrite-memory",
+      "operation": "settlements",
+      "medianMs": 85.94,
+      "p95Ms": 93.74,
+      "traffic": {
+        "requests": 9,
+        "rows": 201,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 2,
+            "rows": 180
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 12
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "indexeddb",
+      "operation": "expenseHistory",
+      "medianMs": 9.97,
+      "p95Ms": 14.08
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "appwrite-memory",
+      "operation": "expenseHistory",
+      "medianMs": 95.04,
+      "p95Ms": 102.64,
+      "traffic": {
+        "requests": 21,
+        "rows": 230,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 2,
+            "rows": 180
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 12
+          },
+          "expense_comments": {
+            "requests": 1,
+            "rows": 18
+          },
+          "expense_card_private_details": {
+            "requests": 15,
+            "rows": 15
+          }
+        }
+      }
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "projection-cpu",
+      "operation": "originalProjection",
+      "medianMs": 16.58,
+      "p95Ms": 16.93
+    },
+    {
+      "years": 1,
+      "expenses": 180,
+      "settlements": 12,
+      "comments": 18,
+      "adapter": "projection-cpu",
+      "operation": "indexedProjection",
+      "medianMs": 3.24,
+      "p95Ms": 7.42
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "indexeddb",
+      "operation": "dashboard",
+      "medianMs": 31.71,
+      "p95Ms": 33.17
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "appwrite-memory",
+      "operation": "dashboard",
+      "medianMs": 418.58,
+      "p95Ms": 459.35,
+      "traffic": {
+        "requests": 18,
+        "rows": 970,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 10,
+            "rows": 900
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 60
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "indexeddb",
+      "operation": "monthlyReport",
+      "medianMs": 30.61,
+      "p95Ms": 32.03
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "appwrite-memory",
+      "operation": "monthlyReport",
+      "medianMs": 407.49,
+      "p95Ms": 415.42,
+      "traffic": {
+        "requests": 18,
+        "rows": 970,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 10,
+            "rows": 900
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 60
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "indexeddb",
+      "operation": "settlements",
+      "medianMs": 30.15,
+      "p95Ms": 34.64
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "appwrite-memory",
+      "operation": "settlements",
+      "medianMs": 409.93,
+      "p95Ms": 414.55,
+      "traffic": {
+        "requests": 17,
+        "rows": 969,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 10,
+            "rows": 900
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 60
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "indexeddb",
+      "operation": "expenseHistory",
+      "medianMs": 47.39,
+      "p95Ms": 51.37
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "appwrite-memory",
+      "operation": "expenseHistory",
+      "medianMs": 452.09,
+      "p95Ms": 459.9,
+      "traffic": {
+        "requests": 89,
+        "rows": 1130,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 10,
+            "rows": 900
+          },
+          "settlements": {
+            "requests": 1,
+            "rows": 60
+          },
+          "expense_comments": {
+            "requests": 1,
+            "rows": 90
+          },
+          "expense_card_private_details": {
+            "requests": 75,
+            "rows": 75
+          }
+        }
+      }
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "projection-cpu",
+      "operation": "originalProjection",
+      "medianMs": 345.68,
+      "p95Ms": 356.34
+    },
+    {
+      "years": 5,
+      "expenses": 900,
+      "settlements": 60,
+      "comments": 90,
+      "adapter": "projection-cpu",
+      "operation": "indexedProjection",
+      "medianMs": 14.78,
+      "p95Ms": 16.29
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "indexeddb",
+      "operation": "dashboard",
+      "medianMs": 62.9,
+      "p95Ms": 69.89
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "appwrite-memory",
+      "operation": "dashboard",
+      "medianMs": 821.57,
+      "p95Ms": 880.67,
+      "traffic": {
+        "requests": 28,
+        "rows": 1930,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 19,
+            "rows": 1800
+          },
+          "settlements": {
+            "requests": 2,
+            "rows": 120
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "indexeddb",
+      "operation": "monthlyReport",
+      "medianMs": 62.36,
+      "p95Ms": 66.5
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "appwrite-memory",
+      "operation": "monthlyReport",
+      "medianMs": 823.2,
+      "p95Ms": 862.09,
+      "traffic": {
+        "requests": 28,
+        "rows": 1930,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 19,
+            "rows": 1800
+          },
+          "settlements": {
+            "requests": 2,
+            "rows": 120
+          },
+          "households": {
+            "requests": 1,
+            "rows": 1
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "indexeddb",
+      "operation": "settlements",
+      "medianMs": 57.35,
+      "p95Ms": 60.01
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "appwrite-memory",
+      "operation": "settlements",
+      "medianMs": 816.85,
+      "p95Ms": 827.48,
+      "traffic": {
+        "requests": 27,
+        "rows": 1929,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 19,
+            "rows": 1800
+          },
+          "settlements": {
+            "requests": 2,
+            "rows": 120
+          },
+          "profiles": {
+            "requests": 4,
+            "rows": 4
+          }
+        }
+      }
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "indexeddb",
+      "operation": "expenseHistory",
+      "medianMs": 94.55,
+      "p95Ms": 98.72
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "appwrite-memory",
+      "operation": "expenseHistory",
+      "medianMs": 919.51,
+      "p95Ms": 962.55,
+      "traffic": {
+        "requests": 175,
+        "rows": 2255,
+        "maxPageRows": 100,
+        "byTable": {
+          "memberships": {
+            "requests": 2,
+            "rows": 5
+          },
+          "expenses": {
+            "requests": 19,
+            "rows": 1800
+          },
+          "settlements": {
+            "requests": 2,
+            "rows": 120
+          },
+          "expense_comments": {
+            "requests": 2,
+            "rows": 180
+          },
+          "expense_card_private_details": {
+            "requests": 150,
+            "rows": 150
+          }
+        }
+      }
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "projection-cpu",
+      "operation": "originalProjection",
+      "medianMs": 1338.62,
+      "p95Ms": 1353.18
+    },
+    {
+      "years": 10,
+      "expenses": 1800,
+      "settlements": 120,
+      "comments": 180,
+      "adapter": "projection-cpu",
+      "operation": "indexedProjection",
+      "medianMs": 30.53,
+      "p95Ms": 32.43
+    }
+  ]
+}

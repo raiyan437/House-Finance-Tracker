@@ -10,6 +10,74 @@ async function openReadyShell(page: Page, path = "/dashboard") {
 }
 
 test.describe("responsive shell", () => {
+  test("centers the desktop menu and header independently with aligned branding", async ({ page }, testInfo) => {
+    await openReadyShell(page);
+    const sidebar = page.locator("#desktop-sidebar");
+    await expect(sidebar.locator('a[href="/profile"]')).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Your profile", exact: true })).toHaveAccessibleDescription("Raiyan · Leader");
+    for (const viewport of [
+      { width: 1024, height: 600 },
+      { width: 1280, height: 900 },
+      { width: 1440, height: 900 },
+      { width: 1920, height: 1000 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const geometry = await page.evaluate(() => {
+        const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+        const header = rect(".journey-header");
+        const nav = rect(".journey-top-nav");
+        const stack = rect(".journey-rail-stack");
+        const dashboard = rect('#desktop-sidebar a[href="/dashboard"]');
+        const household = rect('#desktop-sidebar a[href="/household"]');
+        const logout = rect('#desktop-sidebar button[aria-label="Log Out"]');
+        const brand = rect(".journey-wordmark");
+        const icon = rect(".journey-brand-icon svg");
+        const actions = rect(".journey-header-actions");
+        const dev = rect('[data-testid="development-tools-trigger"]');
+        return {
+          verticalError: stack.top + stack.height / 2 - window.innerHeight / 2,
+          headerError: nav.left + nav.width / 2 - (header.left + header.width / 2),
+          brandError: brand.left - dashboard.left,
+          iconError: icon.left + icon.width / 2 - (dashboard.left + dashboard.width / 2),
+          logoutGap: logout.top - household.bottom,
+          logoutError: logout.left - household.left,
+          brandGap: nav.left - brand.right,
+          accountGap: actions.left - nav.right,
+          devGap: dev.top - stack.bottom,
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      for (const key of ["verticalError", "headerError", "brandError", "iconError", "logoutError"] as const) {
+        expect(Math.abs(geometry[key]), `${key} at ${viewport.width}px`).toBeLessThanOrEqual(1);
+      }
+      expect(geometry.logoutGap).toBe(12);
+      expect(geometry.brandGap).toBeGreaterThanOrEqual(8);
+      expect(geometry.accountGap).toBeGreaterThanOrEqual(8);
+      expect(geometry.devGap).toBeGreaterThanOrEqual(8);
+      expect(geometry.overflow).toBeLessThanOrEqual(1);
+      if (viewport.width === 1440) await page.screenshot({ path: testInfo.outputPath("centered-desktop.png"), animations: "disabled" });
+    }
+    await page.setViewportSize({ width: 1440, height: 480 });
+    await sidebar.getByRole("button", { name: "Log Out" }).scrollIntoViewIfNeeded();
+    await expect(sidebar.getByRole("button", { name: "Log Out" })).toBeInViewport();
+    await page.getByTestId("development-tools-trigger").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("development-tools-trigger")).toBeInViewport();
+  });
+
+  test("keeps branding and account controls separate at narrow mobile widths", async ({ page }, testInfo) => {
+    await openReadyShell(page);
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      const brand = await page.locator(".journey-wordmark").boundingBox();
+      const actions = await page.locator(".journey-header-actions").boundingBox();
+      expect(brand!.x + brand!.width + 8).toBeLessThanOrEqual(actions!.x);
+      await expect(page.getByRole("navigation", { name: "Header navigation" })).toBeHidden();
+      await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      if (width === 390) await page.screenshot({ path: testInfo.outputPath("mobile-header.png"), animations: "disabled" });
+    }
+  });
+
   for (const viewport of [
     { name: "mobile", width: 390, height: 844 },
     { name: "large mobile", width: 700, height: 900 },
@@ -63,7 +131,7 @@ test.describe("responsive shell", () => {
     { name: "laptop", width: 1024, height: 768 },
     { name: "desktop", width: 1440, height: 900 },
   ]) {
-    test(`uses the full sidebar at ${viewport.name} width`, async ({ page }) => {
+    test(`uses the compact sidebar at ${viewport.name} width`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openReadyShell(page);
 
@@ -75,7 +143,7 @@ test.describe("responsive shell", () => {
       ).toBeHidden();
       await expect(
         page.getByRole("link", { name: "House Finance Tracker dashboard" }),
-      ).toBeVisible();
+      ).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Log Out" })).toHaveAttribute(
         "aria-disabled",
         "true",
@@ -88,38 +156,23 @@ test.describe("responsive shell", () => {
     });
   }
 
-  test("desktop sidebar collapses to an icon rail and expands without losing navigation", async ({ page }) => {
+  test("desktop sidebar stays compact on hover and focus with all controls accessible", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openReadyShell(page);
-
     const sidebar = page.locator("#desktop-sidebar");
-    const expandedBox = await sidebar.boundingBox();
-    expect(expandedBox?.width ?? 0).toBeGreaterThanOrEqual(220);
-    await page.getByRole("button", { name: "Collapse sidebar" }).click();
-    const expandButton = page.getByRole("button", { name: "Expand sidebar" });
-    await expect(expandButton).not.toBeVisible();
-    const logo = page.getByRole("link", { name: "House Finance Tracker dashboard" });
-    const logoBox = await logo.boundingBox();
-    expect(logoBox).not.toBeNull();
-    await page.mouse.move((logoBox?.x ?? 0) + 2, (logoBox?.y ?? 0) + 2);
-    await expect(expandButton).toBeVisible();
-    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+    await sidebar.hover({ position: { x: 30, y: 20 } });
+    await expect(page.getByRole("link", { name: "House Finance Tracker dashboard" })).toHaveCount(0);
+    const dashboard = sidebar.getByRole("link", { name: "Dashboard", exact: true });
+    await dashboard.focus();
+    await expect(dashboard).toBeFocused();
+    await expect(page.getByRole("button", { name: /(?:Expand|Collapse) sidebar/ })).toHaveCount(0);
+    expect((await sidebar.boundingBox())?.width).toBe(72);
+    await expect(page.locator('.journey-header a[href="/profile"]')).toHaveAccessibleDescription("Raiyan · Leader");
+    for (const label of ["Dashboard", "Expenses", "Settlements", "Cards", "Household"]) {
+      await expect(sidebar.getByRole("link", { name: label, exact: true })).toBeVisible();
+    }
     await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeHidden();
-
-    await expect
-      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
-      .toBeLessThan(100);
-    const collapsedBox = await sidebar.boundingBox();
-    expect(collapsedBox?.width ?? 0).toBeGreaterThanOrEqual(64);
-
-    await expandButton.click();
-    await expect(page.getByRole("button", { name: "Collapse sidebar" })).toBeVisible();
-    await expect
-      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
-      .toBeGreaterThanOrEqual(220);
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
-    ).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   });
 
   for (const viewport of [
