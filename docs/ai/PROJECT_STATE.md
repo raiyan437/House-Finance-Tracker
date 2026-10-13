@@ -2,13 +2,13 @@
 
 ## Current snapshot — 2026-10-13
 
-House Finance Tracker v1.5.0 is released on Appwrite with Schema V9; the independent IndexedDB composition remains available. The latest recorded production maintenance release is PR #1, merged on 2026-10-03 at `b7cb7bff2799bc92c0ba6fd2732546b33a1428f2`. Recorded repository HEAD before optimization is `7a47d0e`; maintenance, redesign and optimization remain local and uncommitted. Production has not been accessed or changed during this work.
+House Finance Tracker v1.5.0/Schema V9 now serves the accepted redesign and optimization in production. [PR #2](https://github.com/raiyan437/House-Finance-Tracker/pull/2) merged on 2026-10-13 as `fe346ecb2965a29308b6ed5ee6d7f894c8a979c6`; Appwrite reports build success and the live UI/favicon match the committed implementation. The independent IndexedDB composition remains available. Production inspection used GET-only inventory and anonymous reads; no user record or stored file was changed or deleted.
 
-The recorded release passed [CI 37123303021](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/37123303021), including 913 tests and live acceptance. Those are historical release results, distinct from the fresh local verification below. The previous application revision `45b91a8` remains the recorded rollback reference.
+The UI release passes [merged-main CI 38418095182](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/38418095182): 924 tests/117 files, 132 critical browser journeys, 36 intercepted session cases, lint, types, builds and strict audit. Final live acceptance passes 36/36 across all three browsers with no retries, using an API fixture barrier. All 16 production table digests and all 12 stored-file metadata/signature digests match before/after; maintenance configuration is identical. Pre-release source `7a47d0e` is the current code rollback reference. PR #1/CI 37123303021 remain historical maintenance-release evidence.
 
 ## Current authorized work
 
-The owner now authorizes production deployment of the accepted UI/maintenance/optimization and 24-hour sessions, with all user records and stored files strictly preserved. The owner reports saving Appwrite Session length as 86,400 seconds; the Console setting is not independently inspected because both computer-control tools fail to initialize. R0 release verification is in progress; merge/deployment follow only after hosted gates pass. See [the release record](work/PRODUCTION_UI_RELEASE_2026-10-13.md). No production business-data mutation, reset, provisioning, migration, permission change or maintenance-worker change is authorized.
+R0–R2 are complete under the owner's deployment authorization, with all user data preserved. The owner reports saving Appwrite Session length as 86,400 seconds; that configuration is owner-confirmed rather than independently inspected because both computer-control tools fail to initialize. Existing provider-expiry cookies and tab-return checks remain unchanged; no exact-expiry browser timer or session deletion was introduced. See [the release record](work/PRODUCTION_UI_RELEASE_2026-10-13.md) for gates, recovered failures, live acceptance and limits. Final bookkeeping changes only tests/documentation; no further product, provider or deployment phase is authorized.
 
 The owner accepted the implemented design and authorized complete local optimization and cleanup with unchanged functionality and protected production users/data. O0–O3 are complete; [the verification report](work/OPTIMIZATION_VERIFICATION_2026-10-12.md) records changes, metrics, tests, failures/replays and limits. That earlier local phase performed no deployment, commit/push, provider operation, schema/data migration or permission change.
 
@@ -23,7 +23,7 @@ The local review app is available at `http://localhost:3000`. The full source ba
 
 ## Separate financial limit awaiting owner approval
 
-The existing provider reader silently returns 5,000 rows for 5,001 matching synthetic rows. Outside the frozen volume envelope, that can omit financial history. [The benchmark report](work/HISTORY_READ_BENCHMARK_2026-10-11.md) records the reproduction and recommends detecting overflow and rejecting the read before financial projection. This optimization does not change overflow behavior; the supplied AGENTS.md/product rules require approval for that behavior change. No live data volume was inspected.
+The existing provider reader silently returns 5,000 rows for 5,001 matching synthetic rows. Outside the frozen volume envelope, that can omit financial history. [The benchmark report](work/HISTORY_READ_BENCHMARK_2026-10-11.md) records the reproduction and recommends detecting overflow and rejecting the read before financial projection. This release does not change overflow behavior; the supplied AGENTS.md/product rules require approval for that behavior change. The read-only release inventory confirms current financial tables are below that threshold.
 
 ## History and release evidence
 

@@ -26,6 +26,16 @@ async function resume(page: Page) {
   });
 }
 
+async function waitForReadySession(page: Page) {
+  await page.bringToFront();
+  const checked = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === "/api/app/bootstrap" && response.status() === 200,
+  );
+  await resume(page);
+  await checked;
+  await expect(page.getByText("Checking your connection. Please wait before saving.")).toHaveCount(0);
+}
+
 test.describe("production session resilience", () => {
   test("retains an Expense draft when fresh session and member reads arrive", async ({ page }) => {
     const fixture = bootstrap();
@@ -94,6 +104,7 @@ test.describe("production session resilience", () => {
     await page.route("**/api/app/profile-display-name", (route) => route.fulfill({ status: 401, json: { error: "Sign in to continue." } }));
     await page.goto("/profile");
     await page.getByRole("textbox", { name: "Display Name", exact: true }).fill("Expire me");
+    await waitForReadySession(page);
     await page.getByRole("button", { name: "Save Display Name" }).click();
     await expect(page).toHaveURL(/\/login\?sessionExpired=1$/);
     await expect(page.getByText("Your session has expired. Please sign in again.")).toBeVisible();
@@ -108,6 +119,7 @@ test.describe("production session resilience", () => {
     await page.route("**/api/app/profile-display-name", (route) => route.fulfill({ status: 403, json: { error: "This action is not permitted." } }));
     await page.goto("/profile");
     await page.getByRole("textbox", { name: "Display Name", exact: true }).fill("Denied");
+    await waitForReadySession(page);
     const before = checks;
     await page.getByRole("button", { name: "Save Display Name" }).click();
     await expect(page.getByText("This action is not permitted.")).toBeVisible();
@@ -125,11 +137,11 @@ test.describe("production session resilience", () => {
     });
     await page.goto("/profile");
     await page.getByRole("textbox", { name: "Display Name", exact: true }).fill("Retry name");
+    await waitForReadySession(page);
     await page.getByRole("button", { name: "Save Display Name" }).click();
     await expect(page.getByText("We could not confirm whether this action completed. Check the current state before retrying.")).toBeVisible();
     expect(bodies).toHaveLength(1);
-    await resume(page);
-    await expect(page.getByText("Checking your connection. Please wait before saving.")).toHaveCount(0);
+    await waitForReadySession(page);
     await page.getByRole("button", { name: "Save Display Name" }).click();
     await expect.poll(() => bodies.length).toBe(2);
     expect(bodies[0]).toBe(bodies[1]);
@@ -142,6 +154,7 @@ test.describe("production session resilience", () => {
     await page.route("**/api/app/profile-display-name", (route) => { saved = true; commands += 1; return route.fulfill({ json: { data: null } }); });
     await page.goto("/profile");
     await page.getByRole("textbox", { name: "Display Name", exact: true }).fill("Saved name");
+    await waitForReadySession(page);
     await page.getByRole("button", { name: "Save Display Name" }).click();
     await expect(page.getByText("Display Name updated successfully.")).toBeVisible();
     await expect(page.getByText("Your action was saved, but the view could not refresh. Retry the connection to load the current state.")).toBeVisible();

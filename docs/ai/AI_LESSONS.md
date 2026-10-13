@@ -4,6 +4,7 @@
 
 - A native Blob probe failed in WebKit's ephemeral context and passed in its persistent context. This supersedes the earlier assumption that only Windows WebKit lacked receipt persistence. Give each fixture test its own disposable persistent profile, bound its path to the test output directory, close before removal, and retain full native receipt/seed coverage on every platform instead of a platform skip. This is a testing limitation, not evidence that Appwrite Storage is broken.
 - Initialize an empty local runtime on the independent Household route before seeding. Starting on Dashboard can queue a membership redirect that interrupts post-seed navigation in WebKit. Preserve strict navigation assertions and actual financial checks.
+- Live fixture mutation tests must wait for a completed bootstrap after bringing the page forward. A real focus check can correctly block a save before the simulated expired/forbidden/uncertain outcome is reached. Wait for the response and ready UI, retaining the blocked-write outage tests and all mutation assertions.
 
 ## 2026-10-12 — U3 independent shell alignment
 

@@ -6,7 +6,7 @@ The owner explicitly requests the 24-hour session policy and production deployme
 
 No bootstrap/apply, reset, provisioning, data migration, real-user login, password change, session revocation, business-command QA, maintenance execution or storage deletion is part of this release. Live acceptance uses anonymous reads and explicitly intercepted browser fixtures. Any permitted inventory inspection uses read-only provider APIs and emits only aggregate counts/digests, never private record values.
 
-## R0 — Candidate verification (in progress)
+## R0 — Candidate verification (complete)
 
 - Pre-release main/remote revision: `7a47d0e`; fetch confirms no divergence.
 - Previous completed local evidence: [optimization report](OPTIMIZATION_VERIFICATION_2026-10-12.md), including 924 tests, both compositions and intercepted cross-browser acceptance.
@@ -31,13 +31,31 @@ Candidate `026c024` passes the complete push workflow; its critical job has 129 
 
 The final focused Dashboard/dropdown invocation passes 6/6 across all three browsers (59.1 seconds), with zero-warning lint and TypeScript. No assertion, browser coverage, production code or data-preservation check is removed.
 
-## R1 — Code deployment (pending R0)
+Both final candidate workflows pass: [PR CI 38415841126](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/38415841126) and [push CI 38415829302](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/38415829302). Each verifies 924 tests/117 files, lint, types, builds, strict audit, 36 intercepted session cases and the complete 132-case critical journey set, including recovered retries. The PR critical job reports 131 passed plus one recovered flaky Card case; retained logs preserve the failures rather than claiming zero retries. Appwrite reports the tested head `130db02` preview build succeeded. [PR #2](https://github.com/raiyan437/House-Finance-Tracker/pull/2) is CLEAN/MERGEABLE with unchanged base `7a47d0e`.
+
+A fresh GET-only pre-merge inventory matches the original before snapshot exactly across all 16 tables and all 12 stored-file metadata/signature records. The enabled maintenance worker, schedule, active deployment and execute permissions also match. No provider write was made during R0.
+
+## R1 — Code deployment (complete)
 
 Merge/deploy only after hosted checks pass. Retain the previous source revision and available Ready deployment for rollback; do not delete deployments or change hosting/environment/worker settings.
 
-## R2 — Live acceptance (pending R1)
+PR #2 merged as `fe346ecb2965a29308b6ed5ee6d7f894c8a979c6` at 2026-10-13T14:59:03Z after all exact-head gates passed. The merge tree matches tested candidate `130db02`; no additional application change was introduced. Appwrite reports production build success, and the normal live `/login` returns HTTP 200 with `journey-auth-shell`, absent before release. Provider deployment ID remains unavailable to the scoped credential, so status plus the changed live content are the deployment evidence. No existing deployment was deleted; source `7a47d0e` remains available for code rollback.
+
+Merged-main [CI 38418095182](https://github.com/raiyan437/House-Finance-Tracker/actions/runs/38418095182) passes all jobs: verify (924 tests/117 files, lint, types, build, strict audit), 36 intercepted production-session cases and 132/132 critical journeys.
+
+## R2 — Live acceptance (complete)
 
 Check Login, Signup, session-expiry notice, anonymous API denial/no-store, new UI asset markers and fixture-only recovery journeys against the live origin. Record any read-only preservation evidence and limits. No claim of a real 24-hour live session test is made without such evidence.
+
+Anonymous live Login, Signup and `/login?sessionExpired=1` return HTTP 200 with the new UI; the latter exposes the expiry notice. Anonymous bootstrap remains 401/no-store, and `/api/session` reports anonymous without a session cookie. The live favicon returns 200 and its SHA-256 matches `src/app/favicon.ico`.
+
+The first parallel live fixture invocation reports 33 direct passes, two recovered flaky cases and one failed permission-denial case. A serial nine-case replay reports seven direct passes, one recovered expiry case and one failed uncertain-write case. A retained expiry context shows `Reconnect before saving. Your draft is still here.`: the test clicked before the tab-focus connection check completed, so the simulated mutation never reached its fixture. The live harness now brings the test page forward, waits for the successful bootstrap response and the checking state to clear before intentionally submitting a ready-state mutation. Outage tests keep their blocked-write assertions. No application behavior or production record changes.
+
+Corrected targeted live replay passes 9/9 without retries (33.5 seconds). The final complete serial live invocation passes 36/36 without retries (2.3 minutes), covering all three browsers, session expiry/403 distinction, coalesced resume, drafts, offline recovery, uncertain command IDs, save/refresh outcomes, responsive controls and Axe. Every API operation remains explicitly mocked or aborted; no production financial/Profile/Auth command is submitted.
+
+GET-only before, pre-merge and after inventories match exactly across all 16 tables and all 12 stored-file metadata/signature records, including schema metadata and private history. Maintenance enabled state, schedule, active deployment and execute permissions match. The scoped credential cannot inspect Auth accounts or the Site deployment ID; no credential was widened, no account mutation was made, and the 24-hour Console value remains owner-confirmed. A real 24-hour user-session experiment and binary re-download were not performed.
+
+Final bookkeeping changes tests/documentation only, with an empty application/runtime/dependency/configuration/asset diff from the accepted live merge. Release artifacts and digests remain outside Git under `C:/Users/raiya/.codex/visualizations/2026/10/12/01a12fe3-ed2f-7aa1-b3ce-8934266bc625/release-2026-10-13/`. No reset, provisioning, migration, worker update, permission change, stored-file deletion, account deletion or user-data rewrite occurred.
 
 ## Existing limits
 

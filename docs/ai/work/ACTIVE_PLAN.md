@@ -1,12 +1,14 @@
 # Active Implementation Plan
 
-## Current phase — R0 release verification, 2026-10-13
+## Current phase — R0–R2 production UI release complete, 2026-10-13
 
 The owner explicitly authorizes the 24-hour session policy and production deployment of the accepted UI/maintenance/optimization, strictly preserving all user data. R0 records approval, checks the complete candidate and runs hosted CI on a separate release branch. R1 merges/deploys only after the release gates pass. R2 checks anonymous live behavior and read-only preservation evidence, retains rollback, and records the result. Execute these phases sequentially; no reset, provisioning, migration, schema/permission change, maintenance-worker update, authenticated QA mutation or paid service is authorized.
 
 The owner reports saving Appwrite Session length as 24 hours / 86,400 seconds. Both computer-control tools fail to initialize on this host, so this is owner-confirmed configuration rather than an independently inspected Console value. Existing cookie/provider-expiry and focus/visible-tab/online checks need no implementation change. No new exact-expiry browser timer is introduced.
 
-Release evidence is maintained in [PRODUCTION_UI_RELEASE_2026-10-13.md](PRODUCTION_UI_RELEASE_2026-10-13.md). R0 is in progress; no merge or production code deployment has occurred yet. The pre-release main revision is `7a47d0e`.
+Release evidence is maintained in [PRODUCTION_UI_RELEASE_2026-10-13.md](PRODUCTION_UI_RELEASE_2026-10-13.md). R0 passes on candidate `130db02`: both hosted workflows and Appwrite preview succeed. R1 merges PR #2 as `fe346ec` and confirms Appwrite production build success plus changed live UI content. R2 passes 36/36 fixture-only live cases without retries, anonymous reads and exact before/after digests for all 16 tables and 12 files. Maintenance configuration is unchanged. Merged-main CI passes every job, including 132/132 critical journeys. No production user-data write was made.
+
+Final bookkeeping publishes the accurate release state and a test-only wait for completed bootstrap before simulated mutations. This retains the API fixture barrier and every mutation/session assertion, changes no application/runtime/dependency/configuration/asset file, and requires no migration. No subsequent implementation, provider operation, paid service or production-data change is authorized.
 
 ## Completed phase — O0–O3 local optimization and cleanup, 2026-10-12
 
@@ -29,9 +31,9 @@ The source baseline, package deltas, screenshots, metrics and traces are saved o
 
 ## Explicit remaining limits
 
-- Linux-hosted CI has not run these uncommitted changes. The Windows WebKit IndexedDB Blob case remains enabled on Linux; no skip was added for this optimization.
+- Linux-hosted candidate/main CI passes the release. Disposable persistent WebKit test profiles now enable native receipt persistence on every platform; the old Windows skip was removed.
 - The existing 5,000-row provider-read overflow finding remains unchanged and separately approval-gated; see [the benchmark report](HISTORY_READ_BENCHMARK_2026-10-11.md). No live user/data volume was inspected.
-- Build-size measurements are summed emitted assets; they do not establish production latency or certify the live provider. No live-provider operation or deployment was performed.
+- Build-size measurements are summed emitted assets; they do not establish production latency. The release uses successful provider builds, changed public content and read-only preservation evidence; no authenticated financial mutation or real 24-hour session test was performed.
 
 ## Historical plans
 
