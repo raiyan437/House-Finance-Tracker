@@ -1,5 +1,10 @@
 # AI Lessons
 
+## 2026-10-13 — WebKit profile storage and release fixtures
+
+- A native Blob probe failed in WebKit's ephemeral context and passed in its persistent context. This supersedes the earlier assumption that only Windows WebKit lacked receipt persistence. Give each fixture test its own disposable persistent profile, bound its path to the test output directory, close before removal, and retain full native receipt/seed coverage on every platform instead of a platform skip. This is a testing limitation, not evidence that Appwrite Storage is broken.
+- Initialize an empty local runtime on the independent Household route before seeding. Starting on Dashboard can queue a membership redirect that interrupts post-seed navigation in WebKit. Preserve strict navigation assertions and actual financial checks.
+
 ## 2026-10-12 — U3 independent shell alignment
 
 - Center header navigation with symmetric flexible side columns; measure its center independently of actual wordmark/account widths and check intrinsic text bounds at laptop/mobile widths. Center a sticky menu against the screen by accounting for header height; keep development controls separate and preserve reachability in short viewports.

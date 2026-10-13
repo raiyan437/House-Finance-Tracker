@@ -17,6 +17,16 @@ No bootstrap/apply, reset, provisioning, data migration, real-user login, passwo
 - GET-only inventory captured all 16 production tables as counts/SHA-256 digests without logging or storing private values. This remains outside Git. Counts include three Profiles, one Household, 44 Expenses and two Settlements, below the existing financial-read envelope. The maintenance schedule/active deployment were read without changes. Auth-account/Site inspection is unavailable to the current credential (401); credentials were not widened.
 - Commit, PR and hosted gates: pending.
 
+### First hosted result and test-harness correction
+
+Candidate `4c9cda2` passes both verify jobs (924 tests/117 files, build, strict audit) and both 36-case intercepted session jobs. Appwrite reports preview build success. Both critical-journey jobs fail: the PR run records 128 passed, three flaky recoveries and one failed WebKit receipt case. Artifacts/traces are retained outside Git.
+
+The receipt case fails in the local IndexedDB adapter before commit; no production adapter or data is involved. A minimal native probe confirms the same Blob write fails with `UnknownError: Error preparing Blob/File data to be stored in object store` in WebKit's ephemeral profile and succeeds with a persistent profile on this Windows host. Fixture WebKit contexts now use a unique, bounded test-output profile, close it and remove only that owned directory. Receipt seed data and the complete create/reload/preview journey are enabled for WebKit on every platform; the old Windows skip is removed. No application storage representation or schema changes.
+
+The initial fixture route changes from membership-gated Dashboard to independent Household before seeding, avoiding a queued no-Household redirect competing with the post-seed Dashboard navigation. Navigation errors remain visible rather than swallowed. Focused native/profile, receipt, membership, settlement and dropdown checks precede a fresh full hosted run. R1 remains blocked until these gates pass.
+
+Focused Windows verification passes 15/15 across Chromium/Firefox/WebKit (1.4 minutes), including native receipt creation, exact percentage shares, persistence after reload, image preview, membership acceptance, Settlement History and dropdown dismissal. TypeScript, zero-warning lint and whitespace pass. A first focused invocation was intentionally interrupted to rename the Playwright callback from `use` to `applyContext`, avoiding React-hook lint misclassification; the final complete invocation passes. The application source, provider configuration and production data are unchanged by this correction.
+
 ## R1 — Code deployment (pending R0)
 
 Merge/deploy only after hosted checks pass. Retain the previous source revision and available Ready deployment for rollback; do not delete deployments or change hosting/environment/worker settings.

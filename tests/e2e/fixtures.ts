@@ -1,4 +1,6 @@
 import { expect, test as base, type Page } from "@playwright/test";
+import { rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { EMPTY_LOCAL_DATABASE_REVISION, deterministicSeedData } from "../../src/infrastructure/indexeddb/seed";
 import { LOCAL_DATABASE_VERSION } from "../../src/infrastructure/indexeddb/database";
 import { notificationDraft } from "../../src/application/notifications/notification-policy";
@@ -84,8 +86,7 @@ function browserFixtureRecords(includeReceipt: boolean) {
 }
 
 async function seedBrowserDatabase(page: Page): Promise<void> {
-  const browserName = page.context().browser()?.browserType().name();
-  const records = browserFixtureRecords(browserName !== "webkit");
+  const records = browserFixtureRecords(true);
   await page.evaluate(async ({ databaseName, databaseVersion, stores, records }) => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open(databaseName, databaseVersion);
@@ -156,18 +157,38 @@ async function seedBrowserDatabase(page: Page): Promise<void> {
 }
 
 const test = base.extend({
+  context: async ({ context, playwright, browserName, baseURL, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch, contextOptions, launchOptions, headless }, applyContext, testInfo) => {
+    if (browserName !== "webkit") {
+      await applyContext(context);
+      return;
+    }
+    // WebKit's ephemeral profile rejects native IndexedDB Blob writes.
+    // A separate on-disk profile per test preserves real storage coverage.
+    const profileDirectory = resolve(testInfo.outputPath("webkit-profile"));
+    if (dirname(profileDirectory) !== resolve(testInfo.outputDir)) {
+      throw new Error("WebKit fixture profile must stay inside its test output directory.");
+    }
+    const persistent = await playwright.webkit.launchPersistentContext(profileDirectory, {
+      ...launchOptions, ...contextOptions, headless, baseURL, viewport,
+      userAgent, deviceScaleFactor, isMobile, hasTouch,
+    });
+    try {
+      await applyContext(persistent);
+    } finally {
+      await persistent.close();
+      rmSync(profileDirectory, { recursive: true, force: true });
+    }
+  },
   page: async ({ page }, applyFixture) => {
     // Seeded dates must remain inside the frozen entry/retention windows as real time advances.
     // Fixed Date values preserve running timers and normal event handling.
     await page.clock.setFixedTime(new Date("2026-09-13T12:00:00.000Z"));
-    await page.goto("/");
+    // Household is independent of membership; an empty runtime cannot queue a
+    // Dashboard access redirect while the test replaces its fixture database.
+    await page.goto("/household");
     await expect(page.locator('[data-slot="app-shell"]')).toHaveAttribute("data-runtime-state", "ready");
     await seedBrowserDatabase(page);
-    try {
-      await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    } catch (error) {
-      if (!String(error).includes("NS_BINDING_ABORTED")) throw error;
-    }
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     await expect(page.locator('[data-slot="app-shell"]')).toHaveAttribute("data-runtime-state", "ready", { timeout: 15_000 });
     await applyFixture(page);
   },

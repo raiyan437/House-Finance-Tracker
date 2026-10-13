@@ -547,11 +547,7 @@ for (const withReceipt of [true, false]) {
   test(
     `creates and reloads an exact percentage expense ${withReceipt ? "with" : "without"} a receipt`,
     { tag: "@critical" },
-    async ({ page, browserName }) => {
-      test.skip(
-        withReceipt && browserName === "webkit" && process.platform === "win32",
-        "Windows WebKit cannot store Blob/File data in IndexedDB; Linux CI exercises this journey.",
-      );
+    async ({ page }) => {
       await page.goto("/expenses/new");
       await expect(
         page.getByRole("heading", { name: "Add Expense" }),
