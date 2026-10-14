@@ -65,6 +65,9 @@ test("creates, edits, persists, and physically deletes a private Card", async ({
 });
 
 test("keeps Cards owner-private across identity changes and works without Household access", { tag: "@critical" }, async ({ page }) => {
+  // Seed setup, three fixture identity changes and a Card mutation share this
+  // total budget; each readiness/privacy assertion keeps its original limit.
+  test.setTimeout(60_000);
   await page.goto("/cards");
   await expect(page.getByText("Daily Debit", { exact: true })).toBeVisible();
   await expect(page.getByText("John Credit", { exact: true })).toHaveCount(0);

@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-14",
+  "sourceFiles": 457,
+  "changed": [],
+  "added": [],
+  "boards": 7,
+  "views": 14,
+  "references": 14,
+  "applicationImplementation": false,
+  "providerOperations": 0,
+  "generationMode": "built-in image_gen",
+  "gallery": {
+    "linksAndImages": "pass",
+    "finalReview": "pass with documented illustration limits",
+    "widths": [
+      390,
+      768,
+      1440
+    ],
+    "overflow": 0
+  }
+}

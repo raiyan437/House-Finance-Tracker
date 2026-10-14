@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquid Glass — actual implementation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#e5e9ef;color:#18191b;font:16px/1.55 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding:28px}h1{margin:0;font-size:30px}p{max-width:940px}a{color:#244d8c}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:20px;margin:24px 0}article{min-width:0;background:#f9fafc;padding:18px;border-radius:24px}h2{font-size:19px;margin:0 0 12px}img,video{display:block;max-width:100%;height:auto;border-radius:12px;margin:auto}video{width:100%;background:#e5e9ef}.phone img,.phone video{max-width:min(100%,390px)}.wide{grid-column:1/-1}small{color:#596579}footer{margin-top:28px}
+</style>
+<main>
+<h1>Liquid Glass navigation</h1>
+<p>Actual local application captures with synthetic data, following <a href="../liquid-glass-concept-2026-10-14/liquid-glass-navigation-v2.png">the approved concept</a>. Glass is limited to Dashboard through Household, the sidebar and mobile dock. Desktop controls magnify on hover; phones use selection motion without hover. Page layouts and financial behavior retain the accepted design.</p>
+<p><a href="../GLASS_IMPLEMENTATION_VERIFICATION_2026-10-14.md">Verification record</a> · <a href="verification-summary.json">Evidence summary</a>. The recordings include fixture loading followed by real tab changes. They show the normal 360ms glass transition; the in-flight screenshot below pauses a native animation for inspection.</p>
+<section>
+<article class="wide"><h2>Desktop tab transitions and hover</h2><video controls preload="metadata" poster="desktop-rest.png"><source src="desktop-transition.webm" type="video/webm"></video></article>
+<article class="phone"><h2>Mobile tab transitions</h2><video controls preload="metadata" poster="phone-dashboard.png"><source src="phone-transition.webm" type="video/webm"></video></article>
+<article class="phone"><h2>Mobile Dashboard</h2><a href="phone-dashboard.png"><img src="phone-dashboard.png" alt="Dashboard with a floating glass dock and black selected Dashboard icon" loading="lazy"></a></article>
+<article class="phone"><h2>Mobile Expenses</h2><a href="phone-expenses.png"><img src="phone-expenses.png" alt="Expenses with compact rows and the selected Expenses icon in the glass dock" loading="lazy"></a></article>
+<article class="wide"><h2>Desktop at rest</h2><a href="desktop-rest.png"><img src="desktop-rest.png" alt="Dashboard with glass only on the center navigation capsule and sidebar" loading="lazy"></a></article>
+<article class="wide"><h2>Top navigation hover</h2><a href="desktop-top-hover.png"><img src="desktop-top-hover.png" alt="Expenses hover lens while Dashboard remains the selected tab" loading="lazy"></a></article>
+<article class="wide"><h2>Sidebar hover</h2><a href="desktop-rail-hover.png"><img src="desktop-rail-hover.png" alt="Sidebar Expenses icon magnified within its stable click target" loading="lazy"></a></article>
+<article class="wide"><h2>Glass in flight</h2><a href="topbar-in-flight.png"><img src="topbar-in-flight.png" alt="A paused native glass lens traveling toward Expenses, with readable labels" loading="lazy"></a></article>
+<article class="phone"><h2>More stays reachable</h2><a href="phone-more.png"><img src="phone-more.png" alt="The existing More sheet above the mobile glass dock" loading="lazy"></a></article>
+<article class="phone"><h2>Glass over scrolled content</h2><a href="phone-scrolled.png"><img src="phone-scrolled.png" alt="The floating mobile glass dock over scrolled financial panels" loading="lazy"></a></article>
+</section>
+<footer><small>Local implementation only. Chromium, Firefox and WebKit automation and emulated touch profiles do not replace a physical-device GPU/performance check. The effect is an iOS-inspired web material.</small></footer>
+</main>
+</html>

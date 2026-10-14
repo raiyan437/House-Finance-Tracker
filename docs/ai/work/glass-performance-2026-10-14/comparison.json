@@ -1,0 +1,63 @@
+{
+  "results": [
+    {
+      "profile": "desktop",
+      "cycles": 6,
+      "cpuSlowdown": 4,
+      "layouts": {
+        "before": 220,
+        "after": 2
+      },
+      "paints": {
+        "before": 655,
+        "after": 34
+      },
+      "rafCallbackP95Ms": {
+        "before": 30,
+        "after": 61
+      },
+      "compositorSignals": {
+        "total": 462,
+        "failed": 0
+      },
+      "rest": {
+        "changedPixels": 1067,
+        "protectedChangedPixels": 0,
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "profile": "mobile",
+      "cycles": 6,
+      "cpuSlowdown": 4,
+      "layouts": {
+        "before": 197,
+        "after": 2
+      },
+      "paints": {
+        "before": 341,
+        "after": 18
+      },
+      "rafCallbackP95Ms": {
+        "before": 55,
+        "after": 31
+      },
+      "compositorSignals": {
+        "total": 268,
+        "failed": 0
+      },
+      "rest": {
+        "changedPixels": 10079,
+        "protectedChangedPixels": 0,
+        "width": 1170,
+        "height": 2532
+      }
+    }
+  ],
+  "limits": [
+    "Native replay isolates rendering from route loading",
+    "RAF callback timing measures main-thread callbacks, not compositor presentation FPS",
+    "Simulated CPU slowdown and touch profiles do not guarantee physical-device frame rate"
+  ]
+}

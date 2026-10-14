@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-14",
+  "status": "complete-local",
+  "desktop": {
+    "compared": 68,
+    "identical": 68,
+    "changedPixels": 0
+  },
+  "protectedSource": {
+    "SourceBaseline": 453,
+    "Unchanged": 442,
+    "Protected": 306,
+    "ProtectedChanged": 0,
+    "GlobalCssUnchanged": true,
+    "PackageUnchanged": true,
+    "LockfileUnchanged": true
+  },
+  "acceptance": {
+    "passed": 165,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "durationMs": 893628.2390000001,
+    "retries": 0
+  },
+  "optimizedPhone": {
+    "passed": 25,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "durationMs": 77766.735,
+    "retries": 0
+  },
+  "finalLocalProfile": {
+    "passed": 3,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "durationMs": 29139.954,
+    "retries": 0
+  },
+  "finalProductionProfile": {
+    "passed": 3,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "durationMs": 7968.286999999999,
+    "retries": 0
+  },
+  "developmentTouchProfiles": {
+    "passed": 10,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "durationMs": 76129.02100000001,
+    "retries": 0
+  },
+  "fullUnit": {
+    "passed": 924,
+    "files": 117,
+    "log": "unit-controlled.log"
+  },
+  "analyticsNotificationsMobile": {
+    "passed": 72,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "evidence": "critical-output/.last-run.json plus matching 72-case discovery; no retries"
+  },
+  "fullProductionFixtures": {
+    "passed": 36,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "log": "production-final.log",
+    "providerRequests": "intercepted/blocked"
+  },
+  "gallery": {
+    "screens": 31,
+    "routeViewportCaptures": 48,
+    "widths": [
+      320,
+      390,
+      430
+    ],
+    "profile": "touch-enabled Chromium",
+    "errors": []
+  },
+  "builds": [
+    "local",
+    "appwrite"
+  ],
+  "lint": "passed",
+  "types": "passed",
+  "deployment": "none",
+  "productionDataOperations": "none",
+  "limits": [
+    "browser emulation only; no physical keyboard/cutout/screen-reader testing",
+    "provider data boundary checked by unchanged source and unit/architecture tests; no fresh live provider mutation"
+  ]
+}

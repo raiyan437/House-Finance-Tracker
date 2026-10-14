@@ -377,11 +377,13 @@ for (const viewport of [
   { width: 1280, height: 900 },
   { width: 1440, height: 1024 },
 ] as const) {
-  test(`expense controls stay usable at ${viewport.width}px`, async ({ page }) => {
+  test(`expense controls stay usable at ${viewport.width}px @critical`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/expenses");
+    if (viewport.width < 640) await page.getByRole("button", { name: "Filters", exact: true }).click();
     const paymentMethod = page.getByRole("combobox", { name: "Payment Method", exact: true });
     await expect(paymentMethod).toContainText("Payment Method");
+    if (viewport.width < 640) await page.keyboard.press("Escape");
     if (viewport.width < 900) {
       await chooseSelectOption(page, "Month", "August 2026");
       const mobileMetadata = page.locator('[data-slot="expense-mobile-metadata"]').first();
@@ -390,9 +392,19 @@ for (const viewport of [
       const dateBox = await mobileMetadata.locator("time").boundingBox();
       expect(statusBox).not.toBeNull();
       expect(dateBox).not.toBeNull();
-      expect(statusBox!.x).toBeLessThan(dateBox!.x);
+      // The phone status pill is taller than the date and metadata can wrap.
+      const sameRow = Math.abs(statusBox!.y + statusBox!.height / 2 - dateBox!.y - dateBox!.height / 2) <= 1;
+      if (sameRow) expect(statusBox!.x).toBeLessThan(dateBox!.x);
+      else expect(statusBox!.y + statusBox!.height).toBeLessThanOrEqual(dateBox!.y);
+      if (viewport.width < 640) {
+        const commentsBox = await mobileMetadata.locator('span:not([role]):has(svg)').boundingBox();
+        expect(commentsBox).not.toBeNull();
+        expect(dateBox!.y).toBeGreaterThanOrEqual(commentsBox!.y + commentsBox!.height);
+        expect(dateBox!.x).toBeCloseTo(statusBox!.x, 0);
+      }
       expect(mobileMetadata).toContainText("·");
     }
+    if (viewport.width < 640) await page.getByRole("button", { name: "Filters", exact: true }).click();
     const paymentMetrics = await paymentMethod.evaluate((element) => {
       const value = element.querySelector<HTMLElement>('[data-slot="select-value"]');
       return {
@@ -406,6 +418,7 @@ for (const viewport of [
     expect(paymentMetrics.triggerWidth).toBeGreaterThanOrEqual(144);
     expect(paymentMetrics.valueWidth).toBeGreaterThan(0);
     expect(paymentMetrics.whiteSpace).toBe("nowrap");
+    if (viewport.width < 640) await page.keyboard.press("Escape");
 
     await page.goto("/expenses/new");
     const category = page.getByRole("group", { name: "Expense Category" });

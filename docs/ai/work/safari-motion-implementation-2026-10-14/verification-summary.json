@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-14",
+  "status": "complete-local",
+  "unit": {
+    "passed": 924,
+    "files": 117
+  },
+  "browser": {
+    "evidence": [
+      "g6-warm-results.json (Chromium 24)",
+      "g6-engines-final-results.json (Firefox 24)",
+      "webkit-final-results.json (24)"
+    ],
+    "passed": 72,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ]
+  },
+  "optimizedTouch": {
+    "evidence": [
+      "built-touch-replay.log (Android 12)",
+      "built-iphone-final.log (12)"
+    ],
+    "profiles": [
+      "Android Chromium",
+      "iPhone WebKit"
+    ],
+    "passed": 24
+  },
+  "desktop": {
+    "compared": 68,
+    "protectedExact": 68,
+    "allDimensionsIdentical": true,
+    "region": "Standalone: full image; shell: x >=96, y >=112"
+  },
+  "source": {
+    "baseline": 457,
+    "changed": [
+      "src/app/glass-navigation.css",
+      "src/presentation/shell/glass-selection.tsx",
+      "src/presentation/shell/mobile-navigation.tsx"
+    ],
+    "protectedChanged": 0,
+    "unchanged": 454,
+    "added": 0
+  },
+  "motion": {
+    "mobileHover": false,
+    "clippedNavigationOnly": true,
+    "durationRangeMs": [
+      560,
+      660
+    ],
+    "oneSelectionPerSurface": true,
+    "reducedMotionSnaps": true,
+    "expandedThenCompressed": true
+  },
+  "appwrite": "Optimized build and 36 intercepted session cases pass; unmatched API requests aborted",
+  "evidenceRoot": "C:/Users/raiya/.codex/visualizations/2026/10/13/01a13607-5fba-7aa3-850c-43766afdcee2/safari-motion-implementation-2026-10-14",
+  "limits": [
+    "Native optical refraction is approximated",
+    "Physical-device GPU performance not benchmarked"
+  ],
+  "deployed": false,
+  "staticChecks": {
+    "whitespace": "pass",
+    "lint": "pass",
+    "typecheck": "pass"
+  },
+  "builds": {
+    "local": "pass",
+    "appwrite": "pass"
+  },
+  "focusedFinalReplay": {
+    "passed": 4,
+    "engines": [
+      "chromium",
+      "firefox"
+    ],
+    "evidence": "focused-final.log"
+  },
+  "session": {
+    "passed": 36,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "providerOperations": 0,
+    "evidence": "production.log"
+  }
+}

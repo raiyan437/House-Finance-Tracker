@@ -1,0 +1,1702 @@
+[
+  {
+    "file": "add-card-dialog-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "add-card-dialog-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "add-expense-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5148672
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5148672
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "add-expense-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6435840
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6435840
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "add-expense-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7240320
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7240320
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "add-expense-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9653760
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1257,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9653760
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "cards-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "cards-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "cards-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "cards-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "confirm-dialog-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "confirm-dialog-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "dashboard-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1566,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6414336
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1566,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6414336
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "dashboard-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1566,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8017920
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1566,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8017920
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "dashboard-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1230,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7084800
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1230,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7084800
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "dashboard-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1230,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9446400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1230,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9446400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "edit-expense-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6041600
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6041600
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "edit-expense-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7552000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7552000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "edit-expense-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8496000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8496000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "edit-expense-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 11328000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1475,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 11328000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expense-details-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1432,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5865472
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1432,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5865472
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expense-details-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1416,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7249920
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1416,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7249920
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expense-details-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1448,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8340480
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1448,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8340480
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expense-details-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1448,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 11120640
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1448,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 11120640
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expenses-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expenses-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expenses-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "expenses-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "forgot-password-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "forgot-password-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "forgot-password-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "forgot-password-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "household-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1784,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7307264
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1784,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7307264
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "household-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1316,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6737920
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1316,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6737920
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "household-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1254,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7223040
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1254,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7223040
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "household-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1232,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9461760
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1232,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9461760
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "login-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "login-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "login-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "login-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "monthly-report-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 2408,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9863168
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 2408,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 9863168
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "monthly-report-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 2045,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 10470400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 2045,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 10470400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "monthly-report-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1434,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8259840
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1434,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8259840
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "monthly-report-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1374,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 10552320
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1374,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 10552320
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "not-found-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "not-found-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "not-found-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "not-found-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "notifications-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "notifications-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "notifications-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "notifications-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "profile-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3735552
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "profile-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4669440
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "profile-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5253120
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "profile-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 912,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 7004160
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "reset-password-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "reset-password-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "reset-password-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "reset-password-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "settlements-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4325376
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4325376
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "settlements-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5406720
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5406720
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "settlements-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6082560
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6082560
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "settlements-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8110080
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 1056,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 8110080
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "signup-1024.png",
+    "before": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "after": {
+      "format": "raw",
+      "width": 1024,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 3686400
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "signup-1280.png",
+    "before": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1280,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 4608000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "signup-1440.png",
+    "before": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1440,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 5184000
+    },
+    "changedPixels": 0,
+    "identical": true
+  },
+  {
+    "file": "signup-1920.png",
+    "before": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "after": {
+      "format": "raw",
+      "width": 1920,
+      "height": 900,
+      "channels": 4,
+      "depth": "uchar",
+      "premultiplied": false,
+      "hasAlpha": true,
+      "size": 6912000
+    },
+    "changedPixels": 0,
+    "identical": true
+  }
+]

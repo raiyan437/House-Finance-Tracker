@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Safari reference motion — actual implementation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#e5e9ef;color:#18191b;font:16px/1.55 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding:28px}h1{margin:0;font-size:30px}p{max-width:980px}a{color:#244d8c}section,.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:20px;margin:24px 0}article{min-width:0;background:#f9fafc;padding:18px;border-radius:24px}h2{font-size:19px;margin:0 0 12px}h3{font-size:16px;margin:0 0 10px}img,video{display:block;max-width:100%;height:auto;border-radius:12px;margin:auto}video{width:100%;background:#e5e9ef}.phone img,.phone video{max-width:min(100%,390px)}.wide{grid-column:1/-1}summary{cursor:pointer;font-weight:600;padding:12px 0}small{color:#596579}
+</style>
+<main>
+<h1>One moving glass selection</h1>
+<p>The selected pill now expands, travels as translucent glass, compresses and springs into its resting shape, following the <a href="../safari-motion-assessment-2026-10-14/reference-filmstrip.png">Safari reference</a>. Desktop hover remains; mobile has no hover. These are actual local application captures with synthetic data.</p>
+<p><a href="../SAFARI_MOTION_IMPLEMENTATION_VERIFICATION_2026-10-14.md">Verification record</a> · <a href="verification-summary.json">Evidence summary</a> · <a href="desktop-comparison.json">Desktop content comparison</a>. Recordings show normal-speed tab changes. Phase captures pause real native animations for inspection; they do not represent separate UI states.</p>
+<section>
+<article class="wide"><h2>Desktop transition recording</h2><video controls preload="metadata" poster="desktop-rest.png"><source src="desktop-transition.webm" type="video/webm"></video></article>
+<article class="phone"><h2>Mobile transition recording</h2><video controls preload="metadata" poster="phone-dashboard.png"><source src="phone-transition.webm" type="video/webm"></video></article>
+<article class="phone"><h2>Mobile at rest</h2><a href="phone-dashboard.png"><img src="phone-dashboard.png" alt="The unchanged mobile Dashboard and glass dock at rest" loading="lazy"></a></article>
+<article class="phone"><h2>Mobile Expenses</h2><a href="phone-expenses.png"><img src="phone-expenses.png" alt="Mobile Expenses with a single selected pill in the glass dock" loading="lazy"></a></article>
+<article class="wide"><h2>Desktop at rest</h2><a href="desktop-rest.png"><img src="desktop-rest.png" alt="The approved Dashboard layout with glass confined to navigation" loading="lazy"></a></article>
+<article><h2>Desktop hover</h2><a href="desktop-top-hover.png"><img src="desktop-top-hover.png" alt="Top navigation hover with magnification inside fixed click targets" loading="lazy"></a></article>
+<article><h2>Sidebar hover</h2><a href="desktop-rail-hover.png"><img src="desktop-rail-hover.png" alt="Sidebar icon magnification inside the existing glass rail" loading="lazy"></a></article>
+<article class="phone"><h2>More remains available</h2><a href="phone-more.png"><img src="phone-more.png" alt="The existing More sheet remains above the mobile dock" loading="lazy"></a></article>
+</section>
+<details open><summary>Desktop motion phases</summary><div class="phases">
+<article><h3>Departure — 0%</h3><a href="desktop-departure.png"><img src="desktop-departure.png" alt="The one pill starts at Dashboard while the route changes immediately" loading="lazy"></a></article>
+<article><h3>Expanded — 15%</h3><a href="desktop-expanded.png"><img src="desktop-expanded.png" alt="The glass selection expands during travel" loading="lazy"></a></article>
+<article><h3>Compressed — 45%</h3><a href="desktop-compressed.png"><img src="desktop-compressed.png" alt="The selection compresses before its rebound" loading="lazy"></a></article>
+<article><h3>Rebound — 75%</h3><a href="desktop-rebound.png"><img src="desktop-rebound.png" alt="The pill rebounds toward its resting shape" loading="lazy"></a></article>
+<article><h3>Settled</h3><a href="desktop-settled.png"><img src="desktop-settled.png" alt="The selected Expenses pill settles without a second destination pill" loading="lazy"></a></article>
+</div></details>
+<details><summary>Mobile motion phases</summary><div class="phases">
+<article class="phone"><h3>Departure — 0%</h3><a href="phone-departure.png"><img src="phone-departure.png" alt="Mobile selection starts at Dashboard" loading="lazy"></a></article>
+<article class="phone"><h3>Expanded — 15%</h3><a href="phone-expanded.png"><img src="phone-expanded.png" alt="The mobile pill expands on a tab change without hover" loading="lazy"></a></article>
+<article class="phone"><h3>Compressed — 45%</h3><a href="phone-compressed.png"><img src="phone-compressed.png" alt="The mobile pill compresses during arrival" loading="lazy"></a></article>
+<article class="phone"><h3>Rebound — 75%</h3><a href="phone-rebound.png"><img src="phone-rebound.png" alt="The mobile pill rebounds while hit areas remain fixed" loading="lazy"></a></article>
+<article class="phone"><h3>Settled</h3><a href="phone-settled.png"><img src="phone-settled.png" alt="Expenses is selected after the spring settles" loading="lazy"></a></article>
+</div></details>
+<p><small>Local implementation only. Clipped navigation magnification and highlights approximate the optical detail; this does not claim Apple's native refraction or a physical-device GPU benchmark.</small></p>
+</main>
+</html>

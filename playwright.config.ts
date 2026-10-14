@@ -6,8 +6,8 @@ if (criticalJourneys && (deployedBaseURL || process.env.APP_COMPOSITION !== "loc
   throw new Error("Critical fixture journeys require APP_COMPOSITION=local and no PLAYWRIGHT_BASE_URL.");
 }
 const secondaryBrowserSpecs = criticalJourneys
-  ? /(household-onboarding|household-management|expenses|settlements|cards|ui-redesign)\.spec\.ts/
-  : /(cross-browser-smoke|auth-live|r1-anonymous|session-resilience)\.spec\.ts/;
+  ? /(household-onboarding|household-management|expenses|settlements|cards|ui-redesign|mobile-layout|glass-navigation)\.spec\.ts/
+  : /(cross-browser-smoke|auth-live|r1-anonymous|session-resilience|mobile-layout|glass-navigation)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",

@@ -14,10 +14,10 @@ test("Dashboard notification bell is keyboard accessible and navigates to retain
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitem", { name: /New expense/u })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Household membership changed/u })).toBeVisible();
-  const markAll = page.getByRole("button", { name: "Mark all as read", exact: true });
+  const markAll = page.getByRole("menuitem", { name: "Mark all as read", exact: true });
   await expect(markAll).toBeVisible();
   await markAll.click();
-  await expect(page.getByRole("button", { name: "Mark all as read", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Mark all as read", exact: true })).toHaveCount(0);
   await expect(page.locator('button[aria-label="Notifications"]')).toBeVisible();
   const seeMore = page.getByRole("menuitem", { name: "See more", exact: true });
   await expect(seeMore).toBeVisible();

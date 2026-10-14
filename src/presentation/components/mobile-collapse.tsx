@@ -20,7 +20,7 @@ export function MobileCollapse({ id, sectionLabel, className, children }: Mobile
         aria-controls={id}
         aria-expanded={open}
         aria-label={`${open ? "Collapse" : "Expand"} ${sectionLabel}`}
-        className="absolute right-2 top-2 z-10 flex size-10 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 md:hidden"
+        className="journey-collapse-trigger absolute right-2 top-2 z-10 flex size-10 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 md:hidden"
         onClick={() => setOpen((value) => !value)}
       >
         <ChevronDown

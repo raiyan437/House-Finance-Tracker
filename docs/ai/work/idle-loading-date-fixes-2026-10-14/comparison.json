@@ -1,0 +1,25 @@
+{
+  "desktop": {
+    "geometryExact": true,
+    "changedPixels": 76,
+    "contentChangedPixels": 0,
+    "bounds": {
+      "left": 1366,
+      "top": 22,
+      "right": 1410,
+      "bottom": 52
+    },
+    "width": 1440,
+    "height": 900
+  },
+  "axe": [
+    {
+      "profile": "desktop",
+      "serious": 0
+    },
+    {
+      "profile": "phone",
+      "serious": 0
+    }
+  ]
+}

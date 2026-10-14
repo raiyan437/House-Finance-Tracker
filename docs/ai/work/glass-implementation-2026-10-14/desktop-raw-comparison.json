@@ -1,0 +1,869 @@
+{
+  "baseline": "Accepted mobile phase after captures; source-identical at G1 entry, reused without altering historical evidence.",
+  "protectedRegion": "Standalone: full image. Shell pages: x >= 96 and y >= 112; excludes only navigation and its bounded shadow margin.",
+  "source": {
+    "existing": 455,
+    "changed": [
+      "src/app/layout.tsx",
+      "src/presentation/shell/desktop-header.tsx",
+      "src/presentation/shell/desktop-sidebar.tsx",
+      "src/presentation/shell/mobile-navigation.tsx"
+    ]
+  },
+  "captures": 68,
+  "protectedExact": 20,
+  "results": [
+    {
+      "name": "add-card-dialog-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 83112,
+      "protectedChangedPixels": 6153,
+      "bounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 987,
+        "maxY": 644
+      }
+    },
+    {
+      "name": "add-card-dialog-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 114626,
+      "protectedChangedPixels": 20089,
+      "bounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 1403,
+        "maxY": 653
+      }
+    },
+    {
+      "name": "add-expense-1024.png",
+      "width": 1024,
+      "height": 1257,
+      "standalone": false,
+      "changedPixels": 107176,
+      "protectedChangedPixels": 34275,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 1190
+      }
+    },
+    {
+      "name": "add-expense-1280.png",
+      "width": 1280,
+      "height": 1257,
+      "standalone": false,
+      "changedPixels": 112841,
+      "protectedChangedPixels": 34217,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1190
+      }
+    },
+    {
+      "name": "add-expense-1440.png",
+      "width": 1440,
+      "height": 1257,
+      "standalone": false,
+      "changedPixels": 124194,
+      "protectedChangedPixels": 34366,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1190
+      }
+    },
+    {
+      "name": "add-expense-1920.png",
+      "width": 1920,
+      "height": 1257,
+      "standalone": false,
+      "changedPixels": 123711,
+      "protectedChangedPixels": 34120,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1190
+      }
+    },
+    {
+      "name": "cards-1024.png",
+      "width": 1024,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 82171,
+      "protectedChangedPixels": 8993,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "cards-1280.png",
+      "width": 1280,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 87270,
+      "protectedChangedPixels": 8993,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "cards-1440.png",
+      "width": 1440,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 98137,
+      "protectedChangedPixels": 8993,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "cards-1920.png",
+      "width": 1920,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 97586,
+      "protectedChangedPixels": 8958,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "confirm-dialog-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 140025,
+      "protectedChangedPixels": 60056,
+      "bounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 987,
+        "maxY": 891
+      }
+    },
+    {
+      "name": "confirm-dialog-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 161869,
+      "protectedChangedPixels": 63206,
+      "bounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 1403,
+        "maxY": 891
+      }
+    },
+    {
+      "name": "dashboard-1024.png",
+      "width": 1024,
+      "height": 1566,
+      "standalone": false,
+      "changedPixels": 102976,
+      "protectedChangedPixels": 29044,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 1497
+      }
+    },
+    {
+      "name": "dashboard-1280.png",
+      "width": 1280,
+      "height": 1566,
+      "standalone": false,
+      "changedPixels": 108718,
+      "protectedChangedPixels": 29249,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1497
+      }
+    },
+    {
+      "name": "dashboard-1440.png",
+      "width": 1440,
+      "height": 1230,
+      "standalone": false,
+      "changedPixels": 120130,
+      "protectedChangedPixels": 29446,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1161
+      }
+    },
+    {
+      "name": "dashboard-1920.png",
+      "width": 1920,
+      "height": 1230,
+      "standalone": false,
+      "changedPixels": 119163,
+      "protectedChangedPixels": 29325,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1161
+      }
+    },
+    {
+      "name": "edit-expense-1024.png",
+      "width": 1024,
+      "height": 1475,
+      "standalone": false,
+      "changedPixels": 112011,
+      "protectedChangedPixels": 39110,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 1408
+      }
+    },
+    {
+      "name": "edit-expense-1280.png",
+      "width": 1280,
+      "height": 1475,
+      "standalone": false,
+      "changedPixels": 117633,
+      "protectedChangedPixels": 39009,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1408
+      }
+    },
+    {
+      "name": "edit-expense-1440.png",
+      "width": 1440,
+      "height": 1475,
+      "standalone": false,
+      "changedPixels": 129004,
+      "protectedChangedPixels": 39176,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1408
+      }
+    },
+    {
+      "name": "edit-expense-1920.png",
+      "width": 1920,
+      "height": 1475,
+      "standalone": false,
+      "changedPixels": 128553,
+      "protectedChangedPixels": 38962,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1408
+      }
+    },
+    {
+      "name": "expense-details-1024.png",
+      "width": 1024,
+      "height": 1432,
+      "standalone": false,
+      "changedPixels": 100206,
+      "protectedChangedPixels": 27305,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 1384
+      }
+    },
+    {
+      "name": "expense-details-1280.png",
+      "width": 1280,
+      "height": 1416,
+      "standalone": false,
+      "changedPixels": 105920,
+      "protectedChangedPixels": 27296,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1368
+      }
+    },
+    {
+      "name": "expense-details-1440.png",
+      "width": 1440,
+      "height": 1448,
+      "standalone": false,
+      "changedPixels": 117124,
+      "protectedChangedPixels": 27296,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1400
+      }
+    },
+    {
+      "name": "expense-details-1920.png",
+      "width": 1920,
+      "height": 1448,
+      "standalone": false,
+      "changedPixels": 116628,
+      "protectedChangedPixels": 27037,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1400
+      }
+    },
+    {
+      "name": "expenses-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 91387,
+      "protectedChangedPixels": 18298,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 712
+      }
+    },
+    {
+      "name": "expenses-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 97162,
+      "protectedChangedPixels": 18350,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 712
+      }
+    },
+    {
+      "name": "expenses-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 108281,
+      "protectedChangedPixels": 18265,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "expenses-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": false,
+      "changedPixels": 108234,
+      "protectedChangedPixels": 18435,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "forgot-password-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "forgot-password-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "forgot-password-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "forgot-password-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "household-1024.png",
+      "width": 1024,
+      "height": 1784,
+      "standalone": false,
+      "changedPixels": 115964,
+      "protectedChangedPixels": 42723,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 1680
+      }
+    },
+    {
+      "name": "household-1280.png",
+      "width": 1280,
+      "height": 1316,
+      "standalone": false,
+      "changedPixels": 121155,
+      "protectedChangedPixels": 42391,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1212
+      }
+    },
+    {
+      "name": "household-1440.png",
+      "width": 1440,
+      "height": 1254,
+      "standalone": false,
+      "changedPixels": 132204,
+      "protectedChangedPixels": 42420,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1150
+      }
+    },
+    {
+      "name": "household-1920.png",
+      "width": 1920,
+      "height": 1232,
+      "standalone": false,
+      "changedPixels": 131465,
+      "protectedChangedPixels": 42461,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1128
+      }
+    },
+    {
+      "name": "login-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "login-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "login-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "login-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "monthly-report-1024.png",
+      "width": 1024,
+      "height": 2408,
+      "standalone": false,
+      "changedPixels": 125822,
+      "protectedChangedPixels": 52931,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 2309
+      }
+    },
+    {
+      "name": "monthly-report-1280.png",
+      "width": 1280,
+      "height": 2045,
+      "standalone": false,
+      "changedPixels": 131881,
+      "protectedChangedPixels": 53712,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 1946
+      }
+    },
+    {
+      "name": "monthly-report-1440.png",
+      "width": 1440,
+      "height": 1434,
+      "standalone": false,
+      "changedPixels": 143369,
+      "protectedChangedPixels": 54238,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 1335
+      }
+    },
+    {
+      "name": "monthly-report-1920.png",
+      "width": 1920,
+      "height": 1374,
+      "standalone": false,
+      "changedPixels": 142953,
+      "protectedChangedPixels": 54340,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 1275
+      }
+    },
+    {
+      "name": "not-found-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "not-found-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "not-found-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "not-found-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "notifications-1024.png",
+      "width": 1024,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 84898,
+      "protectedChangedPixels": 12007,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "notifications-1280.png",
+      "width": 1280,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 90176,
+      "protectedChangedPixels": 12007,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "notifications-1440.png",
+      "width": 1440,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 101138,
+      "protectedChangedPixels": 12007,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "notifications-1920.png",
+      "width": 1920,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 100558,
+      "protectedChangedPixels": 11945,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 643
+      }
+    },
+    {
+      "name": "profile-1024.png",
+      "width": 1024,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 90859,
+      "protectedChangedPixels": 17968,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 753
+      }
+    },
+    {
+      "name": "profile-1280.png",
+      "width": 1280,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 96145,
+      "protectedChangedPixels": 17976,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 753
+      }
+    },
+    {
+      "name": "profile-1440.png",
+      "width": 1440,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 107105,
+      "protectedChangedPixels": 17974,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 733
+      }
+    },
+    {
+      "name": "profile-1920.png",
+      "width": 1920,
+      "height": 912,
+      "standalone": false,
+      "changedPixels": 106644,
+      "protectedChangedPixels": 18031,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 733
+      }
+    },
+    {
+      "name": "reset-password-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "reset-password-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "reset-password-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "reset-password-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "settlements-1024.png",
+      "width": 1024,
+      "height": 1056,
+      "standalone": false,
+      "changedPixels": 99711,
+      "protectedChangedPixels": 26425,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 977,
+        "maxY": 948
+      }
+    },
+    {
+      "name": "settlements-1280.png",
+      "width": 1280,
+      "height": 1056,
+      "standalone": false,
+      "changedPixels": 104975,
+      "protectedChangedPixels": 26425,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1233,
+        "maxY": 948
+      }
+    },
+    {
+      "name": "settlements-1440.png",
+      "width": 1440,
+      "height": 1056,
+      "standalone": false,
+      "changedPixels": 115920,
+      "protectedChangedPixels": 26425,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1393,
+        "maxY": 948
+      }
+    },
+    {
+      "name": "settlements-1920.png",
+      "width": 1920,
+      "height": 1056,
+      "standalone": false,
+      "changedPixels": 115857,
+      "protectedChangedPixels": 26323,
+      "bounds": {
+        "minX": 0,
+        "minY": 5,
+        "maxX": 1873,
+        "maxY": 948
+      }
+    },
+    {
+      "name": "signup-1024.png",
+      "width": 1024,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "signup-1280.png",
+      "width": 1280,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "signup-1440.png",
+      "width": 1440,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    },
+    {
+      "name": "signup-1920.png",
+      "width": 1920,
+      "height": 900,
+      "standalone": true,
+      "changedPixels": 0,
+      "protectedChangedPixels": 0,
+      "bounds": null
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "views": 14,
+  "exact": 14,
+  "results": [
+    {
+      "page": "dashboard",
+      "profile": "desktop",
+      "nodes": 30,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "expenses",
+      "profile": "desktop",
+      "nodes": 20,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "add-expense",
+      "profile": "desktop",
+      "nodes": 44,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "settlements",
+      "profile": "desktop",
+      "nodes": 19,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "cards",
+      "profile": "desktop",
+      "nodes": 10,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "household",
+      "profile": "desktop",
+      "nodes": 28,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "monthly-report",
+      "profile": "desktop",
+      "nodes": 28,
+      "exact": true,
+      "overflow": -15,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "dashboard",
+      "profile": "phone",
+      "nodes": 33,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "expenses",
+      "profile": "phone",
+      "nodes": 17,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "add-expense",
+      "profile": "phone",
+      "nodes": 44,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "settlements",
+      "profile": "phone",
+      "nodes": 19,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "cards",
+      "profile": "phone",
+      "nodes": 10,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "household",
+      "profile": "phone",
+      "nodes": 28,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    },
+    {
+      "page": "monthly-report",
+      "profile": "phone",
+      "nodes": 28,
+      "exact": true,
+      "overflow": 0,
+      "axeSerious": 0,
+      "diffs": []
+    }
+  ]
+}

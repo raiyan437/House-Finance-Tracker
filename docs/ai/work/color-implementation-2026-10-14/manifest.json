@@ -1,0 +1,142 @@
+[
+  {
+    "file": "add-expense-desktop.png",
+    "bytes": 250839,
+    "sha256": "457c3a71a38cd6565e9d928e7d390e7ec8713c2cff8a5fc02a1ce521f48ed6b4"
+  },
+  {
+    "file": "add-expense-phone.png",
+    "bytes": 164877,
+    "sha256": "87e783abd493f0b973ed1bf5f009786c65117371cbdbed489e321000b4c8afb1"
+  },
+  {
+    "file": "cards-desktop.png",
+    "bytes": 284920,
+    "sha256": "e162bd10dcfc2f121e2e517b75d747338fc13cbcbd21c874300cca21c321a63e"
+  },
+  {
+    "file": "cards-phone.png",
+    "bytes": 103093,
+    "sha256": "733fce4a2f32c32b7c0bec954cfaf0a44f78e59a67041b48d02c036718c390ab"
+  },
+  {
+    "file": "dashboard-desktop.png",
+    "bytes": 250539,
+    "sha256": "65e99625f5ede1b0f3f1cff52817d679d4e01e87771892b3d499be7c93c6519d"
+  },
+  {
+    "file": "dashboard-phone.png",
+    "bytes": 153225,
+    "sha256": "af768b5c2c478d9d33f4a26533f2aa8a3aedc404789a0f77502f5b512618cb53"
+  },
+  {
+    "file": "desktop-compressed.png",
+    "bytes": 262584,
+    "sha256": "044dfb2504013708f7ca4c2d88392701fdba4a643ee37d3a1dee1281cb94dbe3"
+  },
+  {
+    "file": "desktop-expanded.png",
+    "bytes": 282983,
+    "sha256": "eee13fd74b4abbb22ac0708f3960e98d84a96f17ff592c62020af948f5facd2c"
+  },
+  {
+    "file": "desktop-motion.webm",
+    "bytes": 706138,
+    "sha256": "65c094b63cbfd3e5b9ffaeda83761582a35c166e75165edf9d9aab98a069b71e"
+  },
+  {
+    "file": "desktop-rebound.png",
+    "bytes": 263653,
+    "sha256": "9f73c26f61da0eb4f51cf38e6556b6be238cc506342171ee6827e904d2bc77f8"
+  },
+  {
+    "file": "desktop-rest.png",
+    "bytes": 212306,
+    "sha256": "ebfe2e1d6c9bd9af64756804f7590b298518155e3b4c1d8a05679cb7d895886c"
+  },
+  {
+    "file": "expenses-desktop.png",
+    "bytes": 243376,
+    "sha256": "619de21bc8f4b7445c6e7e878a61a2d44a1b3d230af5f81ebc551e7955d97786"
+  },
+  {
+    "file": "expenses-phone.png",
+    "bytes": 93695,
+    "sha256": "b58f3a1400a3facc7d8ad20bdd1062c266eca9fa1fa9519fb69e01a162bd38fe"
+  },
+  {
+    "file": "geometry-audit.json",
+    "bytes": 2439,
+    "sha256": "9457952f9275a923ca1432e2932167093d00ffa64ad66506f3066664842da44d"
+  },
+  {
+    "file": "household-desktop.png",
+    "bytes": 230124,
+    "sha256": "19e41eaf28ba61f59bf29ea757a8902fad1a1a60d3cb6dd0bc784c8a1106871a"
+  },
+  {
+    "file": "household-phone.png",
+    "bytes": 157923,
+    "sha256": "28204aaa6b77be070f572dd97f6f8aac5b1ea4169b540842d845e8df416fe49f"
+  },
+  {
+    "file": "index.html",
+    "bytes": 6479,
+    "sha256": "63e49f7a11f45bacfa5c784cf385dc8bc8d6e1e963c3fecfd7e25d7ea13df1e8"
+  },
+  {
+    "file": "mobile-compressed.png",
+    "bytes": 450284,
+    "sha256": "9fcebb85657920f328ab042d5557d6c156090af834e15dbbcadffb1bf8a6071b"
+  },
+  {
+    "file": "mobile-expanded.png",
+    "bytes": 508727,
+    "sha256": "1a5788e605755af3b77c38bf2493a554be489592810ee92ae0ded84d8cfc7e9e"
+  },
+  {
+    "file": "mobile-motion.webm",
+    "bytes": 569670,
+    "sha256": "7b13cf6d59d3103b0da99a59dae791b3bc62a9b54492b7491f499b26b2d24b37"
+  },
+  {
+    "file": "mobile-rebound.png",
+    "bytes": 452286,
+    "sha256": "15187e8a04add7858fbd1098400faf61174744e5f12549a04ebb314c857e6076"
+  },
+  {
+    "file": "mobile-rest.png",
+    "bytes": 356098,
+    "sha256": "6698145e937c6203a39e6312041b3bc507dbd58209df9e3ee103adee2bf51bcb"
+  },
+  {
+    "file": "monthly-report-desktop.png",
+    "bytes": 279958,
+    "sha256": "80c7fb0952a56e8c3d190fe59bc95cfda684f68af6285ca0fe13a7bfffc689ef"
+  },
+  {
+    "file": "monthly-report-phone.png",
+    "bytes": 199475,
+    "sha256": "09cef2ceb9f1c53d74f2414a85c0d137bf517dbcb0a9ee914b3522144fdb0eea"
+  },
+  {
+    "file": "renderer-comparison.json",
+    "bytes": 945,
+    "sha256": "754e0083ef2fa86e4746e6ba3f4224103e19e5ccf5096c028138deb13a4e1fa5"
+  },
+  {
+    "file": "settlements-desktop.png",
+    "bytes": 188477,
+    "sha256": "4c3f4d591036ee25ccaf3f11f7954b25004843b056e5b0096fb0af9a187a6648"
+  },
+  {
+    "file": "settlements-phone.png",
+    "bytes": 123175,
+    "sha256": "3ed4cc006a9bd57536e13ace4f63a04b568ceb1cddb8345a19b11e9fc2b1eaa8"
+  },
+  {
+    "file": "source-audit.json",
+    "bytes": 3026,
+    "sha256": "d9398c1223df99972f1c3f0bf8bfbbe02d264f239494da871add334ef0419e33"
+  }
+]

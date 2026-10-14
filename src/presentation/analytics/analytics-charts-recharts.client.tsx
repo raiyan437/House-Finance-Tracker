@@ -15,6 +15,7 @@ import type { CalendarMonth } from "@/application/analytics/calendar-month";
 import type { DailySpendingPoint } from "@/application/analytics/monthly-analytics";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import type { DailySpendingChartProps, PaymentMixChartProps } from "./analytics-charts.client";
+import { usePhoneLayout } from "@/presentation/components/use-phone-layout";
 
 const DAILY_CHART_MIN_DAY_WIDTH = 22;
 const WEEKEND_BAR_FILL = "#729cea";
@@ -58,6 +59,7 @@ function DailySpendingTick({ payload, x = 0, y = 0, weekend = false }: DailySpen
 }
 
 export function DailySpendingChart({ data, label, descriptionId, month }: DailySpendingChartProps) {
+  const phone = usePhoneLayout();
   const weekends = weekendDaysOfMonth(month, data);
   const now = new Date();
   const todayDay = month === currentLocalMonthKey(now) ? now.getDate() : undefined;
@@ -73,7 +75,7 @@ export function DailySpendingChart({ data, label, descriptionId, month }: DailyS
       <div
         className="h-[174px] w-full"
         data-slot="daily-spending-chart-canvas"
-        style={{ minWidth: `${Math.max(data.length, 1) * DAILY_CHART_MIN_DAY_WIDTH}px` }}
+        style={{ minWidth: phone ? 0 : `${Math.max(data.length, 1) * DAILY_CHART_MIN_DAY_WIDTH}px` }}
       >
         <ResponsiveContainer height="100%" width="100%">
           <BarChart barCategoryGap="38%" data={[...data]} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
@@ -83,9 +85,12 @@ export function DailySpendingChart({ data, label, descriptionId, month }: DailyS
               dataKey="day"
               interval={0}
               padding={{ left: 0, right: 0 }}
-              tick={(tickProps: DailySpendingTickProps) => (
-                <DailySpendingTick {...tickProps} weekend={weekends.has(Number(tickProps.payload?.value))} />
-              )}
+              tick={(tickProps: DailySpendingTickProps) => {
+                const day = Number(tickProps.payload?.value);
+                // Every day/bar remains; phone labels leave room for readable glyphs.
+                if (phone && day !== 1 && day !== data.length && !(day % 5 === 0 && data.length - day >= 3)) return <g />;
+                return <DailySpendingTick {...tickProps} weekend={weekends.has(day)} />;
+              }}
               tickLine={false}
             />
             <YAxis axisLine={false} hide tickLine={false} width={0} />
@@ -113,13 +118,15 @@ export function DailySpendingChart({ data, label, descriptionId, month }: DailyS
 }
 
 export function PaymentMixChart({ mix, label, descriptionId, compact = false }: PaymentMixChartProps) {
+  const phone = usePhoneLayout();
   const data = [
     { name: "Cash", value: mix.cash.basisPoints ?? 0, color: WEEKDAY_BAR_FILL },
     { name: "Card", value: mix.card.basisPoints ?? 0, color: "#ed9291" },
   ];
-  const size = compact ? 180 : 200;
-  const innerRadius = compact ? 58 : 64;
-  const outerRadius = compact ? 90 : 100;
+  const desktopSize = compact ? 180 : 200;
+  const size = phone ? (compact ? 132 : 160) : desktopSize;
+  const innerRadius = (compact ? 58 : 64) * size / desktopSize;
+  const outerRadius = size / 2;
   return (
     <div aria-describedby={descriptionId} aria-label={label} className="relative shrink-0" role="img" style={{ height: size, width: size }}>
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-center"><strong className="financial-numerals text-sm">{formatBdt(mix.total)}</strong><span className="text-xs text-text-secondary">Total</span></div>

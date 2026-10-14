@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./mobile.css";
+import "./glass-navigation.css";
 
 const inter = Inter({
   variable: "--font-inter",

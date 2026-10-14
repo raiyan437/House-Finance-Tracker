@@ -8,19 +8,22 @@ import { DesktopSidebar } from "./desktop-sidebar";
 import { DesktopHeader } from "./desktop-header";
 import { MobileNavigation } from "./mobile-navigation";
 import { HouseholdAccessGate } from "@/presentation/runtime/household-access-gate.client";
+import { LoadingState } from "@/presentation/components/async-state";
+import { PageContainer } from "./page-container";
 
 interface AppShellProps {
   readonly children: React.ReactNode;
+  readonly pageLoading?: boolean;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, pageLoading = false }: AppShellProps) {
   const runtime = useApplicationRuntime();
   const pathname = usePathname();
   const routeSurface = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const surface = routeSurface.current;
-    if (!surface || typeof window.matchMedia !== "function") return;
+    if (!surface || pageLoading || typeof window.matchMedia !== "function") return;
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (motion.matches) return;
     let animation: Animation | undefined;
@@ -48,7 +51,7 @@ export function AppShell({ children }: AppShellProps) {
       surface.removeEventListener("pointerdown", stop, true);
       surface.removeEventListener("focusin", stop, true);
     };
-  }, [pathname]);
+  }, [pathname, pageLoading]);
 
   return (
     <div
@@ -77,9 +80,11 @@ export function AppShell({ children }: AppShellProps) {
           className="min-h-[calc(100svh-72px)] pb-[calc(var(--mobile-navigation-height)+env(safe-area-inset-bottom)+var(--space-6))] lg:min-h-[calc(100svh-88px)] lg:pb-0"
           id="main-content"
           data-feature={pathname.split("/")[1]}
+          aria-busy={pageLoading || undefined}
           tabIndex={-1}
         >
-          <div data-slot="route-surface" ref={routeSurface}>
+          {pageLoading ? <PageContainer className="journey-route-state"><LoadingState label="Loading page" /></PageContainer> : null}
+          <div data-slot="route-surface" ref={routeSurface} hidden={pageLoading} inert={pageLoading}>
             <HouseholdAccessGate>{children}</HouseholdAccessGate>
           </div>
         </main>
