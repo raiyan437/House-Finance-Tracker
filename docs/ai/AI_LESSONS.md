@@ -6,6 +6,7 @@
 
 ## 2026-10-14 — Release gates must select the new tests and respect automatic activation
 
+- A green Playwright job can include flaky tests that passed only on retry. Inspect the completed job summary before declaring readiness; for strict critical acceptance, set the workflow command to `--retries=0`. Give multi-step fixture journeys a proportional total budget while keeping individual readiness, layout and privacy assertion limits intact.
 - Adding browser specs to Playwright configuration does not make a CI command with an explicit older spec list run them. Verify both workflow file selection and per-project tags/grep; the new mobile/glass suites and untagged phone-date cases need explicit release coverage.
 - A push/merge to an Appwrite Site's configured production branch can automatically build and activate. Verify the prospective merge tree and exact-head hosted/preview gates before that trigger. Record the actual current Ready deployment for rollback rather than carrying forward an older release's pre-redesign reference.
 

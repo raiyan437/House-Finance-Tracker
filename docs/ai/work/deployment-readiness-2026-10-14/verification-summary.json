@@ -18,5 +18,10 @@
   "rollbackReadyId": "6ace4d2ce216ab03e861",
   "rollbackProvenance": "owner-confirmed; Site API 401/browser initialization unavailable",
   "hostedResults": "recorded on draft release PR",
-  "productionActivated": false
+  "productionActivated": false,
+  "CardBudgetReplayCases": 3,
+  "CriticalCiRetries": 0,
+  "FirstHostedHead": "d482d2a9248019a25b2fbebe716fe6867fb2032f",
+  "FirstHostedCriticalEvidence": "Both green after one Card-privacy retry; corrected scoped total budget and require new single-attempt exact-head runs.",
+  "OwnerPreviewReview": "Preview looks correct; source/appearance unchanged by subsequent CI/test-only correction."
 }

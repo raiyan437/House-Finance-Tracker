@@ -8,7 +8,7 @@ The owner requests fixing the release gaps and getting ready for deployment. Thi
 | --- | --- | --- |
 | D0 — Candidate | Preserve local work, refresh refs and curate the full source/test/evidence candidate. | Complete: preserved source, refreshed matching remote base, release branch created; rollback Ready ID owner-confirmed as `6ace4d2ce216ab03e861`. Site API remains 401/browser initialization unavailable. |
 | D1 — Verification | Fix hosted suite/tag selection, enumerate and run the integrated unit/browser/static/build/audit gates. | Complete: all 185 critical cases pass after documented harness corrections/affected-suite replay; clean install, 925 unit tests, types/lint, audit, both optimized builds and 48 intercepted Appwrite session cases pass. |
-| D2 — Handoff | Prepare the exact verified commit, PR/preview and available rollback reference; report any access limits. | Candidate prepared for release-branch/draft PR publication. Exact-head hosted CI and preview/access results are recorded on the PR without recursively modifying its tested source. Production remains unactivated. |
+| D2 — Handoff | Prepare the exact verified commit, PR/preview and available rollback reference; report any access limits. | Draft PR #3 published; owner approves the Ready preview. First hosted logs expose one Card-test total-budget retry; scoped 3-engine replay passes and the critical CI command now forbids retries. Fresh exact-head hosted/build results are recorded on the PR without recursively modifying its tested source. Application/appearance unchanged; production remains unactivated. |
 
 ## Completed planning — P0 production release planning, 2026-10-14
 
