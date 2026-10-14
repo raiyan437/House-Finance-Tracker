@@ -23,7 +23,7 @@ The accepted redesign and local optimization are recorded in [the optimization v
 - `npm run r5:decompression-fixture` - create the deterministic decompression-heavy rejection fixture outside Git.
 - `npm run r5:provider-status -- --site <site-id>` - print a sanitized, read-only provider status when the local operator credential has the required scopes.
 
-CI also runs the local critical Household, Expense, Settlement, Card and responsive UI journeys: all selected cases in Chromium and tagged core journeys in Firefox/WebKit. To reproduce, set `APP_COMPOSITION=local` and `HFT_CRITICAL_E2E=1`, leave `PLAYWRIGHT_BASE_URL` unset, and run `npx playwright test tests/e2e/household-onboarding.spec.ts tests/e2e/household-management.spec.ts tests/e2e/expenses.spec.ts tests/e2e/settlements.spec.ts tests/e2e/cards.spec.ts tests/e2e/ui-redesign.spec.ts --workers=2`. These fixtures use a fixed browser date and never access a deployed site. CI retains browser failure artifacts for seven days. WebKit uses a separate disposable persistent profile per test for native IndexedDB Blob support; receipt persistence runs on every platform without a Windows skip.
+CI also runs the local critical Household, Expense, Settlement, Card and responsive UI journeys: all selected cases in Chromium and tagged core journeys in Firefox/WebKit. To reproduce, set `APP_COMPOSITION=local` and `HFT_CRITICAL_E2E=1`, leave `PLAYWRIGHT_BASE_URL` unset, and run `npx playwright test tests/e2e/household-onboarding.spec.ts tests/e2e/household-management.spec.ts tests/e2e/expenses.spec.ts tests/e2e/settlements.spec.ts tests/e2e/cards.spec.ts tests/e2e/ui-redesign.spec.ts tests/e2e/mobile-layout.spec.ts tests/e2e/glass-navigation.spec.ts --workers=2`. These fixtures use a fixed browser date and never access a deployed site. CI retains browser failure artifacts for seven days. WebKit uses a separate disposable persistent profile per test for native IndexedDB Blob support; receipt persistence runs on every platform without a Windows skip.
 
 ## Dependency boundaries
 
@@ -46,6 +46,8 @@ Presentation -> Application -> Domain
 Charts are isolated to a single lazily loaded boundary (`presentation/analytics/analytics-charts*.client.tsx`); Recharts never enters the initial Dashboard/Report route graphs.
 
 Appwrite work is restricted to the currently authorized release phase; completing one release phase does not authorize the next.
+
+The accepted mobile layouts, glass navigation/performance and idle-loader/phone-date refinements are being prepared for a code-only release. See [deployment readiness](docs/ai/work/DEPLOYMENT_READINESS_2026-10-14.md) and [the release plan](docs/ai/work/UI_RELEASE_PLAN_2026-10-14.md). The proposed color treatment was reverted; production activation is still pending.
 
 ## v1.4 in-app notifications
 

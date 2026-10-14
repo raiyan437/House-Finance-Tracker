@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-14",
+  "status": "complete-local",
+  "acceptance": {
+    "composition": "optimized local",
+    "failed": 0,
+    "engines": [
+      "Chromium",
+      "Firefox",
+      "WebKit"
+    ],
+    "touch": [
+      "Android Chrome DPR 3",
+      "iPhone WebKit DPR 3"
+    ],
+    "passed": 65,
+    "retries": 0
+  },
+  "navigationUnit": {
+    "passed": 12
+  },
+  "static": {
+    "lint": "pass",
+    "typecheck": "pass",
+    "whitespace": "pass"
+  },
+  "builds": {
+    "local": "pass",
+    "appwrite": "pass"
+  },
+  "source": {
+    "baseline": 457,
+    "changed": [
+      "src/presentation/shell/glass-selection.tsx",
+      "src/app/glass-navigation.css"
+    ],
+    "unchanged": 455,
+    "added": [],
+    "config": [
+      {
+        "path": "package.json",
+        "unchanged": true
+      },
+      {
+        "path": "package-lock.json",
+        "unchanged": true
+      },
+      {
+        "path": "next.config.ts",
+        "unchanged": true
+      },
+      {
+        "path": "playwright.config.ts",
+        "unchanged": true
+      }
+    ]
+  },
+  "renderer": {
+    "results": [
+      {
+        "profile": "desktop",
+        "cycles": 6,
+        "cpuSlowdown": 4,
+        "layouts": {
+          "before": 220,
+          "after": 2
+        },
+        "paints": {
+          "before": 655,
+          "after": 34
+        },
+        "rafCallbackP95Ms": {
+          "before": 30,
+          "after": 61
+        },
+        "compositorSignals": {
+          "total": 462,
+          "failed": 0
+        },
+        "rest": {
+          "changedPixels": 1067,
+          "protectedChangedPixels": 0,
+          "width": 1440,
+          "height": 900
+        }
+      },
+      {
+        "profile": "mobile",
+        "cycles": 6,
+        "cpuSlowdown": 4,
+        "layouts": {
+          "before": 197,
+          "after": 2
+        },
+        "paints": {
+          "before": 341,
+          "after": 18
+        },
+        "rafCallbackP95Ms": {
+          "before": 55,
+          "after": 31
+        },
+        "compositorSignals": {
+          "total": 268,
+          "failed": 0
+        },
+        "rest": {
+          "changedPixels": 10079,
+          "protectedChangedPixels": 0,
+          "width": 1170,
+          "height": 2532
+        }
+      }
+    ],
+    "limits": [
+      "Native replay isolates rendering from route loading",
+      "RAF callback timing measures main-thread callbacks, not compositor presentation FPS",
+      "Simulated CPU slowdown and touch profiles do not guarantee physical-device frame rate"
+    ]
+  },
+  "recordings": 2,
+  "phaseCaptures": 8,
+  "deployed": false,
+  "providerOperations": 0,
+  "financialChanges": 0,
+  "evidenceRoot": "C:\\Users\\raiya\\.codex\\visualizations\\2026\\10\\13\\01a13607-5fba-7aa3-850c-43766afdcee2\\glass-performance-2026-10-14"
+}

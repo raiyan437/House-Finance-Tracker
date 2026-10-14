@@ -7,6 +7,7 @@ import { MemberAvatar } from "@/presentation/components/member-avatar";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { desktopNavigationItems } from "./navigation-items";
 import { NotificationBell } from "@/presentation/notifications/notification-bell.client";
+import { GlassSelection } from "./glass-selection";
 
 export function DesktopHeader() {
   const pathname = usePathname();
@@ -20,14 +21,15 @@ export function DesktopHeader() {
   return (
     <header className="journey-header">
       <div className="journey-wordmark"><span className="journey-brand-icon"><House aria-hidden="true" className="size-7 shrink-0" strokeWidth={1.8} /></span><span>House Finance Tracker</span></div>
-      <nav aria-label="Header navigation" className="journey-top-nav">
+      <nav aria-label="Header navigation" className="journey-top-nav journey-glass-surface">
+        <GlassSelection routeKey={pathname} />
         {desktopNavigationItems.map((item) => {
           const count = item.href === "/household" ? joinRequests
             : item.href === "/settlements" && runtime.status === "ready" ? runtime.session.settlementActionCount : 0;
           return (
             <Link aria-current={item.isActive(pathname) ? "page" : undefined} aria-label={`Navigate to ${item.label}${count > 0 ? `, ${count} waiting for ${item.href === "/household" ? "review" : "you"}` : ""}`} className="journey-top-link" href={item.href} key={item.href} prefetch={false}>
-              {item.label}
-              {count > 0 ? <span aria-hidden="true" className="journey-top-badge">{count}</span> : null}
+              <span className="journey-glass-visual">{item.label}
+              {count > 0 ? <span aria-hidden="true" className="journey-top-badge">{count}</span> : null}</span>
             </Link>
           );
         })}

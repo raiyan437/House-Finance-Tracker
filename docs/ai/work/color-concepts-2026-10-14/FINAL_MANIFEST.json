@@ -1,0 +1,54 @@
+[
+  {
+    "page": "dashboard",
+    "title": "Dashboard",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-84c6a540-fc1e-491e-8caf-05df1ef57369.png",
+    "file": "dashboard.png",
+    "revision": 1
+  },
+  {
+    "page": "expenses",
+    "title": "Expenses",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-7f270dfa-1140-4a36-a6ae-ae799e7c0ac1.png",
+    "file": "expenses.png",
+    "revision": 1
+  },
+  {
+    "page": "add-expense",
+    "title": "Add Expense",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-ca2d5676-9ef1-40dd-aa0f-044fb9066eb4.png",
+    "file": "add-expense-v2.png",
+    "revision": 2,
+    "draftPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-44ff1653-293e-4cb8-884f-097265a26906.png"
+  },
+  {
+    "page": "settlements",
+    "title": "Settlements",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-969377a8-c037-4701-946b-f7f9e2068ffa.png",
+    "file": "settlements-v2.png",
+    "revision": 2,
+    "draftPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-4ff6b95c-d09b-42cf-9189-a047a80f6b8a.png"
+  },
+  {
+    "page": "cards",
+    "title": "My Cards",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-3d2fe129-1f75-43ee-b996-4670775b0007.png",
+    "file": "cards.png",
+    "revision": 1
+  },
+  {
+    "page": "household",
+    "title": "Household",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-ba14656c-b4a6-49b0-bd70-12431dc47a87.png",
+    "file": "household.png",
+    "revision": 1
+  },
+  {
+    "page": "monthly-report",
+    "title": "Monthly Report",
+    "generatedPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-c8163a68-330b-4aa5-8e17-61c02067834a.png",
+    "file": "monthly-report-v2.png",
+    "revision": 2,
+    "draftPath": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-bb1f42a1-b114-4fa1-9f1a-2323ed1d58f0.png"
+  }
+]

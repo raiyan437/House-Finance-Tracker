@@ -1,0 +1,34 @@
+{
+  "baseline": 457,
+  "changed": [
+    "src/app/mobile.css",
+    "src/app/_providers/production-application-runtime.client.test.tsx",
+    "src/app/_providers/production-application-runtime.client.tsx",
+    "src/presentation/expenses/expenses-page.client.tsx",
+    "src/presentation/settlements/settlements-page.client.tsx",
+    "src/presentation/shell/app-shell.tsx"
+  ],
+  "unchanged": 451,
+  "providerLogicUnchanged": true,
+  "expenseOnlyLoader": true,
+  "settlementOnlyLoader": true,
+  "configs": [
+    {
+      "file": "package.json",
+      "unchanged": true
+    },
+    {
+      "file": "package-lock.json",
+      "unchanged": true
+    },
+    {
+      "file": "next.config.ts",
+      "unchanged": true
+    },
+    {
+      "file": "playwright.config.ts",
+      "unchanged": true
+    }
+  ],
+  "motionUnchanged": true
+}

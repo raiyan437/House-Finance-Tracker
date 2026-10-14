@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
 import { useDevelopmentToolsSlots } from "@/presentation/devtools/development-tools-slots";
 import { moreNavigationItems } from "./navigation-items";
+import { GlassSelection } from "./glass-selection";
 
 interface MobileLinkProps {
   readonly href: string;
@@ -50,8 +51,9 @@ function MobileLink({
         ? `${label}, ${actionCount} ${actionCount === 1 ? "action" : "actions"} waiting for you`
         : label}
       aria-current={active ? "page" : undefined}
+      data-emphasized={emphasized || undefined}
       className={cn(
-        "flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+        "journey-mobile-link flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
         active && "text-foreground",
       )}
       href={href}
@@ -60,7 +62,7 @@ function MobileLink({
     >
         <span
           className={cn(
-            "relative flex size-7 items-center justify-center rounded-md",
+            "journey-mobile-icon relative flex size-7 items-center justify-center rounded-md",
             emphasized && "size-10 bg-brand text-foreground shadow-[var(--shadow-small)]",
             active && !emphasized && "bg-brand-soft text-foreground",
           )}
@@ -110,9 +112,10 @@ export function MobileNavigation() {
   return (
     <nav
       aria-label="Mobile navigation"
-      className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-2 shadow-[var(--shadow-small)] backdrop-blur lg:hidden"
+      className="journey-mobile-nav journey-glass-surface fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-2 shadow-[var(--shadow-small)] backdrop-blur lg:hidden"
       suppressHydrationWarning
     >
+      <GlassSelection routeKey={pathname} targetSelector='[aria-current="page"] .journey-mobile-icon' visualSelector=".journey-mobile-icon" />
       <div
         className="grid grid-cols-5 items-start"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -149,7 +152,7 @@ export function MobileNavigation() {
               aria-label={joinRequestCount > 0 && settlementActionCount > 0 ? `More, ${settlementActionCount} payments to confirm, ${joinRequestBadgeLabel}` : joinRequestCount > 0 ? `More, ${joinRequestBadgeLabel}` : settlementActionCount > 0 ? `More, ${settlementActionCount} payments to confirm` : "More"}
               aria-current={moreActive ? "page" : undefined}
               className={cn(
-                "flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                "journey-mobile-link flex min-h-14 min-w-0 items-center justify-center rounded-md px-1 text-caption font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30",
                 moreActive && "text-foreground",
               )}
               title="More"
@@ -157,7 +160,7 @@ export function MobileNavigation() {
             >
               <span
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md",
+                  "journey-mobile-icon flex size-7 items-center justify-center rounded-md",
                   moreActive && "bg-brand-soft text-foreground",
                 )}
               >
@@ -173,7 +176,7 @@ export function MobileNavigation() {
               </span>
             </button>
           </SheetTrigger>
-          <SheetContent className="overflow-y-auto" side="bottom">
+          <SheetContent className="journey-mobile-more overflow-y-auto" side="bottom">
             <SheetHeader className="border-b p-6">
               <SheetTitle>More</SheetTitle>
               <SheetDescription>Additional House Finance destinations.</SheetDescription>

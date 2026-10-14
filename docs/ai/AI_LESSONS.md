@@ -1,5 +1,83 @@
 # AI Lessons
 
+## 2026-10-14 — Count motion only after visible travel requires it
+
+- A URL and selected link can commit before the first native animation frame. An immediate return to the prior tab can correctly need no new animation when the lens has not visibly departed. For a Back-interruption test that requires another transition, establish visible displacement first and retain the transition count, persistent instance and settled alignment checks. Keep deterministic interruption/ink-continuity tests as separate coverage; do not alter application motion based only on an aggregate recorder count.
+
+## 2026-10-14 — Release gates must select the new tests and respect automatic activation
+
+- Adding browser specs to Playwright configuration does not make a CI command with an explicit older spec list run them. Verify both workflow file selection and per-project tags/grep; the new mobile/glass suites and untagged phone-date cases need explicit release coverage.
+- A push/merge to an Appwrite Site's configured production branch can automatically build and activate. Verify the prospective merge tree and exact-head hosted/preview gates before that trigger. Record the actual current Ready deployment for rollback rather than carrying forward an older release's pre-redesign reference.
+
+## 2026-10-14 — Resume loaders must preserve mounted forms and usable navigation
+
+- Change the checking presentation rather than resetting the ready runtime or replacing page children. Hide/inert the existing surface, show the shared loader alongside it and leave navigation outside. Verify the actual draft DOM node and value after a held response, as well as write blocking, retry and expiry behavior.
+- Use the shared loading marker for destination data waits so the existing page entry effect waits for real content. Test interruption by selecting another destination before the first data read finishes; avoid fake navigation delays.
+- Flex-wrap alone does not guarantee mobile metadata ordering. A phone-scoped full-width date row fixes the reported position without changing desktop markup or financial data. Assert date/comment rectangles at multiple phone widths and retain wider-layout evidence.
+
+## 2026-10-14 — Preserve an exact pre-phase source for visual rollback
+
+- The owner rejected the C1–C3 color appearance despite passing geometry, accessibility and functional checks. Those checks establish technical preservation, not visual acceptance. Retain an exact pre-phase snapshot and a narrow change manifest so a requested rollback restores only that phase while preserving earlier accepted mobile and glass work.
+
+## 2026-10-14 — Color-only implementation needs geometry and motion protection
+
+- Apply approved color roles through isolated CSS and paint-only annotations. Background/radius/shadow heading bands can avoid changing padding, borders, font metrics and control rectangles. Verify actual geometry and preserve source hashes for protected motion rather than assuming color work cannot affect interaction.
+- Primary indigo can be suitable for icons/charts yet fail small-text contrast on a pastel fill. Use a verified darker text shade; preserve dark warning text and explicit financial labels instead of deriving semantics from decorative tints.
+- Retain failed browser runs and scope replays. A development identity switch can asynchronously redirect a non-member to Household; wait for that completion before the next test navigation. Do not modify application behavior or weaken privacy assertions to accommodate the harness race. A non-reproducing copied-node assertion is an unresolved transient, not evidence that its cause was fixed.
+
+## 2026-10-14 — Color concepts need roles and route-state review
+
+- Extend an accepted visual identity with repeated accent roles across actual desktop/mobile references, rather than generating an unrelated palette per page. Preserve black actions and semantic financial labels; use explicit palette values outside bitmap swatches as the authoritative proposal.
+- A generated Dashboard style reference can leak its active dock selection into other pages. Audit the actual route rules, repair copied states and keep chart category colors consistent across Dashboard/Report. Retain superseded images and correction prompts. Generated participant packing, badge omissions, glyphs and disabled-action styling are illustration limits, not implicit approval to change functionality or layout.
+
+## 2026-10-14 — Native animation still needs compositor-friendly geometry
+
+- Web Animations API width/height keyframes still incur layout and repaint. Fix layout bounds, animate translate/scale, and invert both scale and translation on the clipped foreground to retain stationary glyph centers. Keep blur on the stationary glass surface rather than adding a second filter to the moving selection.
+- Reuse unchanged navigation ink across routes/finish callbacks, invalidate it for badges/fonts/geometry, and read original layout before writing selection geometry. Limit layer hints to the moving selection and foreground rather than promoting every page/control.
+- Profile optimized builds and distinguish native effect replay, real route interactions and physical hardware. RequestAnimationFrame callback intervals can worsen while motion is successfully composited; keep that result visible instead of treating callback counts as compositor FPS. Retain traces, successful compositing signals, layout/paint counters and real touch/interruption checks.
+
+## 2026-10-14 — Coordinated glass implementation and deterministic inspection
+
+- A single selection must own the fill and clipped foreground together. Countertranslate copied navigation ink against the moving selection to preserve glyph centers; copy only authored text/glyph/badge wrappers, remove IDs and retain original controls, focus and form trees. The G5 implementation supersedes G1's readable destination pill beneath a separate moving lens.
+- Keep enough dark tint during travel to preserve white-ink contrast. Verify expanded and compressed native frames as well as settled screenshots; normal playback recordings and deliberately paused inspection samples serve different purposes.
+- Browser protocol latency can finish an animation before a later pause request, especially in WebKit. Test-only instrumentation can pause native effects as they are created, without an application hook. Wait for known fixture badges and fonts before asserting exact hit areas; media changes need polling for complete effect cancellation.
+- Concurrent Next development/build type generation on Windows can leave duplicate trailing declarations in ignored development types. Stop only the owned server, preserve the bounded generated cache outside the checkout, run the build/static checks and then restore the preview. Do not alter application or TypeScript configuration to accommodate corrupt generated files.
+
+## 2026-10-14 — Match reference motion as one selection
+
+- A moving light overlay over an immediately switched black pill looks different from Safari's single selection expanding into glass, traveling, compressing and spring-settling. Inspect material, geometry, icon deformation and foreground handoff together; changing easing alone does not address separate visual selections.
+- A recorded screen without touch traces does not establish tap/hold/drag intent. Keep measured visual intervals separate from guessed touch latency or native spring constants. Variable-rate video sampling can repeat frames; label sample cadence rather than claiming native constant frame rate.
+- A three-engine primitive proof establishes expansion, compression, interruption and fixed-control feasibility; it does not establish integrated visual equivalence, native refraction or physical-device GPU performance. Preserve that distinction in approval/design records.
+
+## 2026-10-14 — Glass navigation and authoritative motion
+
+- Keep one decorative lens mounted in each navigation surface, and derive its target from the actual selected route. Retarget from the current visible rectangle during interrupted motion. Move only visuals; stable controls preserve click/focus, immediate commands and mounted financial drafts. Keep readable selected pills underneath a traveling light lens.
+- ResizeObserver's initial callback can cancel a new route animation. Observe geometry without interrupting an active transition, reconcile on completion, and snap on actual viewport/reduced-motion changes. Hide selection when the route has no matching destination.
+- URL changes can precede React's selected-tab commit; browser tests should wait for actual `aria-current` before asserting a separate transition. Wait for badges/fonts before hover hit-area comparisons, particularly in WebKit touch profiles resized to desktop widths.
+- Backdrop blur can change Chromium text antialiasing outside its own element. Preserve raw comparisons and use a separately recorded, test-only no-backdrop control to distinguish renderer effects from content changes. Never claim exact desktop pixels when only geometry/source or controlled comparisons match.
+- Identity-switch fixtures depend on development-only controls; optimized builds intentionally omit them. Keep identity/authority regression coverage in the local development composition and separately verify optimized persistence/session paths without exposing those controls in production.
+
+## 2026-10-14 — Phone implementation and desktop preservation
+
+- Scope phone overrides in a separate stylesheet below the existing 640px breakpoint and compare decoded screenshot pixels against a fresh desktop baseline. Extracted JSX must preserve the original text-node composition: splitting `August 2026` into adjacent nodes changed one glyph's rasterization despite identical copy and geometry; restoring the original single-string label restored exact pixels.
+- A full-height phone sheet must clear both `transform` and Tailwind's individual `translate` variables inherited from a centered dialog. Visibility alone did not detect an off-screen Card sheet; assert its actual rectangle and reachable actions.
+- Keep financial form trees mounted across viewport changes. Presentation-only filter sheets may own local open state, while their controlled query stays above the responsive branch. Verify draft identity, percentage values, reset defaults and financial-history locks through actual interactions.
+- Pair Radix modal menu semantics with native inert on the background shell where needed, restore its prior state on close/unmount, and keep the portal outside that shell. Check opened states, keyboard dismissal and restored trigger focus without unmounting the draft.
+- Sparse phone chart labels must not remove any calendar-day data or bars. Normalize tick/bar geometry by numeric day distance, rather than assuming adjacent visible labels represent adjacent days. Wrapped metadata should preserve status/comments-before-date ordering by visual rows, not require one horizontal line.
+
+
+## 2026-10-14 — Mobile identity must use actual web references
+
+- Broad style labels and hex colors alone did not keep generated concepts aligned with the accepted web UI. Supply actual application screenshots and explicitly preserve its grouped/inset surfaces, black pill actions, avatar/icon treatment and chart palette; change mobile composition rather than proposing a separate brand.
+- Record an owner's matching correction as a design constraint, not implementation authorization. Version replacements, mark rejected proposals superseded and retain source-based contracts for generated navigation/category/attribution inaccuracies and below-viewport content.
+
+## 2026-10-13 — Mobile UX inspection beyond responsive fit
+
+- No horizontal overflow and clean page-level Axe checks do not establish mobile usability. Measure where the first list result, current balance, form actions and charts appear relative to the usable viewport; desktop panel framing stacked on mobile can bury them several screens down.
+- Audit opened menus/calendars as separate states. A raw interactive button inside a menu needs appropriate menu-item semantics, and selectable adjacent-month days cannot be treated like unreadable disabled days. Record shared desktop/mobile findings separately from mobile-only styling scope.
+- Measure settled effective hit areas, including associated labels, rather than flagging a 20px radio inside a 44px label or hidden 1px upload input. Finish page/dialog animations before geometry, keep screen-reader summaries out of visible clipping reports, and distinguish fixed-element full-page screenshot composition from real scrolling position.
+- Generated UI boards are illustrative, not business specifications. Review status claims, permission-only controls, immutable fields, exact nine-digit codes, category assets/attribution and sample chart values. Retain a written contract for omitted continuation content and remaining illustration errors; never implement invented validation or authority from a picture.
+
 ## 2026-10-13 — WebKit profile storage and release fixtures
 
 - A native Blob probe failed in WebKit's ephemeral context and passed in its persistent context. This supersedes the earlier assumption that only Windows WebKit lacked receipt persistence. Give each fixture test its own disposable persistent profile, bound its path to the test output directory, close before removal, and retain full native receipt/seed coverage on every platform instead of a platform skip. This is a testing limitation, not evidence that Appwrite Storage is broken.

@@ -131,7 +131,7 @@ export function ExpenseSplitSection({
           inferred from the saved poisha shares.
         </p>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="journey-split-allocations grid gap-2 sm:grid-cols-3">
         {draft.participantIds.map((id) => {
           const member = memberById.get(id);
           const allocation = preview.allocations.find(

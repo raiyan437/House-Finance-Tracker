@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-14",
+  "status": "complete-local",
+  "concept": "liquid-glass-navigation-v2.png",
+  "source": {
+    "existingBaseline": 455,
+    "existingUnchanged": 451,
+    "changedExisting": [
+      "src/app/layout.tsx",
+      "src/presentation/shell/desktop-header.tsx",
+      "src/presentation/shell/desktop-sidebar.tsx",
+      "src/presentation/shell/mobile-navigation.tsx"
+    ],
+    "new": [
+      "src/app/glass-navigation.css",
+      "src/presentation/shell/glass-selection.tsx"
+    ],
+    "protectedExisting": 306,
+    "protectedChanged": 0,
+    "globalCssUnchanged": true,
+    "mobileCssUnchanged": true,
+    "packageUnchanged": true,
+    "lockUnchanged": true
+  },
+  "checks": {
+    "unit": {
+      "passed": 924,
+      "files": 117
+    },
+    "ui": {
+      "engines": [
+        "chromium",
+        "firefox",
+        "webkit"
+      ],
+      "evidence": [
+        "navigation-results.json (Chrome/Firefox 46)",
+        "webkit-navigation-results.json (23)"
+      ],
+      "passed": 69
+    },
+    "finalUpdatedGlass": {
+      "passed": 12,
+      "evidence": "updated-glass-results.json"
+    },
+    "optimizedTouch": {
+      "passed": 22,
+      "evidence": [
+        "built-touch.log (Android 11)",
+        "built-touch-results.json / built-iphone-replay.log (iPhone 11)"
+      ]
+    },
+    "financialPrivacy": {
+      "passed": 30,
+      "evidence": "financial-dev-results.json"
+    },
+    "appwriteIntercepted": {
+      "passed": 36,
+      "evidence": "production-results.json"
+    },
+    "types": "pass",
+    "lint": "pass",
+    "localBuild": "pass",
+    "appwriteBuild": "pass",
+    "retries": 0,
+    "gallery": {
+      "links": "pass",
+      "viewports": [
+        390,
+        1440
+      ],
+      "horizontalOverflow": 0,
+      "recordings": 2,
+      "captures": 8
+    }
+  },
+  "desktop": {
+    "rawComparison": "desktop-raw-comparison.json",
+    "rendererControl": "desktop-renderer-control.json",
+    "fullStandalonePixelExact": 20,
+    "allDimensionsUnchanged": true,
+    "captures": 68,
+    "controlProtectedExact": 67,
+    "controlResidual": {
+      "image": "dashboard-1024.png",
+      "pixels": 324,
+      "location": "Existing daily bar edges/ticks"
+    },
+    "pixelIdentityForAllActualShellImagesClaimed": false
+  },
+  "motion": {
+    "reducedMotionSnaps": true,
+    "durationMs": 360,
+    "desktopHoverOnly": true,
+    "mobileHover": false,
+    "routeAuthoritative": true
+  },
+  "limits": [
+    "iOS-inspired browser material; no native compositor equivalence",
+    "No physical-device GPU/performance benchmark",
+    "No deployment or real provider operation"
+  ],
+  "evidenceDirectory": "C:/Users/raiya/.codex/visualizations/2026/10/13/01a13607-5fba-7aa3-850c-43766afdcee2/glass-implementation-2026-10-14"
+}

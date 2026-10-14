@@ -1,0 +1,95 @@
+{
+  "baseline": 457,
+  "changed": [
+    "src/presentation/analytics/payment-mix-rows.tsx",
+    "src/presentation/analytics/monthly-report-page.client.tsx",
+    "src/presentation/analytics/dashboard-page.client.tsx",
+    "src/presentation/analytics/analytics-charts-recharts.client.tsx",
+    "src/app/layout.tsx",
+    "src/presentation/expenses/expenses-page.client.tsx",
+    "src/presentation/expenses/expense-summary-section.client.tsx",
+    "src/presentation/expenses/expense-split-section.client.tsx",
+    "src/presentation/expenses/expense-receipts-section.client.tsx",
+    "src/presentation/expenses/expense-details-section.client.tsx",
+    "src/presentation/settlements/settlements-page.client.tsx",
+    "src/presentation/household/household-page.client.tsx",
+    "src/presentation/household/house-code-controls.tsx"
+  ],
+  "unchanged": 444,
+  "annotationsOnly": [
+    {
+      "file": "src/presentation/analytics/payment-mix-rows.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/analytics/monthly-report-page.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/analytics/dashboard-page.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/analytics/analytics-charts-recharts.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/app/layout.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/expenses/expenses-page.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/expenses/expense-summary-section.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/expenses/expense-split-section.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/expenses/expense-receipts-section.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/expenses/expense-details-section.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/settlements/settlements-page.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/household/household-page.client.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    },
+    {
+      "file": "src/presentation/household/house-code-controls.tsx",
+      "equivalentAfterRemovingColorAnnotations": true
+    }
+  ],
+  "config": [
+    {
+      "file": "package.json",
+      "unchanged": true
+    },
+    {
+      "file": "package-lock.json",
+      "unchanged": true
+    },
+    {
+      "file": "next.config.ts",
+      "unchanged": true
+    },
+    {
+      "file": "playwright.config.ts",
+      "unchanged": true
+    }
+  ],
+  "motion": {
+    "selection": true,
+    "styles": true
+  }
+}

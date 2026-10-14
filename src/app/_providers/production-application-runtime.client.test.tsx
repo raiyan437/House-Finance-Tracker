@@ -117,6 +117,34 @@ describe("production application runtime composition", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("shows the page loader on resume without unmounting the draft or navigation", async () => {
+    currentPathname = "/profile";
+    let calls = 0;
+    let finishCheck: (response: Response) => void = () => undefined;
+    globalThis.fetch = vi.fn(async () => {
+      if (++calls === 1) return new Response(JSON.stringify(bootstrapPayload()));
+      return new Promise<Response>((resolve) => { finishCheck = resolve; });
+    });
+    render(<ProductionApplicationRuntime><input aria-label="draft" defaultValue="" /></ProductionApplicationRuntime>);
+    const draft = await screen.findByLabelText("draft");
+    fireEvent.change(draft, { target: { value: "unsaved" } });
+    fireEvent(window, new Event("focus"));
+    expect(screen.getByRole("status", { name: "Loading page" })).toBeVisible();
+    expect(draft).toBeInTheDocument();
+    expect(draft).not.toBeVisible();
+    expect(document.querySelector('[data-slot="route-surface"]')).toHaveAttribute("inert");
+    expect(document.querySelector("main")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("link", { name: "Navigate to Cards" })).toBeVisible();
+    expect(screen.queryByText("Checking your connection. Please wait before saving.")).toBeNull();
+    await waitFor(() => expect(calls).toBe(2));
+    await act(async () => finishCheck(new Response(JSON.stringify(bootstrapPayload()))));
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).toBeNull());
+    expect(screen.getByLabelText("draft")).toBe(draft);
+    expect(draft).toBeVisible();
+    expect(draft).toHaveValue("unsaved");
+    expect(document.querySelector('[data-slot="route-surface"]')).not.toHaveAttribute("inert");
+  });
+
   it("coalesces resume events and blocks new writes while checking", async () => {
     currentPathname = "/household";
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(bootstrapPayload())));
@@ -126,7 +154,8 @@ describe("production application runtime composition", () => {
     fireEvent(window, new Event("focus"));
     fireEvent(window, new Event("pageshow"));
     fireEvent(document, new Event("visibilitychange"));
-    fireEvent.click(screen.getByRole("button", { name: "create" }));
+    // The page is visually covered, but the command boundary must still block a stale dispatch.
+    fireEvent.click(screen.getByRole("button", { name: "create", hidden: true }));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(fetch.mock.calls.every(([path]) => path === "/api/app/bootstrap")).toBe(true);
     expect(replace).not.toHaveBeenCalled();
@@ -156,7 +185,7 @@ describe("production application runtime composition", () => {
     await screen.findByRole("button", { name: "read-session" });
     fireEvent(window, new Event("focus"));
     await waitFor(() => expect(bootstrapCalls).toBe(2));
-    fireEvent.click(screen.getByRole("button", { name: "read-session" }));
+    fireEvent.click(screen.getByRole("button", { name: "read-session", hidden: true }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?sessionExpired=1"));
     await act(async () => {
       resolveBootstrap(new Response(JSON.stringify(bootstrapPayload())));
@@ -177,7 +206,7 @@ describe("production application runtime composition", () => {
     fireEvent.click(await screen.findByRole("button", { name: "rename" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     fireEvent(window, new Event("focus"));
-    await waitFor(() => expect(screen.queryByText("Checking your connection. Please wait before saving.")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "rename" }));
     await waitFor(() => expect(bodies).toHaveLength(2));
     expect(bodies[0]).toBe(bodies[1]);

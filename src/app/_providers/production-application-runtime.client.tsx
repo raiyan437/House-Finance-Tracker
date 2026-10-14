@@ -506,10 +506,10 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
   return (
     <ApplicationRuntimeProvider value={state}>
       <DevelopmentToolsSlotsProvider value={undefined}>
-        <AppShell>
-          {connection !== "ready" ? <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-secondary px-4 py-3 text-sm" role="status" aria-live="polite">
-            <p>{connection === "checking" ? "Checking your connection. Please wait before saving." : "Connection unavailable. Your draft is still here. Reconnect before saving."}</p>
-            {connection === "unavailable" ? <Button type="button" variant="outline" onClick={() => void refreshRef.current()}>Retry connection</Button> : null}
+        <AppShell pageLoading={connection === "checking"}>
+          {connection === "unavailable" ? <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-secondary px-4 py-3 text-sm" role="status" aria-live="polite">
+            <p>Connection unavailable. Your draft is still here. Reconnect before saving.</p>
+            <Button type="button" variant="outline" onClick={() => void refreshRef.current()}>Retry connection</Button>
           </div> : null}
           {children}
         </AppShell>

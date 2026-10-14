@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-14",
+  "base": "0ae12b1b719d7ec8639ee668f0f1f1a93ea4bec3",
+  "branch": "codex/mobile-glass-ui-release",
+  "localGates": "passed",
+  "unitTests": 925,
+  "criticalCases": 185,
+  "criticalPassingHistory": "177 combined-run passes plus complete affected 53-case UI replay",
+  "sessionCases": 48,
+  "localBuild": "passed",
+  "appwriteBuild": "passed",
+  "lint": "passed",
+  "typecheck": "passed",
+  "auditVulnerabilities": 0,
+  "automaticRetries": 0,
+  "acceptedApplicationSourceCount": 457,
+  "readinessApplicationChanges": 0,
+  "rollbackReadyId": "6ace4d2ce216ab03e861",
+  "rollbackProvenance": "owner-confirmed; Site API 401/browser initialization unavailable",
+  "hostedResults": "recorded on draft release PR",
+  "productionActivated": false
+}

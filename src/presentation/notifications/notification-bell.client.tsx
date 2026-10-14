@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { notificationHref } from "@/application/notifications/notification-routes";
@@ -38,6 +39,17 @@ export function NotificationBell() {
   const [markingAll, setMarkingAll] = useState(false);
   const [markAllError, setMarkAllError] = useState(false);
   const actions = runtime.status === "ready" ? runtime.notificationActions : undefined;
+
+  useEffect(() => {
+    if (!open) return;
+    // The menu is portaled outside this shell. Native inert complements Radix's
+    // modal focus scope without unmounting a draft or changing its contents.
+    const shell = document.querySelector<HTMLElement>('[data-slot="app-shell"]');
+    if (!shell) return;
+    const wasInert = shell.inert;
+    shell.inert = true;
+    return () => { shell.inert = wasInert; };
+  }, [open]);
 
   useEffect(() => {
     if (!actions) return;
@@ -98,7 +110,7 @@ export function NotificationBell() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[min(30rem,calc(100dvh-2rem))] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
-        <div className="flex items-center justify-between gap-2 px-3 py-2"><p className="text-sm font-semibold">Notifications</p>{data.unreadCount > 0 ? <Button aria-busy={markingAll} className="min-h-11 shrink-0 px-2 text-xs" disabled={markingAll} onClick={() => void markAllRead()} title="Mark all notifications as read" type="button" variant="ghost">{markingAll ? "Marking…" : "Mark all as read"}</Button> : <span className="text-xs text-text-muted">{loading ? "Loading…" : "All caught up"}</span>}</div>
+        <div className="flex items-center justify-between gap-2 px-3 py-2"><p className="text-sm font-semibold">Notifications</p>{data.unreadCount > 0 ? <DropdownMenuPrimitive.Item asChild disabled={markingAll} onSelect={(event) => event.preventDefault()}><Button aria-busy={markingAll} className="min-h-11 shrink-0 px-2 text-xs" disabled={markingAll} onClick={() => void markAllRead()} title="Mark all notifications as read" type="button" variant="ghost">{markingAll ? "Marking…" : "Mark all as read"}</Button></DropdownMenuPrimitive.Item> : <span className="text-xs text-text-muted">{loading ? "Loading…" : "All caught up"}</span>}</div>
         {markAllError ? <p className="px-3 pb-2 text-xs text-danger" role="alert">Some notifications may still be unread. Please retry.</p> : null}
         <DropdownMenuSeparator />
         {data.notifications.length === 0 ? <p className="px-3 py-6 text-center text-sm text-text-secondary">No notifications yet.</p> : data.notifications.map((notification) => <NotificationItem key={notification.notificationId} notification={notification} onOpen={openNotification} />)}

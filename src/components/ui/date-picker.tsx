@@ -311,6 +311,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          data-slot="date-picker-content"
           align="start"
           aria-labelledby={monthHeadingId}
           className="z-50 w-[min(22rem,calc(100vw-1rem))] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-[var(--shadow-card)] outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
@@ -385,6 +386,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(function
                           aria-current={todayDate ? "date" : undefined}
                           aria-label={`${formatAccessibleDate(date)}${selected ? ", selected" : ""}${todayDate ? ", today" : ""}`}
                           aria-pressed={selected}
+                          data-outside-month={!inCurrentMonth || undefined}
                           className={cn(
                             "inline-flex size-10 items-center justify-center rounded-lg text-xs outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/30",
                             !inCurrentMonth && "text-text-muted/50",

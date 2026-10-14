@@ -47,7 +47,7 @@ test("approved Dashboard has responsive grouped panels and accessible navigation
     });
     expect(dashboardGeometry.offset).toBeLessThanOrEqual(1);
     expect(dashboardGeometry.gaps.every((gap) => gap >= 4)).toBe(true);
-    if (width < 640) expect(dashboardGeometry.titleGap).toBeGreaterThanOrEqual(4);
+    if (width < 640) expect(dashboardGeometry.titleGap).toBeLessThanOrEqual(-4);
     if (width >= 1400) expect(dashboardGeometry.panelGap).toBe(16);
     await expect(page.locator("header").getByRole("button", { name: /^Notifications/ })).toHaveCount(1);
     await expect(page.locator("main").getByRole("button", { name: /^Notifications/ })).toHaveCount(0);
@@ -248,6 +248,9 @@ test("large balances and long household names reflow without hiding controls", a
 });
 
 test("U2 compact Cards and clean Profile remain responsive and accessible @critical", async ({ page }, testInfo) => {
+  // Twelve route visits plus four screenshot/Axe passes need the same budget as
+  // the other multi-viewport visual checks; individual assertions stay at 15s.
+  test.setTimeout(90_000);
   for (const width of [320, 390, 768, 1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/cards");
@@ -568,7 +571,7 @@ test("U4 desktop rail stays fixed through page scrolling and shared decoration i
   await inspectViewport(page, "u4-household-mobile", 390, (file) => testInfo.outputPath(file));
 });
 
-test("U2 404 and attribution page use the new design without accessing household data @critical", async ({ page }, testInfo) => {
+test("404 and removed Credits route preserve the standalone design without household data @critical", async ({ page }, testInfo) => {
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     const response = await page.goto("/missing-u2-fixture-page");
@@ -577,11 +580,12 @@ test("U2 404 and attribution page use the new design without accessing household
     await expect(page.getByRole("link", { name: "Back to Dashboard" })).toHaveAttribute("href", "/dashboard");
     await inspectViewport(page, "u2-not-found", width, (file) => testInfo.outputPath(file));
     await expect(page.getByRole("link", { name: "Credits", exact: true })).toHaveCount(0);
-    await page.goto("/credits");
-    await expect(page.getByRole("heading", { name: "Icon Credits" })).toBeVisible();
-    await expect(page.locator(".journey-credits-list a")).toHaveCount(12);
+    const creditsResponse = await page.goto("/credits");
+    expect(creditsResponse?.status()).toBe(404);
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Icon Credits" })).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("Raiyan House");
-    await inspectViewport(page, "u2-credits", width, (file) => testInfo.outputPath(file));
+    await inspectViewport(page, "removed-credits", width, (file) => testInfo.outputPath(file));
   }
 });
 

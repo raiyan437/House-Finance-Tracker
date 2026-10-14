@@ -1,0 +1,48 @@
+[
+  {
+    "timescale": 19200,
+    "handler": "vide",
+    "samples": 704,
+    "ticks": 235776,
+    "sampleTimingRuns": [
+      [
+        3,
+        640
+      ],
+      [
+        159,
+        320
+      ],
+      [
+        1,
+        288
+      ],
+      [
+        78,
+        320
+      ],
+      [
+        1,
+        640
+      ],
+      [
+        1,
+        320
+      ]
+    ],
+    "averageSamplesPerSecond": 57.328990228013026
+  },
+  {
+    "timescale": 48000,
+    "handler": "soun",
+    "samples": 573,
+    "ticks": 586752,
+    "sampleTimingRuns": [
+      [
+        573,
+        1024
+      ]
+    ],
+    "averageSamplesPerSecond": 46.875
+  }
+]

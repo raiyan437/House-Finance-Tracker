@@ -3,17 +3,14 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Plus, Search } from "lucide-react";
+import { Banknote, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Plus } from "lucide-react";
 
 import { tryCalendarMonth } from "@/application/analytics/calendar-month";
 import { applyExpenseListQuery, defaultExpenseListQuery, type ExpenseListQuery, type ExpenseListRow } from "@/application/expenses/expense-query";
 import type { ExpenseMemberView, ExpenseView } from "@/application/services/application-services";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userId } from "@/domain/shared/identifiers";
 import { MemberAvatar } from "@/presentation/components/member-avatar";
-import { ErrorState } from "@/presentation/components/async-state";
+import { ErrorState, LoadingState } from "@/presentation/components/async-state";
 import { Surface } from "@/presentation/components/surface";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { useApplicationRuntime } from "@/presentation/runtime/application-runtime-context";
@@ -22,6 +19,7 @@ import { PageHeader } from "@/presentation/shell/page-header";
 import { currentLocalMonth, formatExpenseDate } from "./expense-ui";
 import { ExpenseSemanticIcon } from "./expense-icon";
 import { ExpenseSettlementStatusIndicator } from "./expense-settlement-status";
+import { ExpenseFilters } from "./expense-filters";
 
 const EXPENSES_PER_PAGE = 8;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -29,10 +27,6 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 function expenseListTitle(month: ExpenseListQuery["month"]): string {
   if (month === "all") return "All Expenses";
   return `${MONTH_NAMES[Number(month.slice(5, 7)) - 1] ?? month} Expenses`;
-}
-
-function monthOptionLabel(month: string): string {
-  return `${MONTH_NAMES[Number(month.slice(5, 7)) - 1] ?? month} ${month.slice(0, 4)}`;
 }
 
 function splitLabel(row: ExpenseListRow): string {
@@ -44,22 +38,6 @@ function expenseTileClass(expenseId: ExpenseListRow["expenseId"]): string {
   const palette = ["bg-brand-soft", "bg-info-soft", "bg-warning-soft", "bg-success-soft"] as const;
   const hash = [...expenseId].reduce((total, character) => total + character.charCodeAt(0), 0);
   return palette[hash % palette.length];
-}
-
-function ExpenseFilterSelect({ label, children, triggerClassName, displayValue, ...props }: React.ComponentProps<typeof Select> & {
-  readonly label: string;
-  readonly triggerClassName?: string;
-  readonly displayValue?: string;
-}) {
-  return (
-    <div>
-      <span aria-hidden="true" className="expense-filter-label">{label}</span>
-      <Select {...props}>
-        <SelectTrigger aria-label={label} className={triggerClassName} size="compact"><SelectValue>{displayValue}</SelectValue></SelectTrigger>
-        <SelectContent align="start">{children}</SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 export function ExpensesPageClient() {
@@ -129,28 +107,9 @@ export function ExpensesPageClient() {
         title="Expenses"
       />
 
-      <section aria-label="Expense filters" className="expense-filter-grid mt-[26px] grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="relative sm:col-span-2 lg:col-span-1">
-          <span aria-hidden="true" className="expense-filter-label">Search by expense name</span>
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[42px] size-4 text-text-muted" />
-          <Input aria-label="Search expenses by name" className="rounded-[12px] pl-10 text-row" placeholder="Search by expense name" value={query.search} onChange={(event) => updateQuery((current) => ({ ...current, search: event.target.value }))} />
-        </div>
-        <ExpenseFilterSelect label="Month" value={query.month} onValueChange={(value) => updateQuery((current) => ({ ...current, month: value as ExpenseListQuery["month"] }))}>
-          <SelectItem value="all">All Months</SelectItem>{months.map((month) => <SelectItem key={month} value={month}>{monthOptionLabel(month)}</SelectItem>)}
-        </ExpenseFilterSelect>
-        <ExpenseFilterSelect label="Paid By" value={query.payerId} onValueChange={(value) => updateQuery((current) => ({ ...current, payerId: value === "all" ? "all" : userId(value) }))}>
-          <SelectItem value="all">All Members</SelectItem>{payers.map((payer) => <SelectItem key={payer.userId} value={payer.userId}>{payer.displayName}{payer.former ? " (Former member)" : ""}</SelectItem>)}
-        </ExpenseFilterSelect>
-        <ExpenseFilterSelect label="Payment Method" triggerClassName="min-w-[9rem]" displayValue={query.paymentMethod === "all" ? "Payment Method" : undefined} value={query.paymentMethod} onValueChange={(value) => updateQuery((current) => ({ ...current, paymentMethod: value as ExpenseListQuery["paymentMethod"] }))}>
-          <SelectItem value="all">All Payment Methods</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem>
-        </ExpenseFilterSelect>
-        <ExpenseFilterSelect label="Sort" value={query.sort} onValueChange={(value) => updateQuery((current) => ({ ...current, sort: value as ExpenseListQuery["sort"] }))}>
-          <SelectItem value="newest">Newest to Oldest</SelectItem><SelectItem value="oldest">Oldest to Newest</SelectItem>
-        </ExpenseFilterSelect>
-        <Button className="self-end rounded-[12px] border bg-card text-row" type="button" variant="ghost" onClick={() => updateQuery(() => defaultExpenseListQuery(currentLocalMonth()))}>Clear Filters</Button>
-      </section>
+      <ExpenseFilters query={query} months={months} payers={payers} updateQuery={updateQuery} />
 
-      {status === "loading" ? <Surface className="mt-6"><p role="status" className="text-text-secondary">Loading expenses…</p></Surface> : null}
+      {status === "loading" ? <LoadingState className="mt-6" label="Loading expenses" /> : null}
       {status === "error" ? (
         <Surface className="mt-6">
           <ErrorState description="Your saved expenses were not changed." onRetry={() => { setStatus("loading"); setReloadTick((value) => value + 1); }} title="Expenses could not be loaded" />

@@ -1,0 +1,47 @@
+{
+  "results": [
+    {
+      "profile": "desktop",
+      "cycles": 6,
+      "cpuSlowdown": 4,
+      "layouts": {
+        "previous": 2,
+        "current": 2
+      },
+      "paints": {
+        "previous": 34,
+        "current": 34
+      },
+      "rafCallbackP95Ms": 26,
+      "compositorSignals": {
+        "total": 534,
+        "failed": 0
+      },
+      "errors": []
+    },
+    {
+      "profile": "mobile",
+      "cycles": 6,
+      "cpuSlowdown": 4,
+      "layouts": {
+        "previous": 2,
+        "current": 2
+      },
+      "paints": {
+        "previous": 18,
+        "current": 18
+      },
+      "rafCallbackP95Ms": 26,
+      "compositorSignals": {
+        "total": 268,
+        "failed": 0
+      },
+      "errors": []
+    }
+  ],
+  "limits": [
+    "Native replay isolates rendering from route loading.",
+    "RAF callbacks are not compositor presentation FPS.",
+    "Emulated profiles do not establish physical-phone GPU frame rate."
+  ]
+}

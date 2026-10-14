@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/presentation/components/confirm-dialog";
 import { MetricCard } from "@/presentation/components/metric-card";
 import { StatusBadge, type StatusTone } from "@/presentation/components/status-badge";
 import { Surface } from "@/presentation/components/surface";
+import { LoadingState } from "@/presentation/components/async-state";
 import { userErrorMessage } from "@/presentation/errors/user-error-message";
 import { formatBdt } from "@/presentation/finance/format-bdt";
 import { MoneyValue } from "@/presentation/finance/money-value";
@@ -260,7 +261,7 @@ export function SettlementsPageClient() {
   }
 
   if (status === "loading" && !view) {
-    return <PageContainer><Surface><p role="status" className="text-text-secondary">Loading settlements…</p></Surface></PageContainer>;
+    return <PageContainer><LoadingState label="Loading settlements" /></PageContainer>;
   }
 
   if (status === "error" && !view) {

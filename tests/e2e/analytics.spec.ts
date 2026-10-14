@@ -23,8 +23,10 @@ async function selectDashboardMonth(page: Page, month: string) {
 async function expectDailyDayLabels(page: Page, dayCount: number) {
   const chart = page.locator('[data-slot="daily-spending-chart"]').first();
   const labels = chart.locator("svg text");
-  await expect(labels).toHaveCount(dayCount);
-  expect(await labels.allTextContents()).toEqual(Array.from({ length: dayCount }, (_, index) => String(index + 1)));
+  const phone = (page.viewportSize()?.width ?? 1440) < 640;
+  const days = Array.from({ length: dayCount }, (_, index) => index + 1);
+  const expected = days.filter((day) => !phone || day === 1 || day === dayCount || (day % 5 === 0 && dayCount - day >= 3));
+  await expect(labels).toHaveText(expected.map(String));
   return { chart, labels };
 }
 
@@ -131,7 +133,7 @@ test("Dashboard reconstructs after Expense creation, Settlement confirmation, an
   await expect(firstBalance).toContainText("John (You)");
 });
 
-test("Spending Trend shows every day and aligns endpoints across responsive widths", async ({ page }) => {
+test("Spending Trend retains every day with readable phone labels and aligned endpoints", async ({ page }) => {
   for (const viewport of [
     { width: 360, height: 844 },
     { width: 390, height: 844 },
@@ -166,13 +168,17 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
       const panelBottom = element.closest('[data-slot="surface"]')!.getBoundingClientRect().bottom;
       const tickCenters = ticks.map(center).filter((value): value is number => value !== undefined);
       const barCenters = bars.map(center).filter((value): value is number => value !== undefined);
+      const firstDay = Number(ticks[0]?.textContent);
+      const secondDay = Number(ticks[1]?.textContent);
+      const dayStep = tickCenters[1] === undefined ? 0 : (tickCenters[1] - tickCenters[0]) / (secondDay - firstDay);
+      const allDayCenters = Array.from({ length: 30 }, (_, index) => tickCenters[0] + dayStep * index);
       return {
         canvasScrollWidth: canvas?.scrollWidth ?? 0,
         scrollerClientWidth: (element as HTMLElement).clientWidth,
-        barAlignmentDistances: barCenters.map((barCenter) => Math.min(...tickCenters.map((tickCenter) => Math.abs(barCenter - tickCenter)))),
+        barAlignmentDistances: barCenters.map((barCenter) => Math.min(...allDayCenters.map((tickCenter) => Math.abs(barCenter - tickCenter)))),
         finalTickCenter: tickCenters.at(-1),
         firstTickCenter: tickCenters[0],
-        tickStep: tickCenters[1] === undefined || tickCenters[0] === undefined ? 0 : tickCenters[1] - tickCenters[0],
+        tickStep: dayStep,
         labelsOverlap: tickBoxes.some((box, index) => {
           const next = tickBoxes[index + 1];
           return next !== undefined && next.left < box.right - 0.5;
@@ -184,11 +190,7 @@ test("Spending Trend shows every day and aligns endpoints across responsive widt
 
     expect(measurements.pageOverflow).toBeLessThanOrEqual(1);
     expect(measurements.canvasScrollWidth).toBeGreaterThanOrEqual(measurements.scrollerClientWidth);
-    if (viewport.width < 390) {
-      expect(measurements.canvasScrollWidth).toBeGreaterThan(measurements.scrollerClientWidth);
-    } else {
-      expect(measurements.canvasScrollWidth).toBeLessThanOrEqual(measurements.scrollerClientWidth + 1);
-    }
+    expect(measurements.canvasScrollWidth).toBeLessThanOrEqual(measurements.scrollerClientWidth + 1);
     expect(Math.abs((measurements.finalTickCenter ?? 0) - (measurements.firstTickCenter ?? 0) - measurements.tickStep * 29)).toBeLessThanOrEqual(3);
     expect(measurements.barAlignmentDistances.every((distance) => distance <= 2)).toBe(true);
     expect(measurements.labelsOverlap, `date labels overlap at ${viewport.width}px`).toBe(false);

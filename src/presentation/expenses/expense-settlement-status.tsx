@@ -19,6 +19,7 @@ export function ExpenseSettlementStatusIndicator({
       title={label}
     >
       <Icon aria-hidden="true" className="size-[18px]" />
+      <span className="journey-phone-status-label hidden">{label}</span>
     </span>
   );
 }

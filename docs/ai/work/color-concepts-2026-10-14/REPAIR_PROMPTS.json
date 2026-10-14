@@ -1,0 +1,17 @@
+[
+  {
+    "slug": "add-expense",
+    "prompt": "Use case: precise-object-edit. Edit ONLY the mobile bottom navigation dock in the far-right phone panel of this color concept board. This screen is Add Expense. Move the black selected circular pill from the FIRST Dashboard icon to the THIRD center Add/circle-plus icon. The first Dashboard icon must become a plain black outline on the glass background without a black circle. Center Add must become a white circle-plus on a black selected circle. Preserve all five original destinations and all badges; do not replace icons or labels. Do not modify the desktop, palette swatches, text, form, section colors, typography, proportions, shadows, glass material or any other pixels. Keep the board canvas dimensions identical. Do not add any new element.",
+    "path": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-44ff1653-293e-4cb8-884f-097265a26906.png"
+  },
+  {
+    "slug": "settlements",
+    "prompt": "Use case: precise-object-edit. Edit ONLY the mobile bottom navigation dock in the far-right phone panel of this color concept board. This screen is Settlements. Move the black selected circle from the FIRST Dashboard icon to the FOURTH Settlements/hand-coins icon. Dashboard becomes an ordinary black outline icon on glass, without a black background; the fourth hand-coins icon becomes white inside the black selected circle. The center Add stays periwinkle. Keep all five destinations, badges and dock geometry identical. Do not modify desktop, monetary values, pending state, text, typography, panel colors, header, swatches or any other part. Identical canvas dimensions. No new elements.",
+    "path": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-4ff6b95c-d09b-42cf-9189-a047a80f6b8a.png"
+  },
+  {
+    "slug": "monthly-report",
+    "prompt": "Use case: precise-object-edit. Make only three exact corrections to this existing color concept board, preserving all other pixels, text, amounts, UI layout, typography, dimensions, panels and palette row. (1) In BOTH desktop and mobile Payment Mix donut charts change the coral/red Card segment and its small Card legend icon disc to the SAME supporting teal #217B75 used in the swatch row. Keep Cash periwinkle/indigo, ratios and figures unchanged. (2) This Monthly Report route has NO matched active mobile dock tab: remove the black selected circular background from the first Dashboard icon so it is an ordinary dark outline icon on glass; leave all other tabs unselected, the center Add periwinkle, and all five icons/badges/dock geometry intact. (3) Make the desktop sidebar's first Dashboard control look like the other ordinary inactive white-glass icons: remove its periwinkle highlighted fill, retaining its dark outline glyph. Desktop top navigation has no selected tab, which is already correct: preserve that. No other changes, no new elements, no crop.",
+    "path": "C:/Users/raiya/.codex/generated_images/01a13607-5fba-7aa3-850c-43766afdcee2/exec-bb1f42a1-b114-4fa1-9f1a-2323ed1d58f0.png"
+  }
+]

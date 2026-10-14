@@ -1,0 +1,63 @@
+{
+  "scope": "Isolated browser capability proof, not application integration or a visually calibrated Safari replica.",
+  "engines": [
+    {
+      "engine": "chromium",
+      "status": "pass",
+      "support": {
+        "waapi": true,
+        "backdrop": true,
+        "clip": true
+      },
+      "expandedInFlight": true,
+      "compressedDuringSettle": true,
+      "springSettled": true,
+      "rapidRetargetContinuous": true,
+      "reducedMotionSnapPrimitive": true,
+      "stableControls": true,
+      "oneLens": true,
+      "selectedControls": 1
+    },
+    {
+      "engine": "firefox",
+      "status": "pass",
+      "support": {
+        "waapi": true,
+        "backdrop": true,
+        "clip": true
+      },
+      "expandedInFlight": true,
+      "compressedDuringSettle": true,
+      "springSettled": true,
+      "rapidRetargetContinuous": true,
+      "reducedMotionSnapPrimitive": true,
+      "stableControls": true,
+      "oneLens": true,
+      "selectedControls": 1
+    },
+    {
+      "engine": "webkit",
+      "status": "pass",
+      "support": {
+        "waapi": true,
+        "backdrop": true,
+        "clip": true
+      },
+      "expandedInFlight": true,
+      "compressedDuringSettle": true,
+      "springSettled": true,
+      "rapidRetargetContinuous": true,
+      "reducedMotionSnapPrimitive": true,
+      "stableControls": true,
+      "oneLens": true,
+      "selectedControls": 1
+    }
+  ],
+  "sourceFiles": 457,
+  "sourceChanged": [],
+  "limits": [
+    "No native optical-refraction implementation in this proof",
+    "No physical-device performance measurement",
+    "Approximate spring/material values, not timing-matched Safari measurements"
+  ]
+}

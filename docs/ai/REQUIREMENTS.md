@@ -167,6 +167,32 @@ Out of scope: recurring expenses, budgets, multiple currencies, multiple househo
 
 ## Visual and interaction system
 
+### REQUIREMENT CHANGE — idle checking loader and phone date line, 2026-10-14
+
+The owner requests animated page loading during the existing idle-tab session check instead of the checking-connection/save banner. Retain the topbar/sidebar/mobile navigation and mounted page/form trees while displaying the existing accessible page loader; restore content after the check, and retain unavailable/retry, write blocking and expiry behavior. Existing route-data loaders continue to show when a destination needs data. No fake delay, automatic write replay or financial/session-policy change is introduced.
+
+On phone Expense lists below 640px, show the Expense Date on the line after settlement status/comment count. Preserve the current metadata, values, controls and desktop/tablet arrangement. The reverted color treatment remains withdrawn.
+
+### REQUIREMENT CHANGE — color refinement withdrawn and reverted, 2026-10-14
+
+The owner initially accepted [C0's color boards](work/color-concepts-2026-10-14/index.html) and authorized C1–C3, then rejected the implemented appearance and explicitly requested reverting it. C4 restores the exact accepted pre-color source, including the original page/chart colors. The proposed periwinkle/mint/amber treatment is no longer approved for implementation. Concepts, captures and verification records are retained only as historical evidence.
+
+The accepted mobile layout and G7–G9 glass performance implementation remain authoritative. Preserve existing glass navigation, desktop hover, no mobile hover, compositor motion, entry/click motion, reduced motion and all functionality. This rollback authorizes no other design, dependency, schema/provider/data change or deployment.
+
+### REQUIREMENT CHANGE — approved Liquid Glass navigation, 2026-10-14
+
+**Motion correction approved after G4 Safari video assessment:** replace the immediate black destination pill plus separate moving sheen with one persistent visual selection that expands into translucent glass, travels, briefly compresses and spring-settles into its resting black pill. Keep glyph/text contrast through a clipped decorative navigation-only foreground layer and approximate local magnification/highlights; exact native optical distortion is not promised. Retain existing light identity, surface/layout bounds, desktop hover, no mobile hover, route authority/immediate actions, reduced-motion snap, focus, badges and mounted drafts. This is a local selection-appearance change only, with no new route/drag behavior, private-page duplication/snapshot, financial/provider/dependency change or deployment.
+
+The owner explicitly accepts [revision 2](work/liquid-glass-concept-2026-10-14/README.md) for local implementation. Glass on the desktop topbar is confined to the existing Dashboard/Expenses/Settlements/Cards/Household capsule; the wordmark/logo, notification bell and profile remain outside. The compact desktop sidebar and existing five-destination mobile dock use the same glass family, retaining black selected pills, periwinkle Add, icons, badges, destinations and current active-route semantics. This is a navigation-only exception to earlier desktop preservation and the older avoid-glass direction; page layouts/content panels/tokens and all business/privacy/data behavior remain frozen.
+
+Desktop hover may magnify the control visual and glass highlight within stable hit regions. Mobile/touch has no hover magnification. Tab changes animate a decorative glass selection between actual active destinations, including Dashboard-to-Expenses, without delaying navigation/commands, moving focus, remounting drafts, capturing private page snapshots or inventing selection state. Respect reduced motion and keep selected labels/glyphs readable throughout. Maintain safe-area spacing, short-viewport reachability and a readable fallback. Domain/API/provider/schema/dependencies remain unchanged; no production deployment or data operation is authorized.
+
+### REQUIREMENT CHANGE — approved mobile implementation, 2026-10-14
+
+The owner accepts the version 2 mobile concepts and authorizes local implementation with the same web visual identity, an app-like phone layout and strictly unchanged desktop design. Retain existing colors, grouped/inset panels, Inter typography, black pill actions, avatars, category assets, chart styling and every feature/financial/privacy/session contract. Phone adaptations may compact spacing, wrap metadata, consolidate existing live Expense filters in a sheet, and use reachable mobile dialogs without new query semantics or duplicate mounted forms. The [version 2 contract](work/mobile-design-2026-10-13/DESIGN_IDENTITY_V2.md) governs incidental illustration errors and omitted controls/continuation content. Existing five icon-only mobile destinations remain unchanged.
+
+The owner explicitly removes the Icon Credits page from the approved scope and requests removal of its existing local route; this supersedes the U2 requirement for a separate Credits page. Existing category assets and author/source metadata remain retained. The route removal is the sole requested cross-viewport exception. No domain/data/provider/schema/dependency change or deployment is authorized. Verification must establish mobile correctness and unchanged desktop appearance.
+
 ### REQUIREMENT CHANGE — approved U8 presentation refinement, 2026-10-12
 
 The owner explicitly requests centered Dashboard calendar/month/dropdown contents between the month arrows, signed green/red Housemate Balance pills matching the supplied reference, consistent Expense Settlement-through-Amount column spacing, and click micro-animations throughout the interface. Positive balances use the existing success palette, negative balances use the existing danger palette, and zero remains neutral; retain full exact-money text, signs and Gets back/Owes/Settled labels. Expense headers and rows share aligned responsive tracks. Press/release feedback is decorative and reduced-motion-aware; floating popup anchors remain stationary and use highlight/arrow/opening feedback so sizing stays stable. No delayed/replayed action, new validation, financial calculation, source-data change, dependency or deployment is authorized. This amendment changes presentation only.
