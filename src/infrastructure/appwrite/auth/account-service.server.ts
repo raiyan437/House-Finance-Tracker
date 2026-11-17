@@ -1,6 +1,6 @@
 import { AppwriteException, ID, type Account } from "node-appwrite";
 import { AuthError } from "./auth-errors.server";
-import type { AccountEmailConfiguration } from "../config";
+import type { AuthCookieDirective, SessionCookieDirective } from "./session-cookie";
 import { deriveAuthThrottleIdentity, enforceAuthThrottle } from "./throttle.server";
 
 export interface AuthCoreDeps {
@@ -9,15 +9,8 @@ export interface AuthCoreDeps {
   readonly adminAccount: () => Account;
   readonly sessionAccount: (sessionSecret: string) => Account;
   readonly tablesDB: import("node-appwrite").TablesDB;
-  readonly accountEmails: AccountEmailConfiguration;
   readonly authSecret: string;
   readonly origin: string;
-}
-
-export interface AuthCookieDirective {
-  readonly action: "set" | "clear";
-  readonly secret?: string;
-  readonly expire?: string;
 }
 
 export interface AuthOperationResult {
@@ -25,9 +18,6 @@ export interface AuthOperationResult {
   readonly body: Record<string, unknown>;
   readonly cookie?: AuthCookieDirective;
 }
-
-export type AuthAccessState = "authenticated" | "anonymous" | "pending-bootstrap" | "provider-unavailable";
-
 
 function providerErrorMatches(
   error: unknown,
@@ -42,10 +32,15 @@ function providerErrorMatches(
   return wantedTypes.length === 0 || wantedTypes.includes(candidate.type ?? "");
 }
 const GENERIC_CREDENTIALS_ERROR = "Invalid credentials.";
+const SERVICE_UNAVAILABLE = "The authentication service is temporarily unavailable.";
+const VERIFICATION_REQUIRED = { status: "verification-required" } as const;
+const INVALID_VERIFICATION_LINK = { status: 400, body: { error: "This verification link is invalid or has expired. Request a new link." } };
 
 export const AUTH_THROTTLE_RULES = {
   login: { scope: "auth-login", limit: 10, windowSeconds: 900 },
   signup: { scope: "auth-signup", limit: 5, windowSeconds: 86_400 },
+  verificationEmail: { scope: "auth-verification-email", limit: 3, windowSeconds: 3600 },
+  verificationConfirm: { scope: "auth-verification-confirm", limit: 5, windowSeconds: 900 },
   recovery: { scope: "auth-recovery", limit: 3, windowSeconds: 3600 },
   reset: { scope: "auth-reset", limit: 5, windowSeconds: 900 },
   /** Approved with the Phase 13 rate-limit table; shared by lookup and generation reads. */
@@ -54,17 +49,33 @@ export const AUTH_THROTTLE_RULES = {
 
 function normalizeEmail(raw: string): string {
   const email = raw.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("INVALID_INPUT", "A valid email is required.");
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("INVALID_INPUT", "A valid email is required.");
   return email;
 }
 
-function isApprovedAccount(accountEmails: AccountEmailConfiguration, email: string): boolean {
-  return accountEmails.status === "enabled" && accountEmails.emails.includes(email);
+export function classifyAccount(user: Pick<Awaited<ReturnType<Account["get"]>>, "status" | "emailVerification">) {
+  if (user.status !== true) return "anonymous";
+  return user.emailVerification === true ? "authenticated" : "verification-required";
 }
 
-function displayNameFromEmail(email: string): string {
-  const localPart = email.split("@")[0] ?? "Member";
-  return localPart.charAt(0).toUpperCase() + localPart.slice(1);
+export function isInvalidSession(error: unknown): boolean {
+  return (error instanceof AuthError && error.code === "SESSION_INVALID") ||
+    providerErrorMatches(error, { code: 401 }) ||
+    providerErrorMatches(error, { types: ["user_blocked", "user_not_found"] });
+}
+
+function isRateLimited(error: unknown): boolean {
+  return (error instanceof AuthError && error.code === "RATE_LIMITED") || providerErrorMatches(error, { code: 429 });
+}
+
+function rateLimitError() {
+  return new AuthError("RATE_LIMITED", "Too many attempts. Please try again later.");
+}
+
+async function createPasswordSession(deps: AuthCoreDeps, email: string, password: string): Promise<SessionCookieDirective> {
+  const { secret, expire } = await deps.adminAccount().createEmailPasswordSession({ email, password });
+  if (!secret || !Number.isFinite(Date.parse(expire))) throw new AuthError("PROVIDER_UNAVAILABLE", SERVICE_UNAVAILABLE);
+  return { action: "set", secret, expire };
 }
 
 function validateNewPassword(password: string): void {
@@ -87,43 +98,58 @@ export async function signupWithPassword(
   const email = normalizeEmail(input.email);
   validateNewPassword(input.password);
   validatePasswordConfirmation(input.password, input.confirmPassword);
-  if (!isApprovedAccount(deps.accountEmails, email)) {
-    return { status: 403, body: { error: "Email not allowed. Contact admin." } };
-  }
   await enforceAuthThrottle(deps.tablesDB, {
     secret: deps.authSecret,
     rule: AUTH_THROTTLE_RULES.signup,
     identityParts,
   });
 
-  let createdUser: { $id: string; email: string };
+  let userId: string;
   try {
-    createdUser = await deps.publicAccount().create({
+    const createdUser = await deps.publicAccount().create({
       userId: ID.unique(),
       email,
       password: input.password,
     });
+    userId = createdUser.$id;
   } catch (error) {
     if (providerErrorMatches(error, { code: 409, types: ["user_already_exists", "user_email_already_exists"] })) {
       return { status: 409, body: { code: "ACCOUNT_EXISTS", error: EXISTING_ACCOUNT_MESSAGE } };
     }
-    throw new AuthError("PROVIDER_UNAVAILABLE", "The authentication service is temporarily unavailable.");
+    if (isRateLimited(error)) throw rateLimitError();
+    if (providerErrorMatches(error, { type: "user_count_exceeded" })) {
+      throw new AuthError("PROVIDER_UNAVAILABLE", "New account registration is temporarily at capacity. Please try again later.");
+    }
+    if (providerErrorMatches(error, { types: ["user_password_strength", "user_password_pwned", "user_password_personal_data", "user_password_dictionary"] })) {
+      throw new AuthError("INVALID_INPUT", "Choose a stronger password that does not contain personal information.");
+    }
+    if (providerErrorMatches(error, { code: 400 })) {
+      throw new AuthError("INVALID_INPUT", "This email or password does not meet the signup requirements.");
+    }
+    throw new AuthError("PROVIDER_UNAVAILABLE", SERVICE_UNAVAILABLE);
   }
 
-  // Auth and TablesDB cannot be one transaction. A later trusted login/restore
-  // repairs this idempotently if this immediate bootstrap attempt fails.
-  await ensureProfile(deps.tablesDB, { id: createdUser.$id, email: createdUser.email });
-
-  let session: { secret: string; expire: string };
+  let cookie: SessionCookieDirective;
+  let account: Account;
   try {
-    session = await deps.publicAccount().createEmailPasswordSession({ email, password: input.password });
+    cookie = await createPasswordSession(deps, email, input.password);
+    account = deps.sessionAccount(cookie.secret);
+    const user = await account.get();
+    if (user.$id !== userId || classifyAccount(user) === "anonymous") throw new Error("Signup session account mismatch");
   } catch {
     throw new AuthError("PROVIDER_UNAVAILABLE", "Your account was created, but sign-in could not be completed. Please sign in.");
   }
+  let verificationEmailSent = false;
+  try {
+    await sendVerificationEmail(deps, account, userId);
+    verificationEmailSent = true;
+  } catch {
+    // Registration succeeded. The user can request another link from the verification page.
+  }
   return {
     status: 201,
-    body: { status: "authenticated", email },
-    cookie: { action: "set", secret: session.secret, expire: session.expire },
+    body: { ...VERIFICATION_REQUIRED, verificationEmailSent },
+    cookie,
   };
 }
 
@@ -145,15 +171,19 @@ export async function updateCurrentPassword(
   const account = deps.sessionAccount(sessionSecret);
   try {
     const user = await account.get();
-    if (!isApprovedAccount(deps.accountEmails, user.email.trim().toLowerCase())) {
+    const access = classifyAccount(user);
+    if (access === "anonymous") {
       return { status: 401, body: { error: "Sign in to update your password." }, cookie: { action: "clear" } };
+    }
+    if (access === "verification-required") {
+      return { status: 403, body: { code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email to update your password." } };
     }
     await account.updatePassword({ password: input.newPassword, oldPassword: input.currentPassword });
   } catch (error) {
     if (providerErrorMatches(error, { types: ["user_invalid_credentials"] })) {
       return { status: 400, body: { error: "Current password is incorrect." } };
     }
-    if (providerErrorMatches(error, { code: 401, types: ["user_unauthorized", "general_unauthorized_scope"] })) {
+    if (isInvalidSession(error)) {
       return { status: 401, body: { error: "Your session has expired. Sign in again." }, cookie: { action: "clear" } };
     }
     throw new AuthError("PROVIDER_UNAVAILABLE", "The authentication service is temporarily unavailable.");
@@ -164,28 +194,27 @@ export async function updateCurrentPassword(
 
 export async function ensureProfile(
   tablesDB: AuthCoreDeps["tablesDB"],
-  user: Readonly<{ id: string; email: string }>,
-  intendedDisplayName?: string,
+  userId: string,
 ): Promise<{ userId: string; displayName: string }> {
+  const profileRow = { databaseId: "hft", tableId: "profiles", rowId: userId };
   try {
-    const existing = await tablesDB.getRow({ databaseId: "hft", tableId: "profiles", rowId: user.id });
-    return { userId: user.id, displayName: String(existing.displayName) };
+    const existing = await tablesDB.getRow(profileRow);
+    return { userId, displayName: String(existing.displayName) };
   } catch (error) {
     if (!providerErrorMatches(error, { code: 404 })) throw error;
   }
-  const displayName = intendedDisplayName?.trim() || displayNameFromEmail(user.email);
+  const displayName = "Member";
+  const now = new Date().toISOString();
   try {
     await tablesDB.createRow({
-      databaseId: "hft",
-      tableId: "profiles",
-      rowId: user.id,
-      data: { displayName, version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ...profileRow,
+      data: { displayName, version: 1, createdAt: now, updatedAt: now },
     });
-    return { userId: user.id, displayName };
+    return { userId, displayName };
   } catch (error) {
     if (providerErrorMatches(error, { code: 409 })) {
-      const raced = await tablesDB.getRow({ databaseId: "hft", tableId: "profiles", rowId: user.id });
-      return { userId: user.id, displayName: String(raced.displayName) };
+      const raced = await tablesDB.getRow(profileRow);
+      return { userId, displayName: String(raced.displayName) };
     }
     throw error;
   }
@@ -202,47 +231,85 @@ export async function loginWithPassword(
     rule: AUTH_THROTTLE_RULES.login,
     identityParts,
   });
-  if (!isApprovedAccount(deps.accountEmails, email)) {
-    return { status: 401, body: { error: GENERIC_CREDENTIALS_ERROR } };
-  }
-  let session: { secret: string; expire: string };
   try {
-    session = await deps.adminAccount().createEmailPasswordSession({ email, password: input.password });
+    const cookie = await createPasswordSession(deps, email, input.password);
+    const user = await deps.sessionAccount(cookie.secret).get();
+    const access = classifyAccount(user);
+    if (access === "anonymous") return { status: 401, body: { error: GENERIC_CREDENTIALS_ERROR } };
+    if (access === "verification-required") return { status: 200, body: VERIFICATION_REQUIRED, cookie };
+    await ensureProfile(deps.tablesDB, user.$id);
+    return { status: 200, body: { status: "authenticated", email: user.email }, cookie };
   } catch (error) {
-    if (providerErrorMatches(error, { types: ["user_invalid_credentials", "user_not_found"] })) {
+    if (isRateLimited(error)) throw rateLimitError();
+    if (isInvalidSession(error) || providerErrorMatches(error, { types: ["user_invalid_credentials", "user_password_reset_required"] })) {
       return { status: 401, body: { error: GENERIC_CREDENTIALS_ERROR } };
     }
     throw error;
   }
-  const sessionAccount = deps.sessionAccount(session.secret);
-  const user = await sessionAccount.get();
-  await ensureProfile(deps.tablesDB, { id: user.$id, email: user.email });
-  const state: AuthAccessState = "authenticated";
-  return {
-    status: 200,
-    body: { status: state, email: user.email },
-    cookie: { action: "set", secret: session.secret, expire: session.expire },
-  };
 }
 
-export async function restoreSessionState(deps: AuthCoreDeps, sessionSecret: string | undefined): Promise<AuthOperationResult & { cookie?: AuthCookieDirective }> {
+export async function restoreSessionState(deps: AuthCoreDeps, sessionSecret: string | undefined): Promise<AuthOperationResult> {
   if (!sessionSecret) return { status: 200, body: { status: "anonymous" } };
   try {
     const user = await deps.sessionAccount(sessionSecret).get();
-    if (!isApprovedAccount(deps.accountEmails, user.email.trim().toLowerCase())) {
+    const access = classifyAccount(user);
+    if (access === "anonymous") {
       return { status: 200, body: { status: "anonymous" }, cookie: { action: "clear" } };
     }
-    const profile = await ensureProfile(deps.tablesDB, { id: user.$id, email: user.email });
-    const state: AuthAccessState = "authenticated";
-    return { status: 200, body: { status: state, email: user.email, displayName: profile.displayName } };
+    if (access === "verification-required") return { status: 200, body: VERIFICATION_REQUIRED };
+    const profile = await ensureProfile(deps.tablesDB, user.$id);
+    return { status: 200, body: { status: "authenticated", email: user.email, displayName: profile.displayName } };
   } catch (error) {
-    if (
-      (error instanceof AuthError && error.code === "SESSION_INVALID") ||
-      providerErrorMatches(error, { code: 401, types: ["user_unauthorized", "general_unauthorized_scope"] })
-    ) {
+    if (isInvalidSession(error)) {
       return { status: 200, body: { status: "anonymous" }, cookie: { action: "clear" } };
     }
     return { status: 503, body: { state: "provider-unavailable" } };
+  }
+}
+
+async function sendVerificationEmail(deps: AuthCoreDeps, account: Account, userId: string): Promise<void> {
+  await enforceAuthThrottle(deps.tablesDB, {
+    secret: deps.authSecret,
+    rule: AUTH_THROTTLE_RULES.verificationEmail,
+    identityParts: [userId],
+  });
+  await account.createEmailVerification({ url: `${deps.origin}/verify-email` });
+}
+
+type VerificationIntent = Readonly<{ action: "send" } | { action: "confirm"; userId: string; secret: string }>;
+
+export async function verifyCurrentEmail(
+  deps: AuthCoreDeps,
+  sessionSecret: string | undefined,
+  intent: VerificationIntent,
+): Promise<AuthOperationResult> {
+  const signInRequired = { status: 401, body: { error: "Sign in with the account you want to verify." } };
+  if (!sessionSecret) return signInRequired;
+  const account = deps.sessionAccount(sessionSecret);
+  try {
+    const user = await account.get();
+    const access = classifyAccount(user);
+    if (access === "anonymous") return { ...signInRequired, cookie: { action: "clear" } };
+    if (intent.action === "confirm" && intent.userId !== user.$id) return INVALID_VERIFICATION_LINK;
+    if (access === "authenticated") return { status: 200, body: { verified: true } };
+    if (intent.action === "send") {
+      await sendVerificationEmail(deps, account, user.$id);
+      return { status: 200, body: { sent: true } };
+    }
+    await enforceAuthThrottle(deps.tablesDB, {
+      secret: deps.authSecret,
+      rule: AUTH_THROTTLE_RULES.verificationConfirm,
+      identityParts: [user.$id],
+    });
+    await account.updateEmailVerification({ userId: user.$id, secret: intent.secret });
+    return { status: 200, body: { verified: true } };
+  } catch (error) {
+    if (isRateLimited(error)) throw rateLimitError();
+    if (intent.action === "confirm" && providerErrorMatches(error, { types: ["user_invalid_token", "user_not_found"] })) return INVALID_VERIFICATION_LINK;
+    if (isInvalidSession(error)) return { ...signInRequired, cookie: { action: "clear" } };
+    throw new AuthError("PROVIDER_UNAVAILABLE", intent.action === "send"
+      ? "We could not send a verification email. Please try again later."
+      : "We could not verify your email. Please try again later.");
   }
 }
 
@@ -269,12 +336,12 @@ export async function initiatePasswordRecovery(deps: AuthCoreDeps, identityParts
     identityParts: [...identityParts, email],
   });
   const generic = { status: 200 as const, body: { sent: true } };
-  if (!isApprovedAccount(deps.accountEmails, email)) return generic;
   try {
     await deps.adminAccount().createRecovery({ email, url: `${deps.origin}/reset-password` });
     return generic;
   } catch (error) {
-    if (providerErrorMatches(error, { code: 404, types: ["user_not_found"] })) return generic;
+    if (providerErrorMatches(error, { types: ["user_not_found", "user_blocked"] })) return generic;
+    if (isRateLimited(error)) throw rateLimitError();
     throw error;
   }
 }
@@ -292,7 +359,8 @@ export async function completePasswordReset(
   try {
     await deps.adminAccount().updateRecovery({ userId: input.userId, secret: input.secret, password: input.password });
   } catch (error) {
-    if (providerErrorMatches(error, { code: 400 })) {
+    if (isRateLimited(error)) throw rateLimitError();
+    if (providerErrorMatches(error, { code: 400 }) || providerErrorMatches(error, { types: ["user_invalid_token", "user_not_found"] })) {
       return { status: 400, body: { error: "This recovery link is invalid or has expired." } };
     }
     throw error;

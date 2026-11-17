@@ -1,4 +1,5 @@
 import { FULL_LOCAL_CAPABILITIES } from "@/application/runtime-capabilities";
+import { ApplicationError } from "@/application/errors/application-error";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -245,6 +246,17 @@ describe("Phase 6 household presentation", () => {
     await user.click(screen.getByRole("button", { name: "Send Join Request" }));
     await waitFor(() => expect(request).toHaveBeenCalledWith(householdId("household-main"), expect.any(String)));
     expect(replace).toHaveBeenCalledWith("/household");
+  });
+
+  it("explains the active-member limit in the leader's acceptance dialog", async () => {
+    const user = userEvent.setup();
+    const message = "This household already has 10 active members.";
+    const accept = vi.fn().mockRejectedValue(new ApplicationError("HOUSEHOLD_MEMBER_LIMIT_REACHED", message));
+    renderRuntime(<HouseholdPageClient />, activeState("leader", actions({ acceptJoinRequest: accept })));
+    await user.click(screen.getByRole("button", { name: /^Accept$/ }));
+    const dialog = screen.getByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Accept request" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(message);
   });
 
   it("masks the exact House Code by default and supports Show, Hide, and leading-zero Copy", async () => {

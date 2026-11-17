@@ -70,14 +70,13 @@ describe("server config loading", () => {
     expect(result.value?.authSecret).toBe("hmac-secret");
     expect(result.value?.appOrigin).toBe("https://hft.appwrite.network");
     expect(result.value).not.toHaveProperty("bootstrapApiKey");
-    expect(result.value?.accountEmails).toEqual({ status: "enabled", emails: ["raiyan@test.io"] });
+    expect(result.value).not.toHaveProperty("accountEmails");
   });
 
   it("fails closed when any deployed runtime value is missing", () => {
     const result = loadAppwriteServerConfig({
       HFT_APPWRITE_ENDPOINT: "https://syd.cloud.appwrite.io/v1",
       HFT_APPWRITE_PROJECT_ID: "hft-prod",
-      HFT_ALLOWED_ACCOUNT_EMAILS: "",
     });
     expect(result.ok).toBe(false);
     expect(result.errors?.join(" ")).toContain("HFT_APPWRITE_RUNTIME_API_KEY");
@@ -92,7 +91,6 @@ describe("server config loading", () => {
       HFT_APPWRITE_RUNTIME_API_KEY: "runtime-secret",
       HFT_AUTH_HMAC_SECRET: "hmac-secret",
       HFT_APP_ORIGIN: "https://hft.appwrite.network",
-      HFT_ALLOWED_ACCOUNT_EMAILS: "member@test.io",
       APPWRITE_BOOTSTRAP_API_KEY: "bootstrap-secret",
       APPWRITE_PROVISIONING_API_KEY: "provisioning-secret",
     });

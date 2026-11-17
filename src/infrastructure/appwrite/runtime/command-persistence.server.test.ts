@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { TablesDB } from "node-appwrite";
 import { AppwriteCommandPersistence } from "./command-persistence.server";
-import { TransactionFailure } from "./tx-errors.server";
 import { runWithCommandEnvelope } from "./command-envelope.server";
 import { createInMemoryTablesDB, InMemoryTablesReader } from "../reads/in-memory-tables-reader.helper";
 import { guardRowId, membershipRowId } from "../ids";
@@ -12,6 +11,8 @@ import type { AuditEvent, Expense, ExpenseComment } from "@/domain/records/domai
 import { expenseDate } from "@/domain/dates/expense-date";
 import { positivePoisha } from "@/domain/money/poisha";
 import { allocateEqualSplit } from "@/domain/splits/equal-split";
+import { allocatePercentageSplit } from "@/domain/splits/percentage-split";
+import { basisPoints } from "@/domain/money/basis-points";
 import { expenseRelevantIntentDigest } from "@/application/expenses/backdated-expense-confirmation";
 import type { SettlementRecord } from "@/domain/settlements/settlement-types";
 
@@ -39,6 +40,16 @@ function membershipRow(id: string, hh: string, user: string, role: string, statu
 
 function requestRow(id: string, user: string, status = "pending"): Record<string, unknown> {
   return { $id: id, householdId: String(HH), userId: user, status, createdAt: T0, resolvedAt: null, resolvedByUserId: null, requesterDisplayName: null };
+}
+
+function addActiveMembers(count: number) {
+  const extraUsers = Array.from({ length: count }, (_, index) => userId(`test-member-${index}`.padEnd(36, "x")));
+  reader.seed("memberships", [
+    ...reader.table("memberships"),
+    ...extraUsers.map((id) => membershipRow(membershipRowId(HH, id), HH, id, "member", "active")),
+  ]);
+  for (const id of extraUsers) seedGuard("active-membership", id, id);
+  return extraUsers;
 }
 
 function audit(id: string, actor: string, action: string): AuditEvent {
@@ -345,24 +356,53 @@ describe("trusted Appwrite command kernel", () => {
       expect(code).toBe("HOUSEHOLD_STATE_CHANGED");
     });
 
-    it("rejects acceptance when the requester is already active elsewhere", async () => {
-      // Fill the fourth seat with a fourth account so the cap is not the blocker.
-      const DANA = userId("u_dana");
-      reader.seed("memberships", [
-        ...(reader.tables.get("memberships") ?? []).filter((row) => row.$id !== "j-seed"),
-        membershipRow(membershipRowId(String(HH), String(DANA)), String(HH), String(DANA), "member", "active") as unknown as Record<string, unknown>,
+    it("accepts the tenth active member and leaves the next request pending", async () => {
+      addActiveMembers(6);
+      reader.seed("memberships", [...reader.table("memberships"), membershipRow("m_former", HH, "was-member", "member", "former")]);
+      reader.seed("join_requests", [...reader.table("join_requests"), requestRow("j_new", DANA)]);
+      seedGuard("pending-join", DANA, DANA);
+      const accept = (id: string) => persistence.acceptJoinRequest({
+        joinRequestId: joinRequestId(id), actorId: LEADER, resolvedAt: T1,
+        auditEvent: audit(`a_${id}`, LEADER, "accepted"),
+      });
+      await accept("j_req1");
+      await expect(accept("j_new")).rejects.toMatchObject({ code: "HOUSEHOLD_MEMBER_LIMIT_REACHED" });
+      expect(reader.table("memberships").filter((row) => row.status === "active")).toHaveLength(10);
+      expect(await reader.getRow("join_requests", "j_new")).toMatchObject({ status: "pending" });
+    });
+
+    it("admits ten pending requests and reuses a slot after rejection", async () => {
+      addActiveMembers(7);
+      reader.seed("join_requests", [
+        ...reader.table("join_requests"),
+        ...Array.from({ length: 8 }, (_, index) => requestRow(`j_wait_${index}`, `u_wait_${index}`)),
+        { ...requestRow("j_other", "u_other"), householdId: "h_elsewhere" },
       ]);
-      // Now h1 has 4 active members; a NEW pending request must be capped on accept.
-      reader.seed("join_requests", [requestRow("j_new", String(ALEX))]);
-      seedGuard("pending-join", String(ALEX), String(ALEX));
-      const failure = await persistence.acceptJoinRequest({
-        joinRequestId: joinRequestId("j_new"),
-        actorId: LEADER,
-        resolvedAt: T1,
-        auditEvent: audit("a_new", String(LEADER), "accepted"),
-      }).then(() => null, (error) => error as Error & { code?: string });
-      expect(failure?.code).toBe("CONFLICT");
-      expect(failure?.message).toContain("HOUSEHOLD_MEMBER_LIMIT_REACHED");
+      const send = (id: string, requester: string) => persistence.createJoinRequest({
+        request: { joinRequestId: joinRequestId(id), householdId: HH, userId: userId(requester), status: "pending", createdAt: T1 },
+        idempotency: { actorId: userId(requester), commandType: "send-join-request", commandId: commandId(`k_${id}`), intentDigest: canonicalIntentDigest({ householdId: HH }) },
+        auditEvent: audit(`a_${id}`, requester, "requested"),
+      });
+      await expect(send("j_tenth", DANA)).resolves.toBe("j_tenth");
+      await expect(send("j_tenth", DANA)).resolves.toBe("j_tenth");
+      await expect(send("j_next", "u_next")).rejects.toMatchObject({ code: "HOUSEHOLD_REQUEST_LIMIT_REACHED" });
+      await persistence.transitionJoinRequest({ joinRequestId: joinRequestId("j_req1"), actorId: LEADER, status: "rejected", resolvedAt: T1, auditEvent: audit("a_reject_slot", LEADER, "rejected") });
+      await expect(send("j_next", "u_next")).resolves.toBe("j_next");
+      expect(reader.table("join_requests").filter((row) => row.householdId === HH && row.status === "pending")).toHaveLength(10);
+    });
+
+    it("rolls back request admission on a concurrent household guard change", async () => {
+      reader.conflictOnCommit.add(`coordination_guards/${guardRowId(`financial:${HH}`)}`);
+      const input = {
+        request: { joinRequestId: joinRequestId("j_racing"), householdId: HH, userId: DANA, status: "pending" as const, createdAt: T1 },
+        idempotency: { actorId: DANA, commandType: "send-join-request" as const, commandId: commandId("k_racing"), intentDigest: canonicalIntentDigest({ householdId: HH }) },
+        auditEvent: audit("a_racing", DANA, "requested"),
+      };
+      await expect(persistence.createJoinRequest(input)).rejects.toMatchObject({ kind: "conflict" });
+      expect(await reader.getRow("join_requests", "j_racing")).toBeUndefined();
+      expect(reader.table("command_outcomes")).toHaveLength(0);
+      reader.conflictOnCommit.clear();
+      await expect(persistence.createJoinRequest(input)).resolves.toBe("j_racing");
     });
 
     it("permits only the requester to cancel and only the leader to reject", async () => {
@@ -489,18 +529,32 @@ describe("trusted Appwrite command kernel", () => {
       const guards = await reader.listRows("coordination_guards");
       expect(guards.filter((row) => String(row.logicalKey).includes(String(HH))).length).toBe(0);
       expect(guards.some((row) => row.logicalKey === "pending-join:u_alex")).toBe(false);
-      // Enveloped production delivery adds the idempotency outcome row:
-      // 4 + 2M + 3J + 1 outcome = 14 at M=3/J=1. Certified bound <= 16.
-      expect(persistence.lastDeleteStagedOperations).toBe(14);
+      // Includes the guard touch and command outcome in addition to the lifecycle writes.
+      expect(persistence.lastDeleteStagedOperations).toBe(15);
 
       // Lost-response retry with the SAME command key replays success without
       // any additional staged mutation or duplicate lifecycle effect. The
       // counter retains the first (and only) real transaction's total.
       await runDelete();
-      expect(persistence.lastDeleteStagedOperations).toBe(14);
+      expect(persistence.lastDeleteStagedOperations).toBe(15);
       const auditsAfterReplay = await reader.listRows("audit_events");
       expect(auditsAfterReplay.filter((row) => row.action === "deleted").length).toBe(1);
       expect((await reader.getRow("households", String(HH)))?.deletedAt).toBe(T1);
+    });
+
+    it("deletes a household at both capacity limits within the Free-plan transaction budget", async () => {
+      addActiveMembers(7);
+      const requesters = Array.from({ length: 9 }, (_, index) => `u_queue_${index}`);
+      reader.seed("join_requests", [...reader.table("join_requests"), ...requesters.map((id) => requestRow(`j_${id}`, id))]);
+      for (const id of requesters) seedGuard("pending-join", id, id);
+      await runWithCommandEnvelope(
+        { commandType: "delete-household", commandId: "k_full_delete", intentSeed: { householdId: HH } },
+        () => persistence.deleteHousehold({ householdId: HH, actorId: LEADER, auditEvent: audit("a_full_delete", LEADER, "deleted"), joinRequestAuditIdBase: auditEventId("a_full_request") }),
+      );
+      expect(persistence.lastDeleteStagedOperations).toBe(56);
+      expect(reader.table("memberships").filter((row) => row.status === "former")).toHaveLength(10);
+      expect(reader.table("join_requests").filter((row) => row.status === "household-closed")).toHaveLength(10);
+      expect(reader.table("coordination_guards")).toHaveLength(0);
     });
 
     it("rolls back completely when any balance is non-zero", async () => {
@@ -523,12 +577,16 @@ describe("trusted Appwrite command kernel", () => {
       expect(persistence.lastDeleteStagedOperations).toBe(0);
     });
 
-    it("forces commit-time conflicts back to the client without partial writes", async () => {
-      reader.conflictOnCommit.add(`households/${String(HH)}`);
-      const failure = await persistence.renameHousehold({ householdId: HH, actorId: LEADER, name: "Conflict House", occurredAt: T1, auditEvent: audit("a_conf", String(LEADER), "renamed") }).then(() => null, (error) => error as TransactionFailure);
-      expect(failure).not.toBeNull();
-      expect(failure?.kind).toBe("conflict");
-      expect((await reader.getRow("households", String(HH)))?.name).toBe("Raiyan House");
+    it("rolls back household deletion when the join and financial guard changes concurrently", async () => {
+      reader.conflictOnCommit.add(`coordination_guards/${guardRowId(`financial:${HH}`)}`);
+      await expect(persistence.deleteHousehold({
+        householdId: HH, actorId: LEADER, auditEvent: audit("a_conf", LEADER, "deleted"),
+        joinRequestAuditIdBase: auditEventId("a_conf_jr"),
+      })).rejects.toMatchObject({ kind: "conflict" });
+      expect((await reader.getRow("households", HH))?.deletedAt).toBeNull();
+      expect((await reader.getRow("join_requests", "j_req1"))?.status).toBe("pending");
+      expect(reader.table("memberships").every(({ status }) => status === "active")).toBe(true);
+      expect(reader.table("audit_events")).toHaveLength(0);
     });
 
     it("replays a lost-response accept and rejects changed-intent reuse", async () => {
@@ -669,6 +727,23 @@ describe("trusted Appwrite command kernel", () => {
       commandType: "create-expense",
       commandId: commandId(`k_${id}`),
       intentDigest: canonicalIntentDigest(intent),
+    });
+
+    it("stores a ten-member percentage split within the existing columns with exact poisha", async () => {
+      const participants = [LEADER, JOHN, SARAH, ...addActiveMembers(7)];
+      const amount = positivePoisha(Number.MAX_SAFE_INTEGER);
+      const percentageEntries = participants.map((participantId) => ({ participantId, basisPoints: basisPoints(1_000) }));
+      const expense: Expense = {
+        ...expenseRecord("e_ten"), amount, splitMethod: "percentage", percentageEntries,
+        allocations: allocatePercentageSplit(amount, participants, percentageEntries),
+      };
+      const idempotency = expenseDescriptor("e_ten");
+      await persistence.createExpense({ expense, actorId: LEADER, commandId: idempotency.commandId, receipts: [], auditEvent: expenseAudit("e_ten"), idempotency });
+      const row = await reader.getRow("expenses", "e_ten");
+      expect(String(row?.allocationsJson).length).toBeLessThanOrEqual(1024);
+      expect(String(row?.percentageEntriesJson).length).toBeLessThanOrEqual(1024);
+      expect(expense.allocations.reduce((total, allocation) => total + BigInt(allocation.share), BigInt(0))).toBe(BigInt(amount));
+      expect(reader.table("notifications")).toHaveLength(9);
     });
 
     it("creates exact Cash and Card Expenses with measured atomic write counts", async () => {

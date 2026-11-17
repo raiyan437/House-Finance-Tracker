@@ -13,11 +13,12 @@ export function LoginForm() {
   return (
     <form
       className="grid gap-4"
+      method="post"
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
-        void submit({ email: data.get("email"), password: data.get("password") }, "/api/auth/login", () => {
-          router.push("/dashboard");
+        void submit({ email: data.get("email"), password: data.get("password") }, "/api/auth/login", (payload) => {
+          router.push(payload.status === "verification-required" ? "/verify-email" : "/dashboard");
         });
       }}
     >

@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { PRODUCTION_R4_CAPABILITIES } from "@/application/runtime-capabilities";
 import { HouseFinanceApplication } from "@/application/services/application-services";
 import type { ApplicationRepositories, AtomicApplicationPersistence, CurrentSession } from "@/application/repositories";
@@ -8,7 +10,11 @@ import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
 import type { UserId } from "@/domain/shared/identifiers";
 import { InMemoryTablesReader } from "../reads/in-memory-tables-reader.helper";
 import { loadBootstrap, loadBusinessDate } from "./product-reads.server";
-import { buildProductRequestContext } from "./context.server";
+import * as authClients from "../auth/clients.server";
+import { buildProductRequestContext, resolveTrustedActor } from "./context.server";
+import { runProductRead, runTrustedCommand } from "./read-route.server";
+
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "provider-session" }) }) }));
 
 const NOW = isoInstant("2026-08-26T18:30:00.000Z");
 const SEED_INSTANT_ISO = "2026-08-01T00:00:00.000Z" as IsoInstant;
@@ -18,9 +24,13 @@ beforeEach(() => {
   vi.stubEnv("HFT_APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1");
   vi.stubEnv("HFT_APPWRITE_PROJECT_ID", "r1-test-project");
   vi.stubEnv("HFT_APPWRITE_RUNTIME_API_KEY", "test-runtime-key");
-  vi.stubEnv("HFT_ALLOWED_ACCOUNT_EMAILS", "user1@test.io");
   vi.stubEnv("HFT_AUTH_HMAC_SECRET", "test-hmac-secret");
   vi.stubEnv("HFT_APP_ORIGIN", "https://hft.test");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 function emptyReadRepositories(): ApplicationRepositories {
@@ -66,6 +76,34 @@ function contextWith(reader: InMemoryTablesReader): ReturnType<typeof buildProdu
 }
 
 describe("trusted production request context", () => {
+  it("resolves a product actor only after Appwrite verifies the account", async () => {
+    let verified = false;
+    const getRow = vi.fn().mockResolvedValue({ displayName: "Member" });
+    vi.spyOn(authClients, "createAppwriteAuthClients").mockReturnValue({
+      sessionAccount: () => ({ get: async () => ({ $id: "new-user", email: "new@outside.test", status: true, emailVerification: verified }) }),
+      tablesDB: () => ({ getRow }),
+    } as unknown as authClients.AppwriteAuthClients);
+    await expect(resolveTrustedActor("provider-session")).resolves.toEqual({ status: "verification-required" });
+    const readData = vi.fn();
+    const writeData = vi.fn();
+    const read = await runProductRead(new NextRequest("https://hft.test/api/app/bootstrap"), readData);
+    const write = await runTrustedCommand(new NextRequest("https://hft.test/api/app/household-create", {
+      method: "POST", headers: { origin: "https://hft.test" }, body: "{}",
+    }), z.object({}), writeData);
+    for (const response of [read, write]) {
+      expect(response.status).toBe(403);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.has("set-cookie")).toBe(false);
+      await expect(response.json()).resolves.toMatchObject({ code: "EMAIL_VERIFICATION_REQUIRED" });
+    }
+    expect(readData).not.toHaveBeenCalled();
+    expect(writeData).not.toHaveBeenCalled();
+    expect(getRow).not.toHaveBeenCalled();
+    verified = true;
+    await expect(resolveTrustedActor("provider-session")).resolves.toMatchObject({ status: "authenticated", userId: "new-user" });
+    expect(getRow).toHaveBeenCalledWith({ databaseId: "hft", tableId: "profiles", rowId: "new-user" });
+  });
+
   it("builds a real context with server clock values and production capabilities", async () => {
     const built = buildProductRequestContext({ userId: "user_abc" as UserId, email: "abc@test.io" });
     expect(built.capabilities).toBe(PRODUCTION_R4_CAPABILITIES);

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Account } from "node-appwrite";
-import { ensureProfile, loginWithPassword, logoutCurrentSession, restoreSessionState, signupWithPassword, updateCurrentPassword } from "./account-service.server";
+import { ensureProfile, loginWithPassword, logoutCurrentSession, restoreSessionState, signupWithPassword, updateCurrentPassword, verifyCurrentEmail } from "./account-service.server";
 import type { AuthCoreDeps } from "./account-service.server";
-
-const APPROVED_ACCOUNTS = { status: "enabled", emails: ["raiyan@test.io", "john@test.io"] } as const;
 
 type ClientKind = "public" | "admin" | "session";
 
@@ -13,7 +11,7 @@ interface RecordedCall {
   readonly args?: Record<string, unknown>;
 }
 
-function instrumentedHarness(options: Readonly<{ sessionSecret: string; failAdminForbiddenMethods?: boolean }>) {
+function instrumentedHarness(options: Readonly<{ sessionSecret: string; failAdminForbiddenMethods?: boolean; unverified?: boolean }>) {
   const calls: RecordedCall[] = [];
   const FORBIDDEN_ON_ADMIN = new Set(["get", "deleteSession"]);
 
@@ -29,7 +27,7 @@ function instrumentedHarness(options: Readonly<{ sessionSecret: string; failAdmi
         case "createEmailPasswordSession":
           return { secret: options.sessionSecret, expire: "2027-01-01T00:00:00.000Z" };
         case "get":
-          return { $id: "user_raiyan", email: "raiyan@test.io" };
+          return { $id: "user_new", email: "new@test.io", status: true, emailVerification: !options.unverified };
         default:
           return {};
       }
@@ -61,7 +59,6 @@ function instrumentedHarness(options: Readonly<{ sessionSecret: string; failAdmi
     adminAccount: () => makeClient("admin"),
     sessionAccount: () => makeClient("session"),
     tablesDB,
-    accountEmails: APPROVED_ACCOUNTS,
     authSecret: "test-secret",
     origin: "https://hft.test",
   };
@@ -69,14 +66,17 @@ function instrumentedHarness(options: Readonly<{ sessionSecret: string; failAdmi
 }
 
 describe("auth client classification (admin vs session)", () => {
-  it("uses only the keyless Account client for signup account and session creation", async () => {
-    const harness = instrumentedHarness({ sessionSecret: "sec_signup" });
+  it("uses separate provider clients for account creation, session issuance, and verification", async () => {
+    const harness = instrumentedHarness({ sessionSecret: "sec_signup", unverified: true });
     await signupWithPassword(harness.deps, ["ip"], {
       email: "raiyan@test.io", password: "new-password", confirmPassword: "new-password",
     });
-    expect(harness.calls.filter((call) => ["create", "createEmailPasswordSession"].includes(call.method))).toEqual([
+    await verifyCurrentEmail(harness.deps, "sec_signup", { action: "confirm", userId: "user_new", secret: "verification" });
+    expect(harness.calls.filter((call) => call.method !== "get")).toEqual([
       expect.objectContaining({ kind: "public", method: "create" }),
-      expect.objectContaining({ kind: "public", method: "createEmailPasswordSession" }),
+      expect.objectContaining({ kind: "admin", method: "createEmailPasswordSession" }),
+      expect.objectContaining({ kind: "session", method: "createEmailVerification" }),
+      expect.objectContaining({ kind: "session", method: "updateEmailVerification" }),
     ]);
   });
 
@@ -108,7 +108,7 @@ describe("auth client classification (admin vs session)", () => {
     ]);
   });
 
-  it("never invokes account verification or email mutation methods anywhere in 13B", async () => {
+  it("does not send verification messages during login, restore, or logout", async () => {
     const harness = instrumentedHarness({ sessionSecret: "sec" });
     await loginWithPassword(harness.deps, ["ip"], { email: "raiyan@test.io", password: "pw" });
     await restoreSessionState(harness.deps, "sec");
@@ -133,9 +133,9 @@ describe("auth client classification (admin vs session)", () => {
 
   it("ensureProfile repairs a missing profile deterministically from the Auth identity", async () => {
     const harness = instrumentedHarness({ sessionSecret: "sec" });
-    const first = await ensureProfile(harness.deps.tablesDB, { id: "user_new", email: "new@test.io" }, "New Member");
-    expect(first.displayName).toBe("New Member");
-    const second = await ensureProfile(harness.deps.tablesDB, { id: "user_new", email: "new@test.io" });
-    expect(second).toEqual(first);
+    const first = await ensureProfile(harness.deps.tablesDB, "user_new");
+    expect(first.displayName).toBe("Member");
+    harness.profileStore.user_new = { displayName: "Existing Member" };
+    await expect(ensureProfile(harness.deps.tablesDB, "user_new")).resolves.toEqual({ userId: "user_new", displayName: "Existing Member" });
   });
 });

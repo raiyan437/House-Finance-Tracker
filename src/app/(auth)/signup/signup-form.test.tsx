@@ -3,13 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
 
-const navigation = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+const navigation = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
 describe("SignupForm", () => {
   beforeEach(() => {
-    navigation.push.mockReset();
+    navigation.replace.mockReset();
     navigation.refresh.mockReset();
     vi.unstubAllGlobals();
   });
@@ -52,10 +52,10 @@ describe("SignupForm", () => {
     expect(screen.getByLabelText("Password")).toHaveFocus();
   });
 
-  it("shows the explicit non-allowlisted error returned by the trusted endpoint", async () => {
+  it("shows registration capacity errors without navigating away", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ error: "Email not allowed. Contact admin." }),
-      { status: 403, headers: { "content-type": "application/json" } },
+      JSON.stringify({ error: "New account registration is temporarily at capacity. Please try again later." }),
+      { status: 503, headers: { "content-type": "application/json" } },
     )));
     const user = userEvent.setup();
     render(<SignupForm />);
@@ -63,8 +63,9 @@ describe("SignupForm", () => {
     await user.type(screen.getByLabelText("Password"), "new-password");
     await user.type(screen.getByLabelText("Confirm Password"), "new-password");
     await user.click(screen.getByRole("button", { name: "Create Account" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Email not allowed. Contact admin.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("New account registration is temporarily at capacity.");
     expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 
   it("offers Sign in and reset actions for an existing account", async () => {
@@ -82,9 +83,9 @@ describe("SignupForm", () => {
     expect(screen.getByRole("link", { name: "reset your password" })).toHaveAttribute("href", "/forgot-password");
   });
 
-  it("enters the application after authenticated signup", async () => {
+  it("takes new users to verification after signup", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ status: "authenticated" }),
+      JSON.stringify({ status: "verification-required", verificationEmailSent: true }),
       { status: 201, headers: { "content-type": "application/json" } },
     )));
     const user = userEvent.setup();
@@ -93,6 +94,6 @@ describe("SignupForm", () => {
     await user.type(screen.getByLabelText("Password"), "new-password");
     await user.type(screen.getByLabelText("Confirm Password"), "new-password");
     await user.click(screen.getByRole("button", { name: "Create Account" }));
-    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/verify-email"));
   });
 });

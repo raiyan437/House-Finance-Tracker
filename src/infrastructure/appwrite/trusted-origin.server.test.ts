@@ -8,7 +8,6 @@ function configure(): void {
   vi.stubEnv("HFT_APPWRITE_PROJECT_ID", "hft-prod");
   vi.stubEnv("HFT_APPWRITE_RUNTIME_API_KEY", "runtime-secret");
   vi.stubEnv("HFT_AUTH_HMAC_SECRET", "hmac-secret");
-  vi.stubEnv("HFT_ALLOWED_ACCOUNT_EMAILS", "member@test.io");
   vi.stubEnv("HFT_APP_ORIGIN", "https://hft.appwrite.network");
 }
 

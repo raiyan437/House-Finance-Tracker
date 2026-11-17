@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 
 test("Signup is responsive, accessible, canonical, and has independent password toggles", async ({ page }) => {
   test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") problems.push(message.text()); });
@@ -48,6 +49,7 @@ test("Signup is responsive, accessible, canonical, and has independent password 
 
 test("Login password toggle preserves its value and password-manager semantics across the responsive matrix", async ({ page }) => {
   test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   for (const viewport of [
     { width: 1440, height: 1024 },
     { width: 1024, height: 900 },

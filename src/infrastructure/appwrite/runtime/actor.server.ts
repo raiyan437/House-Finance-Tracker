@@ -4,6 +4,7 @@ import type { UserId } from "@/domain/shared/identifiers";
 export type TrustedActorResolution =
   | Readonly<{ status: "authenticated"; userId: UserId; email: string }>
   | Readonly<{ status: "anonymous" }>
+  | Readonly<{ status: "verification-required" }>
   | Readonly<{ status: "provider-unavailable" }>;
 
 export class ActorRequiredError extends Error {

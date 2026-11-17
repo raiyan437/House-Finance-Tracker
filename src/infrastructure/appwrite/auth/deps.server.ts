@@ -14,7 +14,6 @@ export function buildAuthCoreDeps(): AuthCoreDeps {
     adminAccount: clients.adminAccount,
     sessionAccount: clients.sessionAccount,
     tablesDB: clients.tablesDB(),
-    accountEmails: config.value.accountEmails,
     authSecret: config.value.authSecret,
     origin: config.value.appOrigin,
   };

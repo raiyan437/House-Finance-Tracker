@@ -4,7 +4,7 @@ import { SignupForm } from "./signup-form";
 
 export default function SignupPage() {
   return (
-    <AuthShell title="Create Account" description="Create your approved household account.">
+    <AuthShell title="Create Account" description="Verify your email, then create or join a household.">
       <SignupForm />
       <p className="mt-4 text-center text-caption text-text-secondary">
         Already have an account? <Link href="/login" className="underline underline-offset-4">Sign in</Link>

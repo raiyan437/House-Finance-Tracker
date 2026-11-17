@@ -1,4 +1,5 @@
 import { ApplicationError } from "@/application/errors/application-error";
+import { assertActiveMemberCapacity, assertPendingRequestCapacity } from "@/application/household/household-capacity";
 import { assertIdempotentIntent, commandOutcomeKey } from "@/application/idempotency/command-idempotency";
 import { notificationDraft } from "@/application/notifications/notification-policy";
 import type { AtomicApplicationPersistence } from "@/application/repositories";
@@ -106,11 +107,12 @@ async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJo
         await tx.done;
         return existing.resourceId;
       }
-      const [householdRaw, activeMembership, pendingRequest, membershipRows] = await Promise.all([
+      const [householdRaw, activeMembership, pendingRequest, membershipRows, householdRequests] = await Promise.all([
         tx.objectStore("households").get(input.request.householdId),
         tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(input.request.userId)),
         tx.objectStore("joinRequests").index("pendingJoinUserKey").getKey(pendingJoinUserKey(input.request.userId)),
         tx.objectStore("memberships").index("householdId").getAll(input.request.householdId),
+        tx.objectStore("joinRequests").index("householdId").getAll(input.request.householdId),
       ]);
       if (
         !householdRaw ||
@@ -122,6 +124,7 @@ async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJo
       }
       if (activeMembership) throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
       if (pendingRequest) throw new ApplicationError("CONFLICT", "The current user already has a Pending join request.");
+      assertPendingRequestCapacity(householdRequests.filter(({ status }) => status === "pending").length);
       await tx.objectStore("joinRequests").add(request);
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
       await tx.objectStore("commandOutcomes").add(toCommandOutcomeRecord({ ...input.idempotency, resourceId: input.request.joinRequestId, completedAt: input.auditEvent.occurredAt }));
@@ -149,11 +152,13 @@ async acceptJoinRequest(input: Parameters<AtomicApplicationPersistence["acceptJo
       if (!actor || actor.status !== "active" || actor.role !== "leader") throw householdStateChanged("Household leadership changed before the request was resolved.");
       const activeMembership = await tx.objectStore("memberships").index("activeMembershipUserKey").getKey(activeMembershipUserKey(current.userId));
       if (activeMembership) throw householdStateChanged("The requester already belongs to a household.");
+      const membershipRows = await tx.objectStore("memberships").index("householdId").getAll(current.householdId);
+      assertActiveMemberCapacity(membershipRows.filter(({ status }) => status === "active").length);
       assertAuditMatches(input.auditEvent, current.householdId, input.actorId);
       await tx.objectStore("joinRequests").put(toJoinRequestRecord({ ...current, status: "accepted", resolvedAt: input.resolvedAt, resolvedByUserId: input.actorId }));
       await tx.objectStore("memberships").add(toMembershipRecord({ householdId: current.householdId, userId: current.userId, status: "active", role: "member" }));
       await tx.objectStore("auditEvents").add(toAuditRecord(input.auditEvent));
-      const memberships = (await tx.objectStore("memberships").index("householdId").getAll(current.householdId)).map((row) => fromMembershipRecord(row, row.key));
+      const memberships = membershipRows.map((row) => fromMembershipRecord(row, row.key));
       const name = await notificationActorName(tx, input.actorId);
       await stageNotifications(tx, [notificationDraft({ eventKey: input.auditEvent.auditEventId, recipientUserId: current.userId, type: "join-request-accepted", title: "Join request accepted", body: `${name} accepted your request to join the household`, createdAt: input.resolvedAt, householdId: current.householdId, entityType: "household", entityId: current.householdId }), ...householdNotifications({ eventKey: input.auditEvent.auditEventId, actorId: input.actorId, householdId: current.householdId, type: "member-joined", title: "New household member", body: `${name} joined the household`, createdAt: input.resolvedAt, entityType: "membership", entityId: current.userId, memberships: memberships.filter((member) => member.userId !== current.userId) })]);
       await tx.done;

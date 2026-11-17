@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { canonicalIntentDigest } from "@/application/idempotency/command-idempotency";
 import type { UserProfile } from "@/domain/records/domain-records";
 import {
   auditEventId,
@@ -188,6 +189,42 @@ describe("Phase 6 household onboarding application flows", () => {
     expect(await repositories.memberships.findActiveByUser(SEEDED_USER_IDS.alex)).toMatchObject({ householdId: SEEDED_HOUSEHOLD_ID, role: "member" });
     expect((await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter((membership) => membership.userId === SEEDED_USER_IDS.alex && membership.status === "active")).toHaveLength(1);
     expect(await repositories.auditEvents.listByHousehold(SEEDED_HOUSEHOLD_ID)).toContainEqual(expect.objectContaining({ aggregateId: "join-alex-main", action: "accepted" }));
+  });
+
+  it("accepts only one of two requests for the last active seat", async () => {
+    for (let index = 0; index < 6; index += 1) {
+      await repositories.memberships.create({ householdId: SEEDED_HOUSEHOLD_ID, userId: userId(`existing-member-${index}`), status: "active", role: "member" });
+    }
+    const second = joinRequestId("join-last-seat");
+    await repositories.joinRequests.create({ joinRequestId: second, householdId: SEEDED_HOUSEHOLD_ID, userId: userId("other-last-seat"), status: "pending", createdAt: isoInstant("2026-08-13T14:00:00.000Z") });
+    const outcomes = await Promise.allSettled([
+      application.households.acceptJoinRequest(joinRequestId("join-alex-main")),
+      application.households.acceptJoinRequest(second),
+    ]);
+    expect(outcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    expect(outcomes).toContainEqual(expect.objectContaining({ status: "rejected", reason: expect.objectContaining({ code: "HOUSEHOLD_MEMBER_LIMIT_REACHED" }) }));
+    expect((await repositories.memberships.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter(({ status }) => status === "active")).toHaveLength(10);
+    expect((await repositories.joinRequests.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter(({ status }) => status === "pending")).toHaveLength(1);
+  });
+
+  it("admits only one of two requests for the last pending slot", async () => {
+    const now = isoInstant("2026-08-13T14:00:00.000Z");
+    for (let index = 0; index < 8; index += 1) {
+      await repositories.joinRequests.create({ joinRequestId: joinRequestId(`pending-${index}`), householdId: SEEDED_HOUSEHOLD_ID, userId: userId(`waiter-${index}`), status: "pending", createdAt: now });
+    }
+    const send = (name: string) => {
+      const requester = userId(`user-${name}`);
+      const id = joinRequestId(`request-${name}`);
+      return atomic.createJoinRequest({
+        request: { joinRequestId: id, householdId: SEEDED_HOUSEHOLD_ID, userId: requester, status: "pending", createdAt: now },
+        idempotency: { actorId: requester, commandType: "send-join-request", commandId: commandId(`command-${name}`), intentDigest: canonicalIntentDigest({ householdId: SEEDED_HOUSEHOLD_ID }) },
+        auditEvent: { auditEventId: auditEventId(`audit-${name}`), householdId: SEEDED_HOUSEHOLD_ID, actorId: requester, aggregateType: "join-request", aggregateId: id, action: "requested", occurredAt: now, changedFields: ["status"] },
+      });
+    };
+    const outcomes = await Promise.allSettled([send("first"), send("second")]);
+    expect(outcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    expect(outcomes).toContainEqual(expect.objectContaining({ status: "rejected", reason: expect.objectContaining({ code: "HOUSEHOLD_REQUEST_LIMIT_REACHED" }) }));
+    expect((await repositories.joinRequests.listByHousehold(SEEDED_HOUSEHOLD_ID)).filter(({ status }) => status === "pending")).toHaveLength(10);
   });
 
   it("prevents acceptance when the requester acquires another active membership", async () => {
