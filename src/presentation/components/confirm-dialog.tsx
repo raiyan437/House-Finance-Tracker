@@ -21,7 +21,7 @@ interface ConfirmDialogProps {
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
   readonly destructive?: boolean;
-  readonly errorMessage?: string;
+  readonly errorMessage?: string | ((error: unknown) => string);
   readonly open?: boolean;
   readonly onOpenChange?: (open: boolean) => void;
   readonly onConfirm: () => void | Promise<void>;
@@ -56,8 +56,8 @@ export function ConfirmDialog({
     try {
       await onConfirm();
       setOpen(false);
-    } catch {
-      setError(errorMessage);
+    } catch (cause) {
+      setError(typeof errorMessage === "function" ? errorMessage(cause) : errorMessage);
     } finally {
       setPending(false);
     }

@@ -182,31 +182,16 @@ test.describe("live Appwrite authentication", () => {
     await expect(page.getByText("If an account exists for that email, a recovery link has been sent. The link expires in one hour.")).toBeVisible();
   });
 
-  test("allowlisted Signup is canonical while verification and production email-edit routes remain unavailable", async ({ page }) => {
+  test("Signup is canonical and production email editing stays unavailable", async ({ page }) => {
     await page.goto("/register");
     await expect(page).toHaveURL(/\/signup$/);
     await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
-    await page.getByLabel("Email").fill(`not-allowed-${Date.now()}@example.com`);
-    await page.getByLabel("Password", { exact: true }).fill("unused-password");
-    await page.getByLabel("Confirm Password").fill("unused-password");
-    await page.getByRole("button", { name: "Create Account" }).click();
-    await expect(page.getByRole("alert")).toHaveText("Email not allowed. Contact admin.");
-
-    await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Create Account" }).click();
-    await expect(page.getByRole("alert")).toHaveText("An account already exists for this email. Sign in or reset your password.");
-    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "reset your password" })).toBeVisible();
-
     const unavailable = await Promise.all([
       page.request.post("/api/auth/register", { data: {} }),
-      page.request.post("/api/auth/verification/resend", { data: {} }),
       page.request.post("/api/auth/email-change", { data: {} }),
     ]);
     for (const response of unavailable) expect([404, 405]).toContain(response.status());
 
-    const removedPage = await page.request.get("/verify-email");
-    expect(removedPage.status()).toBe(404);
   });
 
   test("Profile exposes the responsive Password section without changing a production password", async ({ page }) => {

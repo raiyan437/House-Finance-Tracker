@@ -36,7 +36,7 @@ test.describe("R1 anonymous production surface", () => {
     expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
   });
 
-  test("renders canonical allowlisted Signup, redirects legacy Register, and leaves no local financial storage", async ({ page }) => {
+  test("renders canonical Signup, redirects legacy Register, and leaves no local financial storage", async ({ page }) => {
     await diagnostics(page.context(), page);
     await page.goto("/register");
     await expect(page).toHaveURL(/\/signup$/);

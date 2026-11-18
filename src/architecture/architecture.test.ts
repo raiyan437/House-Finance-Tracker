@@ -112,6 +112,7 @@ describe("source dependency boundaries", () => {
     "app/api/auth/login/route.ts",
     "app/api/auth/logout/route.ts",
     "app/api/auth/signup/route.ts",
+    "app/api/auth/verification/route.ts",
     "app/api/auth/password/route.ts",
     "app/api/session/route.ts",
     "app/api/auth/password/forgot/route.ts",

@@ -1,5 +1,5 @@
 import "server-only";
-import type { TablesDB } from "node-appwrite";
+import { Query, type TablesDB } from "node-appwrite";
 import { ApplicationError } from "@/application/errors/application-error";
 import { calculateHouseholdBalances } from "@/domain/balances/calculate-household-balances";
 import type { HouseholdBalanceSheet } from "@/domain/balances/balance-types";
@@ -39,8 +39,6 @@ export const TABLE = {
   expenseComments: "expense_comments",
   notifications: "notifications",
 } as const;
-
-export const MAX_ACTIVE_HOUSEHOLD_MEMBERS = 4;
 
 export function expenseFingerprint(expense: Expense, cardAssociationIdentity?: string): ExpenseFinancialFingerprint {
   return {
@@ -142,9 +140,14 @@ async getAliveHousehold(tables: TablesReader, id: string): Promise<Household> {
     return household;
   }
 
-async activeMemberships(tables: TablesReader, householdId?: string): Promise<readonly MembershipSnapshot[]> {
-    const rows = await tables.listRows(TABLE.memberships, []);
-    return rows.map(mapMembership).filter((m) => m.status === "active" && (householdId === undefined || m.householdId === householdId));
+async activeMemberships(tables: TablesReader, householdId: string): Promise<readonly MembershipSnapshot[]> {
+    const rows = await tables.listRows(TABLE.memberships, [Query.equal("householdId", householdId), Query.equal("status", "active")]);
+    return rows.map(mapMembership);
+  }
+
+async activeMembershipForUser(tables: TablesReader, userId: string): Promise<MembershipSnapshot | undefined> {
+    const [row] = await tables.listRowsBounded(TABLE.memberships, [Query.equal("userId", userId), Query.equal("status", "active")], 1);
+    return row ? mapMembership(row) : undefined;
   }
 
 async householdMemberships(tables: TablesReader, householdId: string): Promise<readonly MembershipSnapshot[]> {
@@ -230,20 +233,20 @@ requireBackdatedConfirmation(
   }
 
 async requireScopeWithRole(tables: TablesReader, actorId: string, role: "leader" | undefined): Promise<HouseholdScope> {
-    const allActive = await this.activeMemberships(tables);
-    const actorMembership = allActive.find((m) => m.userId === actorId);
+    const actorMembership = await this.activeMembershipForUser(tables, actorId);
     if (!actorMembership) throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "You are no longer an active household member.");
     if (role === "leader" && actorMembership.role !== "leader") throw new ApplicationError("NOT_FOUND", "Household not found.");
     const household = await this.getAliveHousehold(tables, String(actorMembership.householdId));
-    const memberships = allActive.filter((m) => m.householdId === household.householdId);
+    const memberships = await this.activeMemberships(tables, String(household.householdId));
     return { household, memberships, actorMembership };
   }
 
 async financialContext(tables: TablesReader, householdId: string) {
+    const householdScope = [Query.equal("householdId", householdId)];
     const [membershipRows, expenseRows, settlementRows] = await Promise.all([
-      tables.listRows(TABLE.memberships, []),
-      tables.listRows(TABLE.expenses, []),
-      tables.listRows(TABLE.settlements, []),
+      tables.listRows(TABLE.memberships, householdScope),
+      tables.listRows(TABLE.expenses, householdScope),
+      tables.listRows(TABLE.settlements, householdScope),
     ]);
     const memberships = membershipRows.map(mapMembership)
       .filter((membership) => String(membership.householdId) === householdId);

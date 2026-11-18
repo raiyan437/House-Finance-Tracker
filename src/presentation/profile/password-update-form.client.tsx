@@ -36,6 +36,7 @@ export function PasswordUpdateForm() {
   return (
     <form
       className="journey-password-form mt-5 grid w-full gap-4 lg:grid-cols-3"
+      method="post"
       noValidate
       onSubmit={form.handleSubmit(async (values) => {
         setServerError(undefined);

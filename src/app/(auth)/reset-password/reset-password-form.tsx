@@ -32,6 +32,7 @@ export function ResetPasswordForm() {
   return (
     <form
       className="grid gap-4"
+      method="post"
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);

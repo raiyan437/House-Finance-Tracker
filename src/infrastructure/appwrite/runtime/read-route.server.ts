@@ -42,6 +42,8 @@ export function mapReadError(error: unknown): { status: number; body: Record<str
         return { status: 404, body: { error: "Not found.", code: error.code } };
       case "CONFLICT":
       case "HOUSEHOLD_STATE_CHANGED":
+      case "HOUSEHOLD_MEMBER_LIMIT_REACHED":
+      case "HOUSEHOLD_REQUEST_LIMIT_REACHED":
       case "EXPENSE_VERSION_CONFLICT":
       case "PROFILE_VERSION_CONFLICT":
       case "IDEMPOTENCY_KEY_REUSED":
@@ -88,6 +90,9 @@ export async function resolveReadContext(): Promise<
   }
   if (resolution.status === "provider-unavailable") {
     return { status: new NextResponse(JSON.stringify({ error: "The service is temporarily unavailable." }), { status: 503, headers: NO_STORE_HEADERS }) };
+  }
+  if (resolution.status === "verification-required") {
+    return { status: NextResponse.json({ error: "Verify your email to continue.", code: "EMAIL_VERIFICATION_REQUIRED" }, { status: 403, headers: NO_STORE_HEADERS }) };
   }
   try {
     return { status: "ok", context: buildProductRequestContext(requireActor(resolution)) };

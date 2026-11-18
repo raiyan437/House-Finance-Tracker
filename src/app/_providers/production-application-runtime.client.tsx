@@ -69,11 +69,11 @@ function LoadingScreen() {
   );
 }
 
-function AnonymousRedirect({ expired }: Readonly<{ expired: boolean }>) {
+function AuthRedirect({ destination }: Readonly<{ destination: string }>) {
   const router = useRouter();
   useEffect(() => {
-    router.replace(expired ? "/login?sessionExpired=1" : "/login");
-  }, [router, expired]);
+    router.replace(destination);
+  }, [router, destination]);
   return <LoadingScreen />;
 }
 
@@ -392,7 +392,7 @@ function buildReadyState(
 
 export function ProductionApplicationRuntime({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<ApplicationRuntimeState>({ status: "loading" });
-  const [anonymous, setAnonymous] = useState<{ expired: boolean }>();
+  const [authRedirect, setAuthRedirect] = useState<string>();
   const [connection, setConnection] = useState<"checking" | "ready" | "unavailable">("checking");
   const refreshRef = useRef<(saved?: boolean) => Promise<void>>(async () => undefined);
 
@@ -412,16 +412,16 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
       currentConnection = next;
       if (live()) setConnection(next);
     };
-    const invalidate = (expired: boolean) => {
+    const invalidate = (destination: string) => {
       if (!live()) return;
       invalidated = true;
       readController.abort();
       clearTimeout(scheduled);
       retryCommandIds.clear();
-      setAnonymous({ expired });
+      setAuthRedirect(destination);
       setState({ status: "loading" });
     };
-    const onExpired = () => invalidate(hadReadyState);
+    const onExpired = () => invalidate(hadReadyState ? "/login?sessionExpired=1" : "/login");
     const onBeforeWrite = (event: Event) => {
       if (!live() || currentConnection !== "ready") event.preventDefault();
     };
@@ -430,7 +430,7 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
       ...((init?.method ?? "GET").toUpperCase() === "GET" ? { signal: readController.signal } : {}),
     });
     const signOut = async () => {
-      invalidate(false);
+      invalidate("/login");
       try {
         await transportJson("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       } catch {
@@ -457,8 +457,12 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
             hadReadyState = true;
             setState(buildReadyState(bootstrap, signOut, () => refresh(true), requestJson, readController.signal, retryCommandIds));
             updateConnection("ready");
-          } catch {
+          } catch (error) {
             if (!live()) return;
+            if (error instanceof ApplicationError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
+              invalidate("/verify-email");
+              return;
+            }
             updateConnection("unavailable");
             if (!hadReadyState) setState({ status: "error", message: "Your data could not be loaded right now.", retry: () => void refresh() });
             if (savedAction) toast.warning("Your action was saved, but the view could not refresh. Retry the connection to load the current state.");
@@ -499,7 +503,7 @@ export function ProductionApplicationRuntime({ children }: Readonly<{ children: 
     };
   }, []);
 
-  if (anonymous) return <AnonymousRedirect expired={anonymous.expired} />;
+  if (authRedirect) return <AuthRedirect destination={authRedirect} />;
   if (state.status === "error") return <UnavailableScreen onRetry={() => void refreshRef.current()} />;
   if (state.status !== "ready") return <LoadingScreen />;
 

@@ -62,7 +62,7 @@ describe("Appwrite infrastructure containment", () => {
     expect(appSources).not.toMatch(/appwrite\/provisioning|appwrite-provision|APPWRITE_PROVISIONING_API_KEY/);
   });
 
-  it("exposes only the approved allowlisted signup endpoint for account creation", () => {
+  it("exposes only the canonical signup endpoint for account creation", () => {
     expect(existsSync(join(SRC, "app", "api", "auth", "register", "route.ts"))).toBe(false);
     const activeSources = sourceFiles(SRC).filter((file) => !file.includes(".test.")).map(read).join("\n");
     expect(activeSources).not.toContain("/api/auth/register");
@@ -95,8 +95,8 @@ describe("Appwrite infrastructure containment", () => {
     const configSource = read(join(SRC, "infrastructure", "appwrite", "config.ts"));
     const runtimeBlock = configSource.match(/interface AppwriteServerConfig\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
     const operatorBlock = configSource.match(/interface AppwriteOperatorConfig\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    expect(runtimeBlock).toMatch(/runtimeApiKey[\s\S]*authSecret[\s\S]*appOrigin[\s\S]*accountEmails/);
-    expect(runtimeBlock).not.toMatch(/bootstrapApiKey|provisioningApiKey/);
+    expect(runtimeBlock).toMatch(/runtimeApiKey[\s\S]*authSecret[\s\S]*appOrigin/);
+    expect(runtimeBlock).not.toMatch(/bootstrapApiKey|provisioningApiKey|accountEmails/);
     expect(operatorBlock).toMatch(/runtimeApiKey[\s\S]*bootstrapApiKey/);
     expect(configSource.match(/interface AppwriteProvisioningConfig\s*\{([\s\S]*?)\n\}/)?.[1]).not.toMatch(/runtimeApiKey|bootstrapApiKey/);
   });
@@ -105,8 +105,8 @@ describe("Appwrite infrastructure containment", () => {
     const configSource = read(join(SRC, "infrastructure", "appwrite", "config.ts"));
     const runtimeLoader = configSource.match(/export function loadAppwriteServerConfig[\s\S]*?\n\}/)?.[0] ?? "";
     expect(runtimeLoader).toMatch(/HFT_APPWRITE_ENDPOINT[\s\S]*HFT_APPWRITE_PROJECT_ID[\s\S]*HFT_APPWRITE_RUNTIME_API_KEY/);
-    expect(runtimeLoader).toMatch(/HFT_AUTH_HMAC_SECRET[\s\S]*HFT_APP_ORIGIN[\s\S]*HFT_ALLOWED_ACCOUNT_EMAILS/);
-    expect(runtimeLoader).not.toMatch(/env\.(?:APPWRITE_|AUTH_HMAC_SECRET|ALLOWED_ACCOUNT_EMAILS)/);
+    expect(runtimeLoader).toMatch(/HFT_AUTH_HMAC_SECRET[\s\S]*HFT_APP_ORIGIN/);
+    expect(runtimeLoader).not.toMatch(/env\.(?:APPWRITE_|AUTH_HMAC_SECRET|(?:HFT_)?ALLOWED_ACCOUNT_EMAILS)/);
     expect(sourceFiles(join(SRC, "app")).map(read).join("\n")).not.toMatch(/NEXT_PUBLIC_.*(?:KEY|SECRET|TOKEN)/);
   });
 
@@ -151,9 +151,10 @@ describe("Appwrite infrastructure containment", () => {
     expect(violations).toEqual([]);
   });
 
-  it("contains no active verification or production-email-edit implementation", () => {
+  it("keeps verification on its auth boundary and excludes production email editing", () => {
     const activeSources = sourceFiles(SRC).filter((file) => !file.includes(".test.")).map(read).join("\n");
-    expect(activeSources).not.toMatch(/\/verify-email|emailVerified|createVerification|updateVerification|updateEmail\s*\(/);
+    expect(activeSources).not.toMatch(/updateEmail\s*\(/);
+    expect(existsSync(join(SRC, "app", "api", "auth", "verification", "route.ts"))).toBe(true);
     expect(existsSync(join(SRC, "app", "api", "auth", "email-change", "route.ts"))).toBe(false);
   });
 });

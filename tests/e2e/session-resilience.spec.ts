@@ -39,6 +39,87 @@ async function waitForReadySession(page: Page) {
 }
 
 test.describe("production session resilience", () => {
+  test("signup verification protects product routes and leads to household onboarding", async ({ page }) => {
+    let signedIn = false;
+    let verified = false;
+    let confirmationCalls = 0;
+    const email = "first-account@outside.test";
+    const password = "fixture-password";
+    await page.route("**/api/auth/signup", async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ email, password, confirmPassword: password });
+      signedIn = true;
+      await route.fulfill({ status: 201, json: { status: "verification-required", verificationEmailSent: false } });
+    });
+    await page.route("**/api/auth/verification", async (route) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "send") {
+        await route.fulfill({ json: { sent: true } });
+        return;
+      }
+      confirmationCalls += 1;
+      expect(payload.userId).toBe("fixture-user");
+      if (payload.secret === "expired") {
+        await route.fulfill({ status: 400, json: { error: "This verification link is invalid or has expired. Request a new link." } });
+        return;
+      }
+      expect(payload.secret).toBe("fixture-secret");
+      verified = true;
+      await route.fulfill({ json: { verified: true } });
+    });
+    await page.route("**/api/app/bootstrap", async (route) => {
+      if (!signedIn) await route.fulfill({ status: 401, json: { error: "Sign in to continue." } });
+      else if (!verified) await route.fulfill({ status: 403, json: { code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email to continue." } });
+      else await route.fulfill({ json: bootstrap() });
+    });
+    await page.route("**/api/auth/logout", async (route) => {
+      signedIn = false;
+      await route.fulfill({ json: { status: "anonymous" } });
+    });
+    await page.route("**/api/auth/login", async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ email, password });
+      signedIn = true;
+      await route.fulfill({ json: { status: "authenticated" } });
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/signup");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByLabel("Confirm Password").fill(password);
+    await page.getByRole("button", { name: "Create Account" }).click();
+    await expect(page).toHaveURL(/\/verify-email\?delivery=failed$/);
+    await expect(page.getByRole("status")).toHaveText("Your account was created. Request a verification email below.");
+
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/verify-email$/);
+    await expect(page.getByRole("heading", { name: "Verify your email" })).toBeVisible();
+    await page.getByRole("button", { name: "Send a new link" }).click();
+    await expect(page.getByRole("status")).toContainText("Verification email sent");
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(axe.violations.filter((item) => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
+
+    await page.goto("/verify-email?userId=fixture-user&secret=expired");
+    await expect(page.getByRole("button", { name: "Confirm email" })).toBeVisible();
+    expect(confirmationCalls).toBe(0);
+    await page.getByRole("button", { name: "Confirm email" }).click();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("invalid or has expired");
+    await page.goto("/verify-email?userId=fixture-user&secret=fixture-secret");
+    await page.getByRole("button", { name: "Confirm email" }).click();
+    await expect(page).toHaveURL(/\/household$/);
+    await expect(page.getByRole("heading", { name: "Household", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Household", exact: true })).toBeVisible();
+
+    await page.goto("/verify-email");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(page).toHaveURL(/\/household$/);
+    expect(confirmationCalls).toBe(2);
+  });
+
   test("phone Expense dates remain below comments in the Appwrite read composition", async ({ page }, testInfo) => {
     const seed = deterministicSeedData();
     const fixture = bootstrap();

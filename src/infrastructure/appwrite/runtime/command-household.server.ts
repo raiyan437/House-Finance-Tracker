@@ -1,6 +1,8 @@
 import "server-only";
+import { Query } from "node-appwrite";
 import type { AtomicApplicationPersistence } from "@/application/repositories";
 import { ApplicationError } from "@/application/errors/application-error";
+import { assertActiveMemberCapacity, assertPendingRequestCapacity, MAX_PENDING_HOUSEHOLD_REQUESTS } from "@/application/household/household-capacity";
 import { type AuditEvent } from "@/domain/records/domain-records";
 import { auditEventId } from "@/domain/shared/identifiers";
 import { membershipRowId } from "../ids";
@@ -8,7 +10,7 @@ import { mapHousehold, mapJoinRequest } from "../reads/mappers.server";
 import { runCommandTransaction } from "./tx-runner.server";
 import { CommandGuardEngine } from "./guards.server";
 import { notificationDraft } from "@/application/notifications/notification-policy";
-import { AppwriteCommandContext, TABLE, MAX_ACTIVE_HOUSEHOLD_MEMBERS } from "./command-context.server";
+import { AppwriteCommandContext, TABLE } from "./command-context.server";
 
 /** household commands retain their original complete transaction boundaries. */
 export class AppwriteHouseholdCommands implements Pick<AtomicApplicationPersistence, "createHousehold" | "createJoinRequest" | "acceptJoinRequest" | "transitionJoinRequest" | "renameHousehold" | "transferLeadership" | "leaveHousehold" | "removeHouseholdMember" | "deleteHousehold"> {
@@ -29,7 +31,7 @@ export class AppwriteHouseholdCommands implements Pick<AtomicApplicationPersiste
 
       const codeOwner = (await tables.listRows(TABLE.households, [])).map(mapHousehold).find((candidate) => candidate.code === household.code);
       if (codeOwner) throw new ApplicationError("CONFLICT", "Household code is already in use.");
-      if ((await this.context.activeMemberships(tables)).some((m) => m.userId === leaderMembership.userId)) {
+      if (await this.context.activeMembershipForUser(tables, String(leaderMembership.userId))) {
         throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
       }
       const pending = (await tables.listRows(TABLE.joinRequests, [])).map(mapJoinRequest)
@@ -87,12 +89,18 @@ async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJo
       const tables = this.context.scoped(tablesDB, tx);
       const guards = new CommandGuardEngine(tablesDB, tx, request.createdAt);
 
-      if ((await this.context.activeMemberships(tables)).some((m) => m.userId === request.userId)) {
+      if (await this.context.activeMembershipForUser(tables, String(request.userId))) {
         throw new ApplicationError("CONFLICT", "The current user already belongs to a household.");
       }
-      const existingPending = (await tables.listRows(TABLE.joinRequests, [])).map(mapJoinRequest)
-        .find((candidate) => candidate.userId === request.userId && candidate.status === "pending");
-      if (existingPending) throw new ApplicationError("CONFLICT", "Cancel the current Pending join request first.");
+      const existingPending = await tables.listRowsBounded(TABLE.joinRequests, [Query.equal("userId", String(request.userId)), Query.equal("status", "pending")], 1);
+      if (existingPending.length > 0) throw new ApplicationError("CONFLICT", "Cancel the current Pending join request first.");
+
+      const householdId = String(request.householdId);
+      // Stage the same guard deletion and acceptance use before reading capacity.
+      await guards.touch("financial", householdId);
+      await this.context.getAliveHousehold(tables, householdId);
+      const pending = await tables.listRowsBounded(TABLE.joinRequests, [Query.equal("householdId", householdId), Query.equal("status", "pending")], MAX_PENDING_HOUSEHOLD_REQUESTS);
+      assertPendingRequestCapacity(pending.length);
 
       await guards.acquire("pending-join", String(request.userId), String(request.userId));
       await tablesDB.createRow({
@@ -141,18 +149,16 @@ async createJoinRequest(input: Parameters<AtomicApplicationPersistence["createJo
       const request = raw ? mapJoinRequest(raw) : undefined;
       if (!request || request.status !== "pending") throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "The join request is no longer Pending.");
 
+      await guards.touch("financial", String(request.householdId));
       const household = await this.context.getAliveHousehold(tables, String(request.householdId));
-      const actorMembership = (await this.context.activeMemberships(tables, household.householdId)).find((m) => m.userId === input.actorId);
+      const activeMembers = await this.context.activeMemberships(tables, household.householdId);
+      const actorMembership = activeMembers.find((m) => m.userId === input.actorId);
       if (!actorMembership || actorMembership.role !== "leader") throw new ApplicationError("NOT_FOUND", "Household join requests not found.");
-      if ((await this.context.activeMemberships(tables)).some((m) => m.userId === request.userId)) {
+      if (await this.context.activeMembershipForUser(tables, String(request.userId))) {
         throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "The requester already belongs to a household.");
       }
-      const activeCount = (await this.context.activeMemberships(tables, household.householdId)).length;
-      if (activeCount >= MAX_ACTIVE_HOUSEHOLD_MEMBERS) {
-        throw new ApplicationError("CONFLICT", "HOUSEHOLD_MEMBER_LIMIT_REACHED");
-      }
+      assertActiveMemberCapacity(activeMembers.length);
 
-      await guards.touch("financial", String(household.householdId));
       await guards.release("pending-join", String(request.userId));
       await guards.acquire("active-membership", String(request.userId), String(request.userId));
 
@@ -346,11 +352,8 @@ async removeHouseholdMember(input: Parameters<AtomicApplicationPersistence["remo
   }
 
 /**
-   * Actual measured worst-case staged writes:
-   * tombstone(1) + M membership updates + M active-membership guard releases +
-   * leader-guard release(1) + financial-guard release(1) + J closures + J
-   * pending-join releases + J closure audits + household audit(1)
-   * = 4 + 2M + 3J ≤ 15 under the four-account envelope (M + J ≤ 4).
+   * At ten members and ten pending requests, the transaction stages at most
+   * 56 writes including the financial guard touch, releases and command outcome.
    */
   async deleteHousehold(input: Parameters<AtomicApplicationPersistence["deleteHousehold"]>[0]): Promise<void> {
     const tablesDB = this.context.tablesDB;
@@ -361,7 +364,11 @@ async removeHouseholdMember(input: Parameters<AtomicApplicationPersistence["remo
       runCommandTransaction(tablesDB, async ({ tx }) => {
       const tables = this.context.scoped(tablesDB, tx);
       const guards = new CommandGuardEngine(tablesDB, tx, input.auditEvent.occurredAt);
+      await guards.touch("financial", String(input.householdId));
       const { household, memberships } = await this.context.requireScopeWithRole(tables, String(input.actorId), "leader");
+      if (household.householdId !== input.householdId) {
+        throw new ApplicationError("HOUSEHOLD_STATE_CHANGED", "Your active household changed before deletion.");
+      }
 
       const context = await this.context.financialContext(tables, String(household.householdId));
       for (const member of memberships) {
@@ -385,8 +392,7 @@ async removeHouseholdMember(input: Parameters<AtomicApplicationPersistence["remo
       await guards.release("active-leader", String(household.householdId));
       await guards.release("financial", String(household.householdId));
 
-      const pendingRequests = (await tables.listRows(TABLE.joinRequests, [])).map(mapJoinRequest)
-        .filter((request) => request.householdId === household.householdId && request.status === "pending");
+      const pendingRequests = (await tables.listRows(TABLE.joinRequests, [Query.equal("householdId", String(household.householdId)), Query.equal("status", "pending")])).map(mapJoinRequest);
       let closureSequence = 0;
       for (const request of pendingRequests) {
         closureSequence += 1;

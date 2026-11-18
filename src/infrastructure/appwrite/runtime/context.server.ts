@@ -7,7 +7,7 @@ import { HouseFinanceApplication, type ApplicationValues, type Dependencies, typ
 import { userId, type UserId } from "@/domain/shared/identifiers";
 import { isoInstant, type IsoInstant } from "@/domain/shared/instant";
 import { AppwriteCommandPersistence } from "./command-persistence.server";
-import { ensureProfile, AUTH_THROTTLE_RULES } from "../auth/account-service.server";
+import { classifyAccount, ensureProfile, isInvalidSession, AUTH_THROTTLE_RULES } from "../auth/account-service.server";
 import { enforceAuthThrottle } from "../auth/throttle.server";
 import { AuthError } from "../auth/auth-errors.server";
 import { createAppwriteAuthClients } from "../auth/clients.server";
@@ -103,9 +103,8 @@ class TrustedSession implements CurrentSession {
 
 /**
  * Resolves the trusted actor from the HttpOnly session secret, mirroring the
- * authentication restore semantics (allowlist check + idempotent Profile
- * bootstrap). Failures classify as anonymous or provider-unavailable without
- * leaking provider detail.
+ * authentication restore semantics (verified account + idempotent Profile
+ * bootstrap). Verification-only sessions never resolve to a product actor.
  */
 export async function resolveTrustedActor(sessionSecret: string | undefined): Promise<TrustedActorResolution> {
   if (!sessionSecret) return Object.freeze({ status: "anonymous" });
@@ -114,21 +113,13 @@ export async function resolveTrustedActor(sessionSecret: string | undefined): Pr
   const clients = createAppwriteAuthClients(config.value);
   try {
     const account = await clients.sessionAccount(sessionSecret).get();
-    const email = account.email.trim().toLowerCase();
-    const emails = config.value.accountEmails;
-    if (emails.status !== "enabled" || !emails.emails.includes(email)) {
-      return Object.freeze({ status: "anonymous" });
-    }
-    await ensureProfile(clients.tablesDB(), { id: account.$id, email: account.email });
+    const access = classifyAccount(account);
+    if (access !== "authenticated") return Object.freeze({ status: access });
+    await ensureProfile(clients.tablesDB(), account.$id);
     return Object.freeze({ status: "authenticated", userId: userId(account.$id), email: account.email });
   } catch (error) {
     const candidate = error as { code?: unknown; type?: unknown };
-    const unauthorized =
-      candidate?.type === "user_unauthorized" ||
-      candidate?.type === "general_unauthorized_scope" ||
-      candidate?.type === "user_not_found" ||
-      (typeof candidate?.code === "number" && (candidate.code === 401 || candidate.code === 403));
-    if (unauthorized) return Object.freeze({ status: "anonymous" });
+    if (isInvalidSession(error)) return Object.freeze({ status: "anonymous" });
     console.error("[trusted-actor] provider failure", {
       code: typeof candidate?.code === "number" ? candidate.code : "unknown",
       type: typeof candidate?.type === "string" ? candidate.type : "unknown",

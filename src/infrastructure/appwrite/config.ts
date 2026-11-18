@@ -14,7 +14,6 @@ export interface AppwriteServerConfig {
   readonly runtimeApiKey: string;
   readonly authSecret: string;
   readonly appOrigin: string;
-  readonly accountEmails: AccountEmailConfiguration;
 }
 
 export interface AppwriteOperatorConfig {
@@ -29,7 +28,6 @@ export interface AppwriteServerConfigResult {
   readonly ok: boolean;
   readonly value?: AppwriteServerConfig;
   readonly errors?: readonly string[];
-  readonly accountEmailsDisabledReason?: Exclude<AccountEmailConfiguration, { status: "enabled" }>["reason"];
 }
 
 export interface AppwriteProvisioningConfig {
@@ -122,8 +120,7 @@ export function loadAppwriteServerConfig(env: Record<string, string | undefined>
   if (!runtimeApiKey) errors.push("HFT_APPWRITE_RUNTIME_API_KEY is required.");
   if (!authSecret) errors.push("HFT_AUTH_HMAC_SECRET is required.");
   if (!appOrigin) errors.push("HFT_APP_ORIGIN must be an origin-only absolute URL and use HTTPS in production.");
-  const accountEmails = normalizeAccountEmails(env.HFT_ALLOWED_ACCOUNT_EMAILS);
-  if (errors.length > 0) return { ok: false, errors, accountEmailsDisabledReason: accountEmails.status === "disabled" ? accountEmails.reason : undefined };
+  if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
     value: {
@@ -132,7 +129,6 @@ export function loadAppwriteServerConfig(env: Record<string, string | undefined>
       runtimeApiKey: runtimeApiKey as string,
       authSecret: authSecret as string,
       appOrigin: appOrigin as string,
-      accountEmails,
     },
   };
 }

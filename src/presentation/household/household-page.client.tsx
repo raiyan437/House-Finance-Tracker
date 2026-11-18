@@ -9,6 +9,7 @@ import type {
   HouseholdMemberView,
 } from "@/application/household/household-page";
 import type { LeaderJoinRequestView } from "@/application/services/application-services";
+import { ApplicationError } from "@/application/errors/application-error";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/presentation/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/presentation/components/async-state";
@@ -89,7 +90,9 @@ function LeaderRequestRow({ request, householdName }: Readonly<{ request: Leader
         <ConfirmDialog
           confirmLabel="Accept request"
           description="They will gain access to the household after acceptance."
-          errorMessage="The request, requester eligibility, or Household leadership changed. Review the current status before confirming again."
+          errorMessage={(error) => error instanceof ApplicationError && error.code === "HOUSEHOLD_MEMBER_LIMIT_REACHED"
+            ? error.message
+            : "The request, requester eligibility, or Household leadership changed. Review the current status before confirming again."}
           onConfirm={accept}
           title={`Accept ${request.requesterName} into ${householdName}?`}
           trigger={<Button className="min-h-11 min-w-20" disabled={!canMutate} size="sm">Accept</Button>}

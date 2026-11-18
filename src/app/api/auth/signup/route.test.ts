@@ -34,7 +34,7 @@ describe("signup route input boundary", () => {
 
   it("passes only validated signup intent and the request IP", async () => {
     mocks.signup.mockReset();
-    mocks.signup.mockResolvedValue({ status: 201, body: { status: "authenticated" } });
+    mocks.signup.mockResolvedValue({ status: 201, body: { status: "verification-required" } });
     const input = { email: "raiyan@test.io", password: "new-password", confirmPassword: "new-password" };
     const response = await POST(request(input));
     expect(response.status).toBe(201);

@@ -29,16 +29,18 @@ export function SignupForm() {
   const [accountExists, setAccountExists] = useState(false);
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { email: "", password: "", confirmPassword: "" },
   });
 
   return (
     <form
       className="grid gap-4"
+      method="post"
       noValidate
       onSubmit={form.handleSubmit((values) => {
         setAccountExists(false);
-        void submit(values, "/api/auth/signup", () => router.push("/dashboard"), (payload) => {
+        void submit(values, "/api/auth/signup", (payload) => {
+          router.replace(payload.verificationEmailSent === false ? "/verify-email?delivery=failed" : "/verify-email");
+        }, (payload) => {
           setAccountExists(payload.code === "ACCOUNT_EXISTS");
           form.setFocus("email");
         });

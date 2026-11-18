@@ -99,7 +99,7 @@ export function ProfilePageClient() {
               <p className="text-sm font-semibold">{hasHousehold ? session.roleLabel : "No household"}</p>
             </div>
           </div>
-          <p className="mt-4 text-xs leading-5 text-text-muted">Your sign-in email is fixed for this approved account.</p>
+          <p className="mt-4 text-xs leading-5 text-text-muted">Your sign-in email is fixed for this account.</p>
         </Surface>
       </div>
 
